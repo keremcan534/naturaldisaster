@@ -29,6 +29,10 @@ const SEA_LEVEL := -2.5
 
 ## Jump pressed this long before landing still jumps; walking off an edge still
 ## allows a jump this long after.
+## Climbing speed on ladders (pieces tagged "ladder"); how long after touching
+## one the player still counts as on it.
+const CLIMB_SPEED := 4.5
+const LADDER_GRACE := 0.2
 const JUMP_BUFFER := 0.15
 const COYOTE_TIME := 0.12
 const FOV := 80.0
@@ -52,6 +56,7 @@ var _head: Node3D
 var _camera: Camera3D
 var _shake := 0.0
 var _shake_time := 0.0
+var _ladder := 0.0
 var _jump_buffer := 0.0
 var _coyote := 0.0
 var _bob_phase := 0.0
@@ -187,6 +192,11 @@ func _physics_process(delta: float) -> void:
 	_update_breath(delta)
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	# On a ladder, pushing forward climbs and letting go slides down slowly.
+	_ladder -= delta
+	if _ladder > 0.0 and not in_water:
+		velocity.y = CLIMB_SPEED * -input.y if input.y < -0.2 else maxf(velocity.y, -1.5)
+		_fall_speed = 0.0
 	# Analog: a half-pushed stick walks at half speed.
 	var dir := transform.basis * Vector3(input.x, 0, input.y)
 	var speed := SPRINT_SPEED if Input.is_action_pressed("sprint") else SPEED
@@ -199,11 +209,29 @@ func _physics_process(delta: float) -> void:
 	velocity.x = _walk.x + _push.x
 	velocity.z = _walk.z + _push.z
 	move_and_slide()
+	_touch_pieces()
 	# Grass and flowers bend away from the player's legs.
 	RenderingServer.global_shader_parameter_set("player_pos", global_position)
 
 	if global_position.y < KILL_HEIGHT:
 		take_damage(MAX_HEALTH)
+
+
+## Reacts to tagged structure pieces touched this step: trampolines ("bounce":
+## launch speed) and ladders.
+func _touch_pieces() -> void:
+	for i in get_slide_collision_count():
+		var hit := get_slide_collision(i)
+		var piece := hit.get_collider() as Node
+		if piece == null:
+			continue
+		if piece.has_meta("bounce") and hit.get_normal().y > 0.6:
+			velocity.y = piece.get_meta("bounce")
+			_fall_speed = 0.0
+			_coyote = 0.0
+			add_shake(0.15)
+		elif piece.has_meta("ladder") and absf(hit.get_normal().y) < 0.4:
+			_ladder = LADDER_GRACE
 
 
 func _process(delta: float) -> void:

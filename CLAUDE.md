@@ -29,7 +29,15 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   after adding pieces. Shaders on batched boxes must read the piece size from
   `MODEL_MATRIX` scale, not from `VERTEX`.
 - `scripts/world/interior.gd`: rooms per floor (partition with a doorway) and furniture
-  against the walls; all ordinary structure pieces.
+  against the walls (homes, or lobby + desks for offices); `place()` is reused by the
+  mall's shops. All ordinary structure pieces.
+- `scripts/world/mall.gd`: the mall map's building: atrium with skylight, columns,
+  escalator ramps (`Structure.add_incline`), glass railings, shops, food court, fountain,
+  arcade, cinema, roof car park.
+- Pieces can carry a meta the player reacts to: `"bounce"` (trampolines, launch speed)
+  and `"ladder"` (climb while pushing forward). Slabs only hold two cells sideways from
+  what supports them: when adding open floors, check every structure with `_settle()`
+  right after building (nothing may drop at rest).
 - `scripts/world/look.gd`: the visual style; procedural textures (generated once, no
   image files) and cached materials. Structures get theirs through `Look.surface(color)`;
   `Look.GLASS_KEY` pieces get see-through glass (window shader), `CAR_GLASS_KEY` plain
@@ -53,7 +61,9 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   nights get stars and an aurora, and a lens flare follows the sun.
 - `scripts/world/effects.gd`: pooled particle bursts (explosions, dust from breaking
   pieces), reached through `call_group("effects", ...)`.
-- `scripts/world/maps.gd`: the small maps (skyscraper, garden house, apartment, neighbourhood).
+- `scripts/world/maps.gd`: the maps (skyscraper with offices and a helipad, garden house
+  with a playground, apartment, neighbourhood, mall); trampolines, slides and ladders up
+  some buildings.
 - `scripts/disasters/`: `disaster.gd` base + one file per disaster, registered in
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
 - `scripts/player/player.gd`: first-person controller; world effects go through

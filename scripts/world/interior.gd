@@ -12,6 +12,7 @@ const STEEL := Color(0.7, 0.72, 0.74)
 const POT := Color(0.62, 0.33, 0.22)
 const FABRICS := [Color(0.32, 0.38, 0.5), Color(0.55, 0.28, 0.24), Color(0.45, 0.45, 0.42), Color(0.3, 0.45, 0.35)]
 const RUGS := [Color(0.6, 0.25, 0.2), Color(0.25, 0.3, 0.45), Color(0.7, 0.62, 0.45)]
+const SCREENS := [Color(0.35, 0.6, 1.0), Color(1.0, 0.4, 0.6), Color(0.4, 1.0, 0.6), Color(1.0, 0.8, 0.3)]
 const BOOKS := [Color(0.6, 0.2, 0.2), Color(0.2, 0.35, 0.55), Color(0.75, 0.65, 0.3)]
 ## Space kept free in front of doors and stairs.
 const CLEARANCE := 0.5
@@ -46,6 +47,22 @@ const ITEMS := {
 			[Vector3(0, 1.6, 0), Vector3(0.4, 0.3, 0.4), "lamp"]],
 	"plant": [[Vector3(0, 0.225, 0), Vector3(0.4, 0.45, 0.4), POT],
 			[Vector3(0, 0.9, 0), Vector3(0.8, 0.9, 0.8), "leaves"]],
+	"chair": [[Vector3(0, 0.22, 0), Vector3(0.45, 0.44, 0.45), DARK_WOOD],
+			[Vector3(0, 0.66, -0.2), Vector3(0.45, 0.44, 0.06), DARK_WOOD]],
+	# Clothes on a rail: two posts, a bar, and a row of garments.
+	"rack": [[Vector3(-0.7, 0.75, 0), Vector3(0.05, 1.5, 0.05), STEEL],
+			[Vector3(0.7, 0.75, 0), Vector3(0.05, 1.5, 0.05), STEEL],
+			[Vector3(0, 1.525, 0), Vector3(1.45, 0.05, 0.05), STEEL],
+			[Vector3(0, 1.075, 0), Vector3(1.4, 0.85, 0.45), "fabric"]],
+	"display": [[Vector3(0, 0.45, 0), Vector3(1.6, 0.9, 0.6), WHITE],
+			[Vector3(0, 1.15, -0.05), Vector3(1.0, 0.5, 0.06), "screen"]],
+	"arcade": [[Vector3(0, 0.85, 0), Vector3(0.8, 1.7, 0.7), "fabric"],
+			[Vector3(0, 1.2, 0.36), Vector3(0.6, 0.45, 0.02), "screen"]],
+	"cooler": [[Vector3(0, 0.55, 0), Vector3(0.35, 1.1, 0.35), WHITE],
+			[Vector3(0, 1.3, 0), Vector3(0.3, 0.4, 0.3), Color(0.55, 0.75, 0.95)]],
+	"reception": [[Vector3(0, 0.55, 0), Vector3(2.6, 1.1, 0.7), WOOD],
+			[Vector3(0, 1.125, 0), Vector3(2.7, 0.05, 0.8), DARK_WOOD]],
+	"bench": [[Vector3(0, 0.22, 0), Vector3(1.8, 0.44, 0.5), WOOD]],
 }
 ## Items that stand in the middle of a room rather than against a wall.
 const CENTERED := ["table", "rug"]
@@ -54,6 +71,14 @@ const ROOMS := {
 	"living": ["rug", "sofa", "tv", "lamp", "plant"],
 	"bedroom": ["bed", "wardrobe", "lamp", "rug"],
 	"office": ["desk", "shelf", "sofa", "plant"],
+	# Office towers.
+	"lobby": ["reception", "sofa", "plant", "plant", "rug", "sofa"],
+	"workspace": ["desk", "desk", "desk", "desk", "cooler", "shelf", "plant", "desk"],
+	# Mall shops.
+	"clothes": ["rack", "rack", "rack", "counter", "plant"],
+	"electronics": ["display", "display", "shelf", "counter"],
+	"cafe": ["counter", "table", "table", "chair", "chair", "plant"],
+	"toys": ["shelf", "shelf", "rug", "arcade"],
 }
 
 static var _lamp_meshes := {}
@@ -63,7 +88,7 @@ static var _lamp_meshes := {}
 ## preloads this file). floor_y is the top of its floor slab; h the wall height.
 ## With stairs, the back-left 2x2 cells hold the ramp and the hole from below.
 static func furnish(s, origin: Vector3, footprint: Vector2i, f: int, floor_y: float, h: float,
-		stairs: bool, cell: float, wall: float, rng: RandomNumberGenerator) -> void:
+		stairs: bool, cell: float, wall: float, rng: RandomNumberGenerator, office := false) -> void:
 	var w := footprint.x * cell
 	var d := footprint.y * cell
 	var blocked: Array[Rect2] = []
@@ -92,18 +117,21 @@ static func furnish(s, origin: Vector3, footprint: Vector2i, f: int, floor_y: fl
 
 	for r in rooms.size():
 		var kind: String
-		if f == 0:
+		if office:
+			kind = "lobby" if f == 0 else "workspace"
+		elif f == 0:
 			kind = "kitchen" if r == 0 and rooms.size() > 1 else "living"
 		else:
 			kind = ["bedroom", "office"][(r + f) % 2]
 		var placed: Array[Rect2] = blocked.duplicate()
 		for item: String in ROOMS[kind]:
-			_place(s, origin, floor_y, rooms[r], item, placed, rng)
+			place(s, origin, floor_y, rooms[r], item, placed, rng)
 
 
 ## Tries a few spots for an item: against a random wall of the room, or in its
-## middle for CENTERED items. Gives up quietly if the room is too full.
-static func _place(s, origin: Vector3, floor_y: float, room: Rect2, item: String,
+## middle for CENTERED items. Gives up quietly if the room is too full. placed
+## holds the floor already taken (and is extended).
+static func place(s, origin: Vector3, floor_y: float, room: Rect2, item: String,
 		placed: Array[Rect2], rng: RandomNumberGenerator) -> void:
 	var parts: Array = ITEMS[item]
 	var extent := Vector2.ZERO
@@ -161,6 +189,8 @@ static func _place(s, origin: Vector3, floor_y: float, room: Rect2, item: String
 					s.add_box(pos, size, Color.WHITE, basis, _lamp_mesh(size))
 				"leaves":
 					s.add_box(pos, size, Color.GREEN, basis, Look.canopy(size, Color(0.25, 0.5, 0.22)))
+				"screen":
+					s.add_box(pos, size, Color.BLACK, basis, Look.glow(size, SCREENS[rng.randi() % SCREENS.size()], 1.6))
 				_:
 					s.add_box(pos, size, look, basis)
 		return

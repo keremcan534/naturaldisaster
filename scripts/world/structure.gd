@@ -96,9 +96,10 @@ func _ready() -> void:
 ## center is in this node's local space. A rotated piece links to its neighbours
 ## through its axis-aligned bounds. visual replaces the box mesh (tree canopies,
 ## trunks); the collision shape stays a box. material replaces Look.surface(color)
-## on the box (color still picks the debris look).
+## on the box (color still picks the debris look). Returns the piece, e.g. to tag
+## it with a "bounce" or "ladder" meta the player reacts to.
 func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis := Basis.IDENTITY, visual: Mesh = null,
-		material: Material = null) -> void:
+		material: Material = null) -> RigidBody3D:
 	var rb := RigidBody3D.new()
 	rb.collision_layer = 2
 	rb.collision_mask = 1 | 2 | 4
@@ -140,12 +141,28 @@ func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis :=
 	_colors.append(color)
 	_solid.append(visual == null)
 	_bounds = box if _pieces.size() == 1 else _bounds.merge(box)
+	return rb
+
+
+## A sloped slab whose top surface runs from a to b (local space; the slope is
+## along x or z), width across. Ramps, escalators, slides.
+func add_incline(a: Vector3, b: Vector3, width: float, thickness: float, color: Color) -> RigidBody3D:
+	var along := b - a
+	var dir := along.normalized()
+	var flat := Vector3(along.x, 0, along.z).normalized()
+	var side := flat.cross(Vector3.UP)
+	var normal := side.cross(dir).normalized()
+	if normal.y < 0.0:
+		normal = -normal
+	var center := (a + b) * 0.5 - normal * thickness * 0.5
+	var basis := Basis(dir, normal, dir.cross(normal))
+	return add_box(center, Vector3(along.length(), thickness, width), color, basis)
 
 
 ## A building with its front door facing +Z. With stairs (footprint at least 3x3),
 ## ramps in the back-left corner connect every floor and the roof. Floors get
 ## rooms and furniture (see interior.gd).
-func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Color, with_stairs := true) -> void:
+func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Color, with_stairs := true, office := false) -> void:
 	var stairs := with_stairs and footprint.x >= 3 and footprint.y >= 3
 	# Wooden floors and white ceilings inside; the edges show as a band between storeys.
 	var slab_color := color.darkened(0.3)
@@ -190,7 +207,7 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 			add_box(origin + Vector3(-w * 0.5 + WALL_THICKNESS * 0.5, cy, z), panel, c, FACING_LEFT, null, mat)
 		if stairs:
 			_add_ramp(origin, w, d, f, color.darkened(0.15))
-		Interior.furnish(self, origin, footprint, f, wall_bottom, h, stairs, CELL, WALL_THICKNESS, rng)
+		Interior.furnish(self, origin, footprint, f, wall_bottom, h, stairs, CELL, WALL_THICKNESS, rng, office)
 	var roof := floors * FLOOR_HEIGHT
 	_add_slab(origin, footprint, roof, slab_color, (floors - 1) % 2 if stairs else -1, Look.roof(slab_color))
 	_add_parapet(origin, footprint, roof + SLAB_THICKNESS, color.darkened(0.1))

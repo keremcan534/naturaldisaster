@@ -4,8 +4,13 @@ extends RefCounted
 
 const Structure := preload("res://scripts/world/structure.gd")
 const Look := preload("res://scripts/world/look.gd")
+const Mall := preload("res://scripts/world/mall.gd")
 
-const COUNT := 4
+const COUNT := 5
+const PLAZA_COLOR := Color(0.72, 0.7, 0.66)
+const TRAMPOLINE_COLOR := Color(0.15, 0.45, 0.95)
+## Launch speed (m/s) off a trampoline.
+const BOUNCE := 13.0
 const LEAF_COLOR := Color(0.22, 0.48, 0.2)
 const LEAF_LIGHT_COLOR := Color(0.32, 0.58, 0.24)
 const TRUNK_COLOR := Color(0.45, 0.3, 0.18)
@@ -49,8 +54,10 @@ static func build(index: int, root: Node3D) -> Dictionary:
 			info = _garden_house(root)
 		2:
 			info = _apartment(root)
-		_:
+		3:
 			info = _neighbourhood(root)
+		_:
+			info = _mall(root)
 	_scatter_grass(root, index)
 	Look.set_shades(_shades)
 	return info
@@ -61,7 +68,8 @@ static func _skyscraper(root: Node3D) -> Dictionary:
 	_ground(root, size, Color(0.55, 0.55, 0.52))
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_decal(root, Vector3(corner.x * 19, 0, corner.y * 19), Vector2(14, 14), GRASS_COLOR)
-	_building(root, Vector3(0, 0, -2), Vector2i(5, 5), 10, Color(0.7, 0.76, 0.82), 1.3)
+	var tower := _building(root, Vector3(0, 0, -2), Vector2i(5, 5), 10, Color(0.7, 0.76, 0.82), 1.3, false, true)
+	_helipad(tower, Vector3(1.0, 10 * Structure.FLOOR_HEIGHT + Structure.SLAB_THICKNESS, 1.0))
 	var props := _props()
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_tree(props, Vector3(corner.x * 19, 0, corner.y * 19))
@@ -76,10 +84,12 @@ static func _garden_house(root: Node3D) -> Dictionary:
 	_ground(root, size, GRASS_COLOR)
 	_decal(root, Vector3(0, 0, 9), Vector2(2, 14), PATH_COLOR)
 	_pool(root, Vector3(-10, 0, 6), Vector2(6, 4))
-	_building(root, Vector3(0, 0, -6), Vector2i(6, 5), 2, Color(0.9, 0.82, 0.68), 1.0)
+	_building(root, Vector3(0, 0, -6), Vector2i(6, 5), 2, Color(0.9, 0.82, 0.68), 1.0, true)
 	_building(root, Vector3(12, 0, -1), Vector2i(3, 3), 1, Color(0.6, 0.42, 0.3), 0.8)
 	var props := _props()
 	_fence(props, Rect2(-18, -18, 36, 34), 2.0)
+	_trampoline(props, Vector3(9, 0, 9))
+	_slide(props, Vector3(-15, 0, -4))
 	for pos: Vector3 in [Vector3(-12, 0, -13), Vector3(12, 0, -13), Vector3(-14, 0, 12), Vector3(13, 0, 10)]:
 		_tree(props, pos)
 	root.add_child(props)
@@ -91,7 +101,7 @@ static func _apartment(root: Node3D) -> Dictionary:
 	_ground(root, size, GRASS_COLOR)
 	_road(root, Vector3(0, 0, 14), size, true)
 	_decal(root, Vector3(0, 0, 5.5), Vector2(2, 7), PATH_COLOR)
-	_building(root, Vector3(0, 0, -3), Vector2i(7, 5), 6, Color(0.85, 0.62, 0.5), 1.1)
+	_building(root, Vector3(0, 0, -3), Vector2i(7, 5), 6, Color(0.85, 0.62, 0.5), 1.1, true)
 	var props := _props()
 	for i in 4:
 		_car(props, Vector3(-15 + i * 10, 0, 14), i % 2 == 0, CAR_COLORS[i])
@@ -112,12 +122,15 @@ static func _neighbourhood(root: Node3D) -> Dictionary:
 	var lots := [Vector3(-18, 0, -18), Vector3(18, 0, -18), Vector3(-18, 0, 18), Vector3(18, 0, 18)]
 	for k in lots.size():
 		var footprint := Vector2i(rng.randi_range(4, 6), rng.randi_range(4, 5))
-		_building(root, lots[k], footprint, rng.randi_range(2, 5), colors[k], rng.randf_range(0.7, 1.4))
+		_building(root, lots[k], footprint, rng.randi_range(2, 5), colors[k], rng.randf_range(0.7, 1.4), k % 2 == 0)
 	var props := _props()
 	for pos: Vector3 in [Vector3(-30, 0, -6), Vector3(30, 0, 6), Vector3(-6, 0, 30), Vector3(6, 0, -30)]:
 		_tree(props, pos)
 	_car(props, Vector3(-2, 0, 22), false, CAR_COLORS[0])
 	_car(props, Vector3(24, 0, 2), true, CAR_COLORS[2])
+	_trampoline(props, Vector3(-8, 0, 8))
+	_trampoline(props, Vector3(8, 0, -8))
+	_slide(props, Vector3(6, 0, 30))
 	root.add_child(props)
 	return {"name": "Mahalle", "size": size, "spawn": Vector3(0, 0.5, 0)}
 
@@ -188,15 +201,88 @@ static func _flat(root: Node3D, center: Vector3, size: Vector2, material: Materi
 	return mesh
 
 
-static func _building(root: Node3D, pos: Vector3, footprint: Vector2i, floors: int, color: Color, strength: float) -> void:
+## ladder: a ladder up the right side to the roof. office: lobby and desks inside.
+static func _building(root: Node3D, pos: Vector3, footprint: Vector2i, floors: int, color: Color, strength: float,
+		ladder := false, office := false) -> Structure:
 	var building := Structure.new()
 	building.position = pos
 	building.strength = strength
-	building.add_building(Vector3.ZERO, footprint, floors, color)
+	building.add_building(Vector3.ZERO, footprint, floors, color, true, office)
+	if ladder:
+		var height := floors * Structure.FLOOR_HEIGHT + Structure.SLAB_THICKNESS + Structure.PARAPET_HEIGHT + 1.0
+		var x := footprint.x * Structure.CELL * 0.5 + 0.08
+		var z := (footprint.y % 2) * Structure.CELL * 0.5
+		var rung := building.add_box(Vector3(x, height * 0.5, z), Vector3(0.6, height, 0.12), Color(0.75, 0.62, 0.2),
+				Basis(Vector3.UP, PI * 0.5), Look.ladder(height))
+		rung.set_meta("ladder", true)
 	root.add_child(building)
 	var rect := _rect(pos, Vector2(footprint) * Structure.CELL)
 	_bare.append(rect)
 	_shades.append(rect)
+	return building
+
+
+## A big bouncy pad on a dark frame; landing on it throws you up.
+static func _trampoline(props: Structure, pos: Vector3) -> void:
+	props.add_box(pos + Vector3(0, 0.2, 0), Vector3(2.4, 0.4, 2.4), Color(0.15, 0.15, 0.17))
+	var pad := props.add_box(pos + Vector3(0, 0.45, 0), Vector3(2.0, 0.1, 2.0), TRAMPOLINE_COLOR)
+	pad.set_meta("bounce", BOUNCE)
+	_bare.append(_rect(pos, Vector2(2.4, 2.4)))
+
+
+## A slide: a post and platform with a ladder at the back and a steep chute down
+## toward +x.
+static func _slide(props: Structure, pos: Vector3) -> void:
+	var top := 2.6
+	props.add_box(pos + Vector3(0, (top - 0.15) * 0.5, 0), Vector3(0.3, top - 0.15, 0.3), Color(0.85, 0.2, 0.2))
+	props.add_box(pos + Vector3(0, top - 0.075, 0), Vector3(1.4, 0.15, 1.4), Color(0.95, 0.75, 0.15))
+	var ladder_height := top + 1.3
+	var ladder := props.add_box(pos + Vector3(-0.78, ladder_height * 0.5, 0), Vector3(0.6, ladder_height, 0.12),
+			Color(0.75, 0.62, 0.2), Basis(Vector3.UP, -PI * 0.5), Look.ladder(ladder_height))
+	ladder.set_meta("ladder", true)
+	props.add_incline(pos + Vector3(0.7, top, 0), pos + Vector3(3.0, 0.08, 0), 0.9, 0.12, Color(0.2, 0.55, 0.95))
+	_bare.append(_rect(pos + Vector3(1.0, 0, 0), Vector2(4.2, 1.6)))
+
+
+## A painted H on a roof, for show.
+static func _helipad(building: Structure, center: Vector3) -> void:
+	var paint := Color(0.95, 0.8, 0.15)
+	building.add_box(center + Vector3(-0.9, 0.01, 0), Vector3(0.35, 0.02, 2.6), paint)
+	building.add_box(center + Vector3(0.9, 0.01, 0), Vector3(0.35, 0.02, 2.6), paint)
+	building.add_box(center + Vector3(0, 0.01, 0), Vector3(1.45, 0.02, 0.35), paint)
+
+
+static func _mall(root: Node3D) -> Dictionary:
+	var size := 72.0
+	_ground(root, size, GRASS_COLOR)
+	_road(root, Vector3(0, 0, 27), size, true)
+	_decal(root, Vector3(0, 0, 10), Vector2(16, 18), PLAZA_COLOR)
+	var mall := Structure.new()
+	mall.position = Vector3(0, 0, -8)
+	mall.strength = 1.4
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	Mall.build(mall, rng)
+	var roof := Mall.FLOORS * Structure.FLOOR_HEIGHT + Structure.SLAB_THICKNESS
+	_car(mall, Vector3(-8, roof, 5), false, CAR_COLORS[0])
+	_car(mall, Vector3(7, roof, -6), true, CAR_COLORS[1])
+	_car(mall, Vector3(8, roof, 5), false, CAR_COLORS[2])
+	root.add_child(mall)
+	var rect := _rect(mall.position, Vector2(Mall.SIZE) * Structure.CELL)
+	_bare.append(rect)
+	_shades.append(rect)
+
+	var props := _props()
+	_trampoline(props, Vector3(-5, 0, 12))
+	_trampoline(props, Vector3(5, 0, 12))
+	for x: float in [-30.0, -20.0, 20.0, 30.0]:
+		_tree(props, Vector3(x, 0, 12))
+	for pos: Vector3 in [Vector3(-28, 0, -26), Vector3(28, 0, -26), Vector3(-28, 0, -6), Vector3(28, 0, -6)]:
+		_tree(props, pos)
+	for i in 4:
+		_car(props, Vector3(-24 + i * 14, 0, 27), true, CAR_COLORS[(i + 1) % CAR_COLORS.size()])
+	root.add_child(props)
+	return {"name": "AVM", "size": size, "spawn": Vector3(0, 0.5, 19)}
 
 
 ## Trees, fences and cars share one structure; it is added to the tree after filling.

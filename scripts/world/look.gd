@@ -39,6 +39,8 @@ static var _grass: ShaderMaterial
 static var _tuft: ArrayMesh
 static var _flower: ArrayMesh
 static var _flowers: ShaderMaterial
+static var _ladders := {}
+static var _glows := {}
 
 
 ## Box pieces: the color times a plaster-like panel texture with darkened edges.
@@ -287,6 +289,60 @@ static func grass_tuft() -> ArrayMesh:
 		_tuft = ArrayMesh.new()
 		_tuft.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return _tuft
+
+
+## A ladder: two rails and rungs every 30 cm, in a box of 0.6 x height x 0.12.
+static func ladder(height: float) -> Mesh:
+	if not _ladders.has(height):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for side: float in [-0.27, 0.27]:
+			_add_cube(st, Vector3(side, 0, 0), Vector3(0.06, height, 0.08))
+		var rung := -height * 0.5 + 0.25
+		while rung < height * 0.5 - 0.1:
+			_add_cube(st, Vector3(0, rung, 0), Vector3(0.5, 0.04, 0.05))
+			rung += 0.3
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.75, 0.62, 0.2)
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mat.metallic = 0.6
+		mat.roughness = 0.4
+		st.set_material(mat)
+		_ladders[height] = st.commit()
+	return _ladders[height]
+
+
+## A box that glows by itself (screens, signs, cinema screen).
+static func glow(size: Vector3, color: Color, energy: float) -> Mesh:
+	var key := [size, color, energy]
+	if not _glows.has(key):
+		var mesh := BoxMesh.new()
+		mesh.size = size
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = color
+		mat.emission_enabled = true
+		mat.emission = color
+		mat.emission_energy_multiplier = energy
+		mesh.material = mat
+		_glows[key] = mesh
+	return _glows[key]
+
+
+static func _add_cube(st: SurfaceTool, center: Vector3, size: Vector3) -> void:
+	var h := size * 0.5
+	for axis in 3:
+		for sign_value: float in [-1.0, 1.0]:
+			var n := Vector3.ZERO
+			n[axis] = sign_value
+			var u := Vector3.ZERO
+			u[(axis + 1) % 3] = 1.0
+			var v := n.cross(u)
+			var c := center + n * h
+			var du := u * h
+			var dv := v * h
+			st.set_normal(n)
+			for corner in [c - du - dv, c + du - dv, c + du + dv, c - du - dv, c + du + dv, c - du + dv]:
+				st.add_vertex(corner)
 
 
 static func flowers_material() -> ShaderMaterial:
