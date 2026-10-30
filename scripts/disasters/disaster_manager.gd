@@ -54,11 +54,13 @@ func _enter(state: State) -> void:
 	match state:
 		State.INTERMISSION:
 			world.load_next_map()
+			world.set_mood("clear")
 			get_tree().call_group("player", "respawn", world.spawn_point)
 			_time_left = intermission_time * time_scale
 			status_changed.emit("Harita: %s - sonraki felakete hazırlan" % world.map_name)
 		State.WARNING:
 			_current = _pick_disaster()
+			world.set_mood(_current.mood)
 			_time_left = warning_time * time_scale
 			status_changed.emit("UYARI: %s geliyor! %s" % [_current.display_name, _current.warning])
 		State.ACTIVE:

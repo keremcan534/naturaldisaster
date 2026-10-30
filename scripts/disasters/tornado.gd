@@ -14,6 +14,8 @@ const CORE_DAMAGE_PER_SEC := 15.0
 const FIELD_INTERVAL := 0.1
 const DEBRIS_COUNT := 60
 
+const Look := preload("res://scripts/world/look.gd")
+
 var _pos := Vector3.ZERO
 var _target := Vector3.ZERO
 var _half := 30.0
@@ -30,6 +32,7 @@ func _init() -> void:
 	display_name = "Hortum"
 	warning = "Hortumun yolundan çekil!"
 	duration = 30.0
+	mood = "storm"
 
 
 func begin() -> void:
@@ -66,6 +69,8 @@ func begin() -> void:
 		funnel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_root.add_child(funnel)
 		_funnels.append(funnel)
+
+	_root.add_child(_dust_cloud())
 
 	# Orbiting chunks are visual only: one MultiMesh, one draw call.
 	var chunk := BoxMesh.new()
@@ -140,3 +145,31 @@ func _pick_target() -> void:
 	else:
 		var r := _half * 0.7
 		_target = Vector3(randf_range(-r, r), 0, randf_range(-r, r))
+
+
+## Dust kicked up around the funnel's foot; world-space, so it trails behind.
+func _dust_cloud() -> CPUParticles3D:
+	var quad := QuadMesh.new()
+	quad.material = Look.sprite()
+	var p := CPUParticles3D.new()
+	p.mesh = quad
+	p.amount = 40
+	p.lifetime = 2.5
+	p.local_coords = false
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	p.emission_ring_axis = Vector3.UP
+	p.emission_ring_radius = RADIUS * 0.6
+	p.emission_ring_inner_radius = 1.0
+	p.emission_ring_height = 0.5
+	p.direction = Vector3.UP
+	p.spread = 50.0
+	p.initial_velocity_min = 2.0
+	p.initial_velocity_max = 6.0
+	p.gravity = Vector3(0, 1.0, 0)
+	p.scale_amount_min = 3.0
+	p.scale_amount_max = 6.0
+	p.scale_amount_curve = Look.grow(0.4)
+	p.color_ramp = Look.ramp([Color(0.42, 0.36, 0.3, 0.0), Color(0.42, 0.36, 0.3, 0.7), Color(0.5, 0.46, 0.42, 0)])
+	p.position.y = 0.5
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p

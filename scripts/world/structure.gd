@@ -24,6 +24,8 @@ const QUAKE_PIECES_PER_TICK := 2.5
 const HOLD_FORCE := 25.0
 ## Break chance per second when the force is double the hold.
 const BREAK_RATE := 5.0
+## Minimum time between dust puffs from one structure.
+const DUST_INTERVAL_MS := 120
 
 static var _meshes := {}
 static var _shapes := {}
@@ -40,6 +42,7 @@ var _grounded := PackedByteArray()
 var _up: Array[Array] = []
 var _side: Array[Array] = []
 var _bounds := AABB()
+var _last_dust_ms := -DUST_INTERVAL_MS
 
 
 func _ready() -> void:
@@ -242,6 +245,10 @@ func apply_field(region: AABB, force_at: Callable, delta: float) -> void:
 
 
 func _release(i: int) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_dust_ms >= DUST_INTERVAL_MS:
+		_last_dust_ms = now
+		get_tree().call_group("effects", "dust", _pieces[i].global_position)
 	_loose[i] = 1
 	_pieces[i].freeze = false
 	_pieces[i].sleeping = false

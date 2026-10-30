@@ -36,6 +36,7 @@ func _init() -> void:
 	display_name = "Volkan"
 	warning = "Lavdan ve düşen kayalardan uzak dur!"
 	duration = 30.0
+	mood = "ash"
 
 
 func begin() -> void:
@@ -158,15 +159,7 @@ func _smoke() -> GPUParticles3D:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.albedo_color = Color(0.2, 0.2, 0.2, 0.6)
-	# Soft round puff instead of a hard square.
-	var puff := GradientTexture2D.new()
-	puff.fill = GradientTexture2D.FILL_RADIAL
-	puff.fill_from = Vector2(0.5, 0.5)
-	puff.fill_to = Vector2(0.5, 0.0)
-	puff.gradient = Gradient.new()
-	puff.gradient.set_color(0, Color.WHITE)
-	puff.gradient.set_color(1, Color(1, 1, 1, 0))
-	mat.albedo_texture = puff
+	mat.albedo_texture = Look.puff_texture()
 	quad.material = mat
 	var smoke := GPUParticles3D.new()
 	smoke.amount = 48

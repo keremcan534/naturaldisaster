@@ -32,12 +32,14 @@ var _hit_players := {}
 var _root: Node3D
 var _body: MeshInstance3D
 var _crest: MeshInstance3D
+var _spray: CPUParticles3D
 
 
 func _init() -> void:
 	display_name = "Tsunami"
 	warning = "Üst katlara ya da çatıya çık!"
 	duration = 28.0
+	mood = "overcast"
 
 
 func begin() -> void:
@@ -53,6 +55,8 @@ func begin() -> void:
 	var crest_mesh := PrismMesh.new()
 	crest_mesh.left_to_right = 1.0
 	_crest = _water_mesh(crest_mesh, 0.92, Color(0.75, 0.88, 0.9))
+	_spray = _make_spray()
+	_root.add_child(_spray)
 
 
 func _physics_process(delta: float) -> void:
@@ -110,6 +114,8 @@ func _update_meshes(travel: float) -> void:
 	_crest.visible = travel < 1.0
 	_crest.scale = Vector3(CREST_DEPTH, CREST_HEIGHT - BOTTOM, width)
 	_crest.position = Vector3(_front - CREST_DEPTH * 0.5, (CREST_HEIGHT + BOTTOM) * 0.5, 0)
+	_spray.emitting = _crest.visible
+	_spray.position = Vector3(_front - 0.5, CREST_HEIGHT, 0)
 
 
 func _water_mesh(mesh: PrimitiveMesh, alpha: float, shallow: Color) -> MeshInstance3D:
@@ -124,3 +130,28 @@ func _water_mesh(mesh: PrimitiveMesh, alpha: float, shallow: Color) -> MeshInsta
 	instance.visible = false
 	_root.add_child(instance)
 	return instance
+
+
+## White spray blown off the top of the crest along its whole width.
+func _make_spray() -> CPUParticles3D:
+	var quad := QuadMesh.new()
+	quad.material = Look.sprite()
+	var p := CPUParticles3D.new()
+	p.mesh = quad
+	p.emitting = false
+	p.amount = 60
+	p.lifetime = 1.4
+	p.local_coords = false
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(0.5, 0.3, _half + EDGE_MARGIN)
+	p.direction = Vector3(1, 1.2, 0)
+	p.spread = 25.0
+	p.initial_velocity_min = 4.0
+	p.initial_velocity_max = 9.0
+	p.gravity = Vector3(0, -6, 0)
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.0
+	p.scale_amount_curve = Look.grow(0.5)
+	p.color_ramp = Look.ramp([Color(0.95, 0.97, 1.0, 0.0), Color(0.92, 0.95, 0.97, 0.7), Color(0.9, 0.93, 0.95, 0)])
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p

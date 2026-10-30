@@ -14,6 +14,7 @@ func _init() -> void:
 	display_name = "Meteor Yağmuru"
 	warning = "Sağlam bir yere saklan!"
 	duration = 25.0
+	mood = "dusk"
 
 
 func begin() -> void:

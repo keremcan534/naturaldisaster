@@ -11,6 +11,7 @@ func _init() -> void:
 	display_name = "Deprem"
 	warning = "Binalardan uzak dur!"
 	duration = 25.0
+	mood = "dust"
 
 
 func _process(delta: float) -> void:

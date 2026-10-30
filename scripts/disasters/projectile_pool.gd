@@ -3,6 +3,8 @@ extends Node
 ## allocated after setup(). Hits are applied deferred because physics state
 ## can't change while contacts are being reported.
 
+const Look := preload("res://scripts/world/look.gd")
+
 const FLASH_POOL_SIZE := 8
 const LOST_HEIGHT := -20.0
 
@@ -11,6 +13,7 @@ var blast_force := 14.0
 var blast_damage := 80.0
 
 var _bodies: Array[RigidBody3D] = []
+var _trails: Array[CPUParticles3D] = []
 var _flashes: Array[MeshInstance3D] = []
 var _next_flash := 0
 
@@ -43,10 +46,13 @@ func setup(count: int, radius: float, color: Color, glow: Color) -> void:
 		visual.mesh = mesh
 		visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		body.add_child(visual)
+		var trail := _trail(radius, glow)
+		body.add_child(trail)
 		body.body_entered.connect(_on_hit.bind(body))
 		add_child(body)
-		_park(body)
 		_bodies.append(body)
+		_trails.append(trail)
+		_park(body)
 
 	var flash_mesh := SphereMesh.new()
 	for i in FLASH_POOL_SIZE:
@@ -72,6 +78,7 @@ func launch(pos: Vector3, velocity: Vector3) -> void:
 		body.freeze = false
 		body.linear_velocity = velocity
 		body.visible = true
+		_trails[_bodies.find(body)].emitting = true
 		return
 
 
@@ -82,6 +89,9 @@ func _physics_process(_delta: float) -> void:
 
 
 func _park(body: RigidBody3D) -> void:
+	var i := _bodies.find(body)
+	if i >= 0:
+		_trails[i].emitting = false
 	body.visible = false
 	body.freeze = true
 	body.linear_velocity = Vector3.ZERO
@@ -101,6 +111,7 @@ func _explode(pos: Vector3) -> void:
 	get_tree().call_group("structures", "damage_sphere", pos, blast_radius, blast_force)
 	get_tree().call_group("player", "explode_at", pos, blast_radius, blast_damage)
 	get_tree().call_group("player", "add_shake", 0.6)
+	get_tree().call_group("effects", "explosion", pos, blast_radius)
 
 	var flash := _flashes[_next_flash]
 	_next_flash = (_next_flash + 1) % _flashes.size()
@@ -113,3 +124,26 @@ func _explode(pos: Vector3) -> void:
 	tween.tween_property(flash, "scale", Vector3.ONE * blast_radius, 0.35)
 	tween.parallel().tween_property(mat, "albedo_color:a", 0.0, 0.35)
 	tween.tween_callback(flash.hide)
+
+
+## Fire fading into smoke behind a projectile, left in world space.
+func _trail(radius: float, glow: Color) -> CPUParticles3D:
+	var quad := QuadMesh.new()
+	quad.material = Look.sprite(2.5)
+	var p := CPUParticles3D.new()
+	p.mesh = quad
+	p.emitting = false
+	p.amount = 28
+	p.lifetime = 0.7
+	p.local_coords = false
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = radius * 0.5
+	p.spread = 180.0
+	p.initial_velocity_max = 1.0
+	p.gravity = Vector3(0, 2, 0)
+	p.scale_amount_min = radius * 2.0
+	p.scale_amount_max = radius * 3.0
+	p.scale_amount_curve = Look.grow(0.5)
+	p.color_ramp = Look.ramp([Color(1, 0.9, 0.6), Color(glow, 0.8), Color(0.15, 0.12, 0.1, 0.5), Color(0.2, 0.2, 0.2, 0)])
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p

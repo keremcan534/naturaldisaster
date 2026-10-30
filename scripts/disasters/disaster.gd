@@ -5,6 +5,8 @@ extends Node
 
 var display_name := "Felaket"
 var warning := ""
+## Weather mood (see weather.gd) the sky turns to from the warning on.
+var mood := "clear"
 ## Seconds; the manager may scale this before begin().
 var duration := 30.0
 ## The main world node, for spawning things and reading spawn_point.

@@ -17,6 +17,8 @@ const GLASS_KEY := Color(0.25, 0.35, 0.45)
 const CAR_GLASS_KEY := Color(0.12, 0.15, 0.18)
 
 static var _noise: Texture2D
+static var _puff: Texture2D
+static var _sprites := {}
 static var _panel: Texture2D
 static var _window: Texture2D
 static var _surfaces := {}
@@ -93,6 +95,59 @@ static func lava() -> ShaderMaterial:
 	mat.shader = LAVA_SHADER
 	mat.set_shader_parameter("noise", noise_texture())
 	return mat
+
+
+## Camera-facing particle quads tinted by the particles' color ramp. A brightness
+## above 1 makes them glow (fire, sparks).
+static func sprite(brightness := 1.0, soft := true) -> StandardMaterial3D:
+	var key := [brightness, soft]
+	if not _sprites.has(key):
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		mat.vertex_color_use_as_albedo = true
+		mat.albedo_color = Color(brightness, brightness, brightness)
+		if soft:
+			mat.albedo_texture = puff_texture()
+		_sprites[key] = mat
+	return _sprites[key]
+
+
+## A soft round puff for smoke, dust and fire.
+static func puff_texture() -> Texture2D:
+	if _puff == null:
+		var puff := GradientTexture2D.new()
+		puff.width = 64
+		puff.height = 64
+		puff.fill = GradientTexture2D.FILL_RADIAL
+		puff.fill_from = Vector2(0.5, 0.5)
+		puff.fill_to = Vector2(0.5, 0.0)
+		puff.gradient = Gradient.new()
+		puff.gradient.set_color(0, Color.WHITE)
+		puff.gradient.set_color(1, Color(1, 1, 1, 0))
+		puff.gradient.add_point(0.5, Color(1, 1, 1, 0.45))
+		_puff = puff
+	return _puff
+
+
+## Gradient for a particle color ramp: evenly spaced colors.
+static func ramp(colors: Array[Color]) -> Gradient:
+	var gradient := Gradient.new()
+	var offsets := PackedFloat32Array()
+	for i in colors.size():
+		offsets.append(float(i) / (colors.size() - 1))
+	gradient.offsets = offsets
+	gradient.colors = PackedColorArray(colors)
+	return gradient
+
+
+## Curve rising from start to 1 (particle size over lifetime).
+static func grow(start: float) -> Curve:
+	var curve := Curve.new()
+	curve.add_point(Vector2(0, start), 0, 1.0 - start)
+	curve.add_point(Vector2(1, 1))
+	return curve
 
 
 ## Seamless 0..1 noise, sampled linearly by the shaders.

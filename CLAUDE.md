@@ -28,6 +28,11 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   image files) and cached materials. Structures get theirs through `Look.surface(color)`;
   `Look.GLASS_KEY` / `CAR_GLASS_KEY` colors turn into glass. Shaders live in `shaders/`
   (ground with road markings, water for the sea/pools/floods, lava).
+- `scripts/world/weather.gd`: sky, sun, fog and the sea. Each disaster sets a `mood`
+  (clear, dust, dusk, overcast, storm, ash) that the weather blends into from the
+  warning on; storms add camera-following rain and lightning.
+- `scripts/world/effects.gd`: pooled particle bursts (explosions, dust from breaking
+  pieces), reached through `call_group("effects", ...)`.
 - `scripts/world/maps.gd`: the small maps (skyscraper, garden house, apartment, neighbourhood).
 - `scripts/disasters/`: `disaster.gd` base + one file per disaster, registered in
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
