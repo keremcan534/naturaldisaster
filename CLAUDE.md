@@ -54,7 +54,12 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
 - `scripts/player/player.gd`: first-person controller; world effects go through
   `push()`, `set_water()`, `explode_at()`, `take_damage()`, `add_shake()`.
-- `scripts/ui/`: HUD and touch controls (shown on phones and with `-- --touch`).
+- `scripts/ui/`: HUD and touch controls (shown on phones and with `-- --touch`): floating
+  analog stick (auto-sprint at full forward), drag-to-look that ignores impossible jumps
+  (browsers renumber fingers), jump/sprint buttons, a settings panel (sensitivity,
+  invert; saved in `user://settings.cfg`). Touches also reach GUI as emulated mouse.
+  Touch can be tested under `xvfb-run` by feeding `InputEventScreenTouch/Drag` through
+  `Input.parse_input_event()` + `Input.flush_buffered_events()` (not in `--headless`).
 - Everything is built in code; `scenes/main.tscn` only holds the root script.
 
 ## Performance rules

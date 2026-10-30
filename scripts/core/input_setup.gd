@@ -1,6 +1,9 @@
 extends RefCounted
 ## Registers input actions in code so project.godot stays readable.
 
+## Small, so the touch stick stays analog all the way (it applies its own deadzone).
+const DEADZONE := 0.05
+
 const ACTIONS := {
 	"move_forward": [KEY_W, KEY_UP],
 	"move_back": [KEY_S, KEY_DOWN],
@@ -15,7 +18,7 @@ static func register() -> void:
 	for action: String in ACTIONS:
 		if InputMap.has_action(action):
 			continue
-		InputMap.add_action(action)
+		InputMap.add_action(action, DEADZONE)
 		for key: Key in ACTIONS[action]:
 			var event := InputEventKey.new()
 			event.physical_keycode = key

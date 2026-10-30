@@ -27,6 +27,16 @@ const DROWN_DAMAGE_PER_SEC := 20.0
 ## The sea around the island (see weather.gd), for the underwater tint.
 const SEA_LEVEL := -2.5
 
+## Jump pressed this long before landing still jumps; walking off an edge still
+## allows a jump this long after.
+const JUMP_BUFFER := 0.15
+const COYOTE_TIME := 0.12
+const FOV := 80.0
+const SPRINT_FOV := 87.0
+## Gentle head bob while walking (meters, steps per meter).
+const BOB_HEIGHT := 0.035
+const BOB_RATE := 0.9
+
 const EYE_HEIGHT := 1.6
 const PITCH_LIMIT := 1.45
 const MOUSE_JUMP_LIMIT := 250.0
@@ -42,6 +52,10 @@ var _head: Node3D
 var _camera: Camera3D
 var _shake := 0.0
 var _shake_time := 0.0
+var _jump_buffer := 0.0
+var _coyote := 0.0
+var _bob_phase := 0.0
+var _bob := 0.0
 var _fall_speed := 0.0
 ## Horizontal velocity from input / from the world (blasts, wind, water).
 var _walk := Vector3.ZERO
@@ -99,7 +113,7 @@ func _ready() -> void:
 	_head.position.y = EYE_HEIGHT
 	add_child(_head)
 	_camera = Camera3D.new()
-	_camera.fov = 80.0
+	_camera.fov = FOV
 	_camera.near = 0.05
 	_camera.far = 800.0
 	_head.add_child(_camera)
@@ -146,15 +160,21 @@ func _physics_process(delta: float) -> void:
 		return
 
 	var in_water := _in_water()
+	if Input.is_action_just_pressed("jump"):
+		_jump_buffer = JUMP_BUFFER
+	_jump_buffer -= delta
+	_coyote = COYOTE_TIME if is_on_floor() else _coyote - delta
 	if is_on_floor():
 		if _fall_speed > FALL_DAMAGE_MIN_SPEED:
 			take_damage((_fall_speed - FALL_DAMAGE_MIN_SPEED) * 6.0)
 		_fall_speed = 0.0
-		if Input.is_action_just_pressed("jump"):
-			velocity.y = JUMP_VELOCITY
 	else:
 		velocity.y -= _gravity * (0.35 if in_water else 1.0) * delta
 		_fall_speed = maxf(_fall_speed, -velocity.y)
+	if _jump_buffer > 0.0 and _coyote > 0.0 and not in_water:
+		velocity.y = JUMP_VELOCITY
+		_jump_buffer = 0.0
+		_coyote = 0.0
 
 	var drag := PUSH_DRAG_GROUND if is_on_floor() else PUSH_DRAG_AIR
 	if in_water:
@@ -167,7 +187,8 @@ func _physics_process(delta: float) -> void:
 	_update_breath(delta)
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
-	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
+	# Analog: a half-pushed stick walks at half speed.
+	var dir := transform.basis * Vector3(input.x, 0, input.y)
 	var speed := SPRINT_SPEED if Input.is_action_pressed("sprint") else SPEED
 	if in_water:
 		speed *= SWIM_SPEED_FACTOR
@@ -188,7 +209,13 @@ func _process(delta: float) -> void:
 	_shake_time += delta
 	var t := _shake_time * 22.0
 	_camera.h_offset = (sin(t) + sin(t * 2.3 + 1.7)) * 0.5 * _shake * 0.25
-	_camera.v_offset = (sin(t * 1.3 + 0.5) + sin(t * 2.9 + 2.1)) * 0.5 * _shake * 0.25
+	# Head bob follows distance walked, so it matches the stride at any speed.
+	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() and alive else 0.0
+	_bob_phase += ground_speed * BOB_RATE * delta * TAU * 0.5
+	_bob = lerpf(_bob, BOB_HEIGHT * clampf(ground_speed / SPEED, 0.0, 1.3), minf(delta * 8.0, 1.0))
+	_camera.v_offset = (sin(t * 1.3 + 0.5) + sin(t * 2.9 + 2.1)) * 0.5 * _shake * 0.25 + sin(_bob_phase * 2.0) * _bob
+	var sprinting := Input.is_action_pressed("sprint") and ground_speed > SPEED
+	_camera.fov = lerpf(_camera.fov, SPRINT_FOV if sprinting else FOV, minf(delta * 6.0, 1.0))
 	_shake = move_toward(_shake, 0.0, delta * 2.0)
 	var surface := _water_level if Engine.get_physics_frames() - _water_frame <= 1 else SEA_LEVEL
 	_underwater_tint.visible = _camera.global_position.y < surface

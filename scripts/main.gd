@@ -31,7 +31,9 @@ func _ready() -> void:
 	add_child(Effects.new())
 	add_child(Debris.new())
 
+	# Tablets can report a desktop OS in the browser; a touchscreen settles it.
 	var touch := OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") \
+			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available()) \
 			or "--touch" in OS.get_cmdline_user_args()
 
 	var player := Player.new()

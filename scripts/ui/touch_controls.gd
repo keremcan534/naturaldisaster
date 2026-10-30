@@ -1,55 +1,94 @@
 extends CanvasLayer
-## On-screen controls for touch devices: a floating joystick on the left half,
-## drag-to-look on the right half, and jump / sprint buttons. The joystick and
-## buttons press the regular input actions, so the player doesn't care where
-## input comes from.
+## On-screen controls for touch devices, laid out like a mobile shooter:
+## - left side: a floating analog joystick. It rests at a home spot, jumps to
+##   where the thumb lands, and follows the thumb past its edge so the stick is
+##   never lost. Pushed all the way forward it sprints.
+## - right side: drag to look. Dragging from the jump button looks too.
+## - buttons: jump, sprint lock, and a gear for look sensitivity / invert.
+## Movement goes through the regular input actions (analog strengths), so the
+## player doesn't care where input comes from.
 
-const STICK_RADIUS := 90.0
-const KNOB_RADIUS := 40.0
-const STICK_DEADZONE := 0.15
-const BUTTON_RADIUS := 58.0
-## Radians of turn per pixel dragged.
-const LOOK_SENSITIVITY := 0.005
+const SETTINGS_PATH := "user://settings.cfg"
+
+const STICK_RADIUS := 105.0
+const KNOB_RADIUS := 46.0
+## Fraction of the radius ignored around the center, and the response curve
+## (above 1: finer control near the center).
+const STICK_DEADZONE := 0.08
+const STICK_CURVE := 1.1
+## Pushed this far, mostly forward, the player sprints.
+const AUTO_SPRINT := 0.92
+const JUMP_RADIUS := 68.0
+const SPRINT_RADIUS := 46.0
+const GEAR_RADIUS := 30.0
+## Radians of turn per pixel dragged at sensitivity 1.
+const LOOK_SPEED := 0.0045
 ## A drag step longer than this (fraction of screen height) is not a real finger
 ## movement: browsers can renumber fingers or skip events when one lifts, and
 ## trusting that step would whip the camera around.
 const MAX_STEP := 0.15
+## Left part of the screen that belongs to the stick.
+const STICK_AREA := 0.45
+
+const COLOR_LINE := Color(1, 1, 1, 0.55)
+const COLOR_ACTIVE := Color(1, 0.85, 0.3, 0.75)
 
 var player: Node
 
+var sensitivity := 1.0
+var invert_y := false
+
+var _canvas: Control
+var _settings: PanelContainer
+var _size := Vector2(1280, 720)
+var _margin := 28.0
+
 var _stick_finger := -1
-var _stick_origin := Vector2.ZERO
+var _stick_home := Vector2.ZERO
+var _stick_center := Vector2.ZERO
+var _knob := Vector2.ZERO
+var _stick_value := Vector2.ZERO
+var _sprinting := false
+var _sprint_lock := false
+
 var _look_finger := -1
-## Last positions of the look and stick fingers; deltas are computed from these
-## instead of trusting event.relative.
 var _look_last := Vector2.ZERO
-var _stick_last := Vector2.ZERO
-## Finger index -> action held by that finger.
-var _button_fingers := {}
-var _base: Panel
-var _knob: Panel
-## Action -> button panel.
-var _buttons := {}
+var _jump_finger := -1
+var _jump_pos := Vector2.ZERO
+var _sprint_pos := Vector2.ZERO
+var _gear_pos := Vector2.ZERO
 
 
 func _ready() -> void:
-	_base = _circle(STICK_RADIUS, Color(1, 1, 1, 0.12))
-	_knob = _circle(KNOB_RADIUS, Color(1, 1, 1, 0.4))
-	_base.visible = false
-	_knob.visible = false
-	_buttons["jump"] = _button("Zıpla")
-	_buttons["sprint"] = _button("Koş")
+	_load_settings()
+	_canvas = Control.new()
+	_canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_canvas.draw.connect(_draw_controls)
+	add_child(_canvas)
+	_settings = _build_settings()
+	add_child(_settings)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
+	_request_fullscreen_on_touch()
 
 
 func _layout() -> void:
-	var size := get_viewport().get_visible_rect().size
-	_place(_buttons["jump"], size - Vector2(110, 120))
-	_place(_buttons["sprint"], size - Vector2(250, 80))
+	_size = get_viewport().get_visible_rect().size
+	_margin = maxf(24.0, _size.y * 0.04)
+	_stick_home = Vector2(_margin + STICK_RADIUS + 20.0, _size.y - _margin - STICK_RADIUS - 10.0)
+	_jump_pos = _size - Vector2(_margin + JUMP_RADIUS + 20.0, _margin + JUMP_RADIUS + 30.0)
+	_sprint_pos = _jump_pos + Vector2(-JUMP_RADIUS - SPRINT_RADIUS - 30.0, JUMP_RADIUS * 0.45)
+	_gear_pos = Vector2(_size.x - _margin - GEAR_RADIUS, _margin + GEAR_RADIUS + 50.0)
+	if _stick_finger < 0:
+		_stick_center = _stick_home
+		_knob = _stick_home
+	_canvas.queue_redraw()
 
 
 func _input(event: InputEvent) -> void:
+	if _settings.visible:
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_press(event.index, event.position)
@@ -59,15 +98,60 @@ func _input(event: InputEvent) -> void:
 		_drag(event.index, event.position)
 
 
+func _press(finger: int, pos: Vector2) -> void:
+	# A new touch with the index of a stale finger (a lift that never arrived)
+	# replaces it.
+	if finger == _stick_finger or finger == _look_finger or finger == _jump_finger:
+		_release(finger)
+	if pos.distance_to(_gear_pos) < GEAR_RADIUS * 1.6:
+		_open_settings()
+		return
+	if pos.distance_to(_jump_pos) < JUMP_RADIUS * 1.15:
+		_jump_finger = finger
+		Input.action_press("jump")
+		Input.vibrate_handheld(15)
+		# The jump thumb can keep turning the view.
+		if _look_finger < 0:
+			_look_finger = finger
+			_look_last = pos
+		_canvas.queue_redraw()
+		return
+	if pos.distance_to(_sprint_pos) < SPRINT_RADIUS * 1.3:
+		_sprint_lock = not _sprint_lock
+		_update_sprint()
+		_canvas.queue_redraw()
+		return
+	if pos.x < _size.x * STICK_AREA and pos.y > _size.y * 0.2:
+		_stick_finger = finger
+		_stick_center = pos
+		_knob = pos
+		_set_stick(Vector2.ZERO)
+	elif pos.x >= _size.x * STICK_AREA:
+		_look_finger = finger
+		_look_last = pos
+
+
+func _release(finger: int) -> void:
+	if finger == _jump_finger:
+		_jump_finger = -1
+		Input.action_release("jump")
+		_canvas.queue_redraw()
+	if finger == _stick_finger:
+		_stick_finger = -1
+		_stick_center = _stick_home
+		_knob = _stick_home
+		_set_stick(Vector2.ZERO)
+	if finger == _look_finger:
+		_look_finger = -1
+
+
 ## Routes a drag to the stick or the look finger. A finger is matched by index
 ## first, but only if the new position is a plausible step from where that finger
 ## was; otherwise by position, so a renumbered finger keeps its role.
 func _drag(finger: int, pos: Vector2) -> void:
-	if _button_fingers.has(finger):
-		return
-	var max_step := get_viewport().get_visible_rect().size.y * MAX_STEP
+	var max_step := _size.y * MAX_STEP
 	var to_look := pos.distance_to(_look_last) if _look_finger >= 0 else INF
-	var to_stick := pos.distance_to(_stick_last) if _stick_finger >= 0 else INF
+	var to_stick := pos.distance_to(_knob) if _stick_finger >= 0 else INF
 	if finger == _look_finger and to_look <= max_step:
 		_look(pos)
 	elif finger == _stick_finger and to_stick <= max_step:
@@ -86,62 +170,42 @@ func _drag(finger: int, pos: Vector2) -> void:
 func _look(pos: Vector2) -> void:
 	var step := pos - _look_last
 	_look_last = pos
+	if invert_y:
+		step.y = -step.y
 	if player:
-		player.add_look(step * LOOK_SENSITIVITY)
-
-
-func _press(finger: int, pos: Vector2) -> void:
-	for action: String in _buttons:
-		var button: Panel = _buttons[action]
-		if pos.distance_to(button.position + button.size * 0.5) < BUTTON_RADIUS * 1.2:
-			_button_fingers[finger] = action
-			Input.action_press(action)
-			button.modulate.a = 0.6
-			return
-	# A new touch always takes over its side: if a lift was missed (renumbered
-	# finger), the stale finger would otherwise block the stick or look for good.
-	if finger == _stick_finger:
-		_release(finger)
-	if finger == _look_finger:
-		_release(finger)
-	if pos.x < get_viewport().get_visible_rect().size.x * 0.5:
-		_stick_finger = finger
-		_stick_origin = pos
-		_stick_last = pos
-		_place(_base, pos)
-		_place(_knob, pos)
-		_base.visible = true
-		_knob.visible = true
-	else:
-		_look_finger = finger
-		_look_last = pos
-
-
-func _release(finger: int) -> void:
-	if _button_fingers.has(finger):
-		var action: String = _button_fingers[finger]
-		_button_fingers.erase(finger)
-		Input.action_release(action)
-		_buttons[action].modulate.a = 1.0
-	elif finger == _stick_finger:
-		_stick_finger = -1
-		_base.visible = false
-		_knob.visible = false
-		for action in ["move_left", "move_right", "move_forward", "move_back"]:
-			Input.action_release(action)
-	elif finger == _look_finger:
-		_look_finger = -1
+		player.add_look(step * LOOK_SPEED * sensitivity)
 
 
 func _move_stick(pos: Vector2) -> void:
-	_stick_last = pos
-	var offset := (pos - _stick_origin).limit_length(STICK_RADIUS)
-	_place(_knob, _stick_origin + offset)
+	var offset := pos - _stick_center
+	# Past the edge the base follows the thumb.
+	if offset.length() > STICK_RADIUS:
+		_stick_center = pos - offset.normalized() * STICK_RADIUS
+		offset = pos - _stick_center
+	_knob = pos
 	var v := offset / STICK_RADIUS
-	if v.length() < STICK_DEADZONE:
-		v = Vector2.ZERO
+	var amount := clampf((v.length() - STICK_DEADZONE) / (1.0 - STICK_DEADZONE), 0.0, 1.0)
+	_set_stick(v.normalized() * pow(amount, STICK_CURVE) if amount > 0.0 else Vector2.ZERO)
+
+
+func _set_stick(v: Vector2) -> void:
+	_stick_value = v
 	_set_axis("move_left", "move_right", v.x)
 	_set_axis("move_forward", "move_back", v.y)
+	_update_sprint()
+	_canvas.queue_redraw()
+
+
+func _update_sprint() -> void:
+	var forward := _stick_value.y < -0.3
+	var full := _stick_value.length() >= AUTO_SPRINT and _stick_value.y < -0.75
+	var sprint := (full or _sprint_lock) and forward
+	if sprint != _sprinting:
+		_sprinting = sprint
+		if sprint:
+			Input.action_press("sprint")
+		else:
+			Input.action_release("sprint")
 
 
 func _set_axis(negative: String, positive: String, value: float) -> void:
@@ -156,32 +220,145 @@ func _set_axis(negative: String, positive: String, value: float) -> void:
 		Input.action_release(positive)
 
 
-## Centers a panel on pos.
-func _place(panel: Panel, pos: Vector2) -> void:
-	panel.position = pos - panel.size * 0.5
+func _draw_controls() -> void:
+	var font := ThemeDB.fallback_font
+	# Stick: a ring with a direction mark, and the knob.
+	var active := _stick_finger >= 0
+	_canvas.draw_circle(_stick_center, STICK_RADIUS, Color(0, 0, 0, 0.18 if active else 0.1))
+	_canvas.draw_arc(_stick_center, STICK_RADIUS, 0, TAU, 48, COLOR_LINE if active else Color(1, 1, 1, 0.35), 3.0, true)
+	var knob_color := COLOR_ACTIVE if _sprinting else Color(1, 1, 1, 0.55 if active else 0.3)
+	_canvas.draw_circle(_knob, KNOB_RADIUS, knob_color)
+	_canvas.draw_arc(_knob, KNOB_RADIUS, 0, TAU, 32, Color(1, 1, 1, 0.8), 2.0, true)
+	if _sprinting:
+		_text(font, _stick_center + Vector2(0, -STICK_RADIUS - 18), "KOŞ", 22, COLOR_ACTIVE)
+
+	_round_button(_jump_pos, JUMP_RADIUS, "ZIPLA", _jump_finger >= 0)
+	_round_button(_sprint_pos, SPRINT_RADIUS, "KOŞ", _sprint_lock)
+	_round_button(_gear_pos, GEAR_RADIUS, "", false)
+	# A menu icon: three bars.
+	for k in 3:
+		var y := _gear_pos.y + (k - 1) * 8.0
+		_canvas.draw_line(Vector2(_gear_pos.x - 11, y), Vector2(_gear_pos.x + 11, y), Color.WHITE, 3.0, true)
 
 
-func _circle(radius: float, color: Color) -> Panel:
-	var panel := Panel.new()
-	panel.size = Vector2.ONE * radius * 2.0
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+func _round_button(pos: Vector2, radius: float, label: String, on: bool) -> void:
+	_canvas.draw_circle(pos, radius, Color(1, 0.85, 0.3, 0.35) if on else Color(0, 0, 0, 0.22))
+	_canvas.draw_arc(pos, radius, 0, TAU, 40, COLOR_ACTIVE if on else COLOR_LINE, 3.0, true)
+	if label != "":
+		_text(ThemeDB.fallback_font, pos, label, int(radius * 0.42), Color.WHITE)
+
+
+func _text(font: Font, center: Vector2, text: String, size: int, color: Color) -> void:
+	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	var at := center + Vector2(-width * 0.5, size * 0.35)
+	_canvas.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(0, 0, 0, 0.8))
+	_canvas.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
+
+
+func _open_settings() -> void:
+	for finger in [_stick_finger, _look_finger, _jump_finger]:
+		if finger >= 0:
+			_release(finger)
+	_settings.visible = true
+
+
+## A small panel: look sensitivity and invert. Touches reach it as emulated mouse
+## clicks (project setting pointing/emulate_mouse_from_touch).
+func _build_settings() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(520, 0)
 	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.set_corner_radius_all(int(radius))
+	style.bg_color = Color(0.08, 0.1, 0.12, 0.92)
+	style.set_corner_radius_all(14)
+	style.set_content_margin_all(24)
 	panel.add_theme_stylebox_override("panel", style)
-	add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 18)
+	panel.add_child(box)
+
+	var title := Label.new()
+	title.text = "Kontroller"
+	title.add_theme_font_size_override("font_size", 30)
+	box.add_child(title)
+
+	var value_label := Label.new()
+	value_label.add_theme_font_size_override("font_size", 22)
+	box.add_child(value_label)
+	var slider := HSlider.new()
+	slider.min_value = 0.3
+	slider.max_value = 3.0
+	slider.step = 0.05
+	slider.value = sensitivity
+	slider.custom_minimum_size = Vector2(0, 48)
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(1, 1, 1, 0.2)
+	track.set_corner_radius_all(6)
+	track.content_margin_top = 6
+	track.content_margin_bottom = 6
+	slider.add_theme_stylebox_override("slider", track)
+	var filled := track.duplicate()
+	filled.bg_color = Color(1, 0.85, 0.3, 0.8)
+	slider.add_theme_stylebox_override("grabber_area", filled)
+	slider.add_theme_stylebox_override("grabber_area_highlight", filled)
+	var show_value := func(v: float) -> void: value_label.text = "Bakış hassasiyeti: %.2f" % v
+	show_value.call(sensitivity)
+	slider.value_changed.connect(func(v: float) -> void:
+		sensitivity = v
+		show_value.call(v)
+		_save_settings())
+	box.add_child(slider)
+
+	var invert := CheckButton.new()
+	invert.text = "Dikey bakışı ters çevir"
+	invert.add_theme_font_size_override("font_size", 22)
+	invert.button_pressed = invert_y
+	invert.toggled.connect(func(on: bool) -> void:
+		invert_y = on
+		_save_settings())
+	box.add_child(invert)
+
+	var close := Button.new()
+	close.text = "Kapat"
+	close.add_theme_font_size_override("font_size", 24)
+	close.custom_minimum_size = Vector2(0, 56)
+	close.pressed.connect(func() -> void: panel.visible = false)
+	box.add_child(close)
+	panel.visible = false
 	return panel
 
 
-func _button(text: String) -> Panel:
-	var panel := _circle(BUTTON_RADIUS, Color(1, 1, 1, 0.22))
-	var label := Label.new()
-	label.text = text
-	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 22)
-	label.add_theme_constant_override("outline_size", 6)
-	label.add_theme_color_override("font_outline_color", Color.BLACK)
-	panel.add_child(label)
-	return panel
+func _load_settings() -> void:
+	var config := ConfigFile.new()
+	if config.load(SETTINGS_PATH) == OK:
+		sensitivity = config.get_value("touch", "sensitivity", 1.0)
+		invert_y = config.get_value("touch", "invert_y", false)
+
+
+func _save_settings() -> void:
+	var config := ConfigFile.new()
+	config.set_value("touch", "sensitivity", sensitivity)
+	config.set_value("touch", "invert_y", invert_y)
+	config.save(SETTINGS_PATH)
+
+
+## Browsers only allow fullscreen and an orientation lock from inside a real
+## touch handler, so a one-shot listener asks for both on the first touch.
+func _request_fullscreen_on_touch() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("""
+		document.addEventListener('touchend', function () {
+			var el = document.documentElement;
+			var go = el.requestFullscreen || el.webkitRequestFullscreen;
+			if (go) {
+				Promise.resolve(go.call(el)).then(function () {
+					if (screen.orientation && screen.orientation.lock) {
+						screen.orientation.lock('landscape').catch(function () {});
+					}
+				}).catch(function () {});
+			}
+		}, { once: true });
+	""", true)
