@@ -6,8 +6,15 @@ extends Node3D
 ## so a whole map costs almost nothing until something breaks. Damage unfreezes
 ## pieces, and after every hit a support pass drops whatever is no longer held up
 ## from the ground. Fill it with add_box()/add_building() before adding it to the tree.
+##
+## Intact pieces are drawn in batches, so a building is a handful of draw calls
+## instead of hundreds: plain boxes are one unit cube scaled per instance, tinted
+## per instance (Look.tinted()); boxes with their own material batch per material,
+## custom visuals per mesh. A piece that comes loose leaves its batch (its
+## instance shrinks to nothing) and shows its own mesh.
 
 const Look := preload("res://scripts/world/look.gd")
+const Interior := preload("res://scripts/world/interior.gd")
 
 const WALL_THICKNESS := 0.3
 const SLAB_THICKNESS := 0.3
@@ -16,6 +23,7 @@ const PARAPET_HEIGHT := 0.7
 const PARAPET_THICKNESS := 0.25
 const CELL := 2.0
 const FLOOR_HEIGHT := 3.0
+const FLOOR_WOOD := Color(0.52, 0.38, 0.26)
 const WINDOW_COLOR := Look.GLASS_KEY
 ## Wall piece orientations: local +Z points out of the building.
 const FACING_BACK := Basis(Vector3.UP, PI)
@@ -43,6 +51,8 @@ const SHATTER_RADIUS := 0.55
 static var _meshes := {}
 static var _shapes := {}
 static var _physics_material: PhysicsMaterial
+## A batch instance that is no longer drawn.
+const _HIDDEN_SCALE := Basis(Vector3(0.0001, 0, 0), Vector3(0, 0.0001, 0), Vector3(0, 0, 0.0001))
 
 ## Higher survives more shaking.
 @export var strength := 1.0
@@ -54,6 +64,14 @@ var _boxes: Array[AABB] = []
 var _sizes: Array[Vector3] = []
 var _colors: Array[Color] = []
 var _solid: Array[bool] = []
+## Per piece: its own mesh (hidden while it is batched), its batch and slot there.
+var _visuals: Array[MeshInstance3D] = []
+var _batch_of := PackedInt32Array()
+var _slot_of := PackedInt32Array()
+var _batches: Array[MultiMesh] = []
+## Per piece: [mesh, material] of its batch, and its instance color there.
+var _batch_keys: Array[Array] = []
+var _tints: Array[Color] = []
 var _loose := PackedByteArray()
 ## Pieces broken into debris chunks (hidden, no collision).
 var _gone := PackedByteArray()
@@ -72,12 +90,15 @@ var _last_dust_ms := -DUST_INTERVAL_MS
 func _ready() -> void:
 	add_to_group("structures")
 	_link_pieces()
+	_build_batches()
 
 
 ## center is in this node's local space. A rotated piece links to its neighbours
 ## through its axis-aligned bounds. visual replaces the box mesh (tree canopies,
-## trunks); the collision shape stays a box.
-func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis := Basis.IDENTITY, visual: Mesh = null) -> void:
+## trunks); the collision shape stays a box. material replaces Look.surface(color)
+## on the box (color still picks the debris look).
+func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis := Basis.IDENTITY, visual: Mesh = null,
+		material: Material = null) -> void:
 	var rb := RigidBody3D.new()
 	rb.collision_layer = 2
 	rb.collision_mask = 1 | 2 | 4
@@ -95,9 +116,22 @@ func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis :=
 		mesh.mesh = visual
 	else:
 		mesh.mesh = _box_mesh(box_size)
-		mesh.material_override = Look.surface(color)
+		mesh.material_override = material if material else Look.surface(color)
+	mesh.visible = false
+	if color == WINDOW_COLOR:
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	rb.add_child(mesh)
 	add_child(rb)
+	_visuals.append(mesh)
+	if visual:
+		_batch_keys.append([visual, null])
+		_tints.append(Color.WHITE)
+	elif material or Look.is_special(color):
+		_batch_keys.append([_unit_box(), mesh.material_override])
+		_tints.append(Color.WHITE)
+	else:
+		_batch_keys.append([_unit_box(), Look.tinted()])
+		_tints.append(color)
 
 	var box := rb.transform * AABB(-box_size * 0.5, box_size)
 	_pieces.append(rb)
@@ -109,17 +143,30 @@ func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis :=
 
 
 ## A building with its front door facing +Z. With stairs (footprint at least 3x3),
-## ramps in the back-left corner connect every floor and the roof.
+## ramps in the back-left corner connect every floor and the roof. Floors get
+## rooms and furniture (see interior.gd).
 func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Color, with_stairs := true) -> void:
 	var stairs := with_stairs and footprint.x >= 3 and footprint.y >= 3
-	var slab_color := color.darkened(0.35)
+	# Wooden floors and white ceilings inside; the edges show as a band between storeys.
+	var slab_color := color.darkened(0.3)
+	var slab_material := Look.slab(FLOOR_WOOD, slab_color)
+	# The ground floor stands on the island; give it a floor to look at (visual only).
+	var ground_floor := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(footprint) * CELL
+	plane.material = slab_material
+	ground_floor.mesh = plane
+	ground_floor.position = origin + Vector3(0, 0.005, 0)
+	add_child(ground_floor)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(origin + position)
 	var w := footprint.x * CELL
 	var d := footprint.y * CELL
 	var door := footprint.x / 2
 	for f in floors:
 		var y0 := f * FLOOR_HEIGHT
 		if f > 0:
-			_add_slab(origin, footprint, y0, slab_color, (f - 1) % 2 if stairs else -1)
+			_add_slab(origin, footprint, y0, slab_color, (f - 1) % 2 if stairs else -1, slab_material)
 		var wall_bottom := y0 + (SLAB_THICKNESS if f > 0 else 0.0)
 		var h := y0 + FLOOR_HEIGHT - wall_bottom
 		var cy := wall_bottom + h * 0.5
@@ -127,22 +174,25 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 		# wall piece is turned so its local +Z faces outward (the window shader needs it).
 		for i in footprint.x:
 			var x := -w * 0.5 + CELL * (i + 0.5)
-			var c := WINDOW_COLOR if f > 0 and i % 2 == 1 else color
+			var c := WINDOW_COLOR if i % 2 == 1 and not (f == 0 and i == door) else color
+			var mat := _wall_material(c)
 			var panel := Vector3(CELL, h, WALL_THICKNESS)
 			if not (f == 0 and i == door):
-				add_box(origin + Vector3(x, cy, d * 0.5 - WALL_THICKNESS * 0.5), panel, c)
-			add_box(origin + Vector3(x, cy, -d * 0.5 + WALL_THICKNESS * 0.5), panel, c, FACING_BACK)
+				add_box(origin + Vector3(x, cy, d * 0.5 - WALL_THICKNESS * 0.5), panel, c, Basis.IDENTITY, null, mat)
+			add_box(origin + Vector3(x, cy, -d * 0.5 + WALL_THICKNESS * 0.5), panel, c, FACING_BACK, null, mat)
 		var side_len := (d - WALL_THICKNESS * 2.0) / footprint.y
 		for j in footprint.y:
 			var z := -d * 0.5 + WALL_THICKNESS + side_len * (j + 0.5)
-			var c := WINDOW_COLOR if f > 0 and j % 2 == 1 else color
+			var c := WINDOW_COLOR if j % 2 == 1 else color
+			var mat := _wall_material(c)
 			var panel := Vector3(side_len, h, WALL_THICKNESS)
-			add_box(origin + Vector3(w * 0.5 - WALL_THICKNESS * 0.5, cy, z), panel, c, FACING_RIGHT)
-			add_box(origin + Vector3(-w * 0.5 + WALL_THICKNESS * 0.5, cy, z), panel, c, FACING_LEFT)
+			add_box(origin + Vector3(w * 0.5 - WALL_THICKNESS * 0.5, cy, z), panel, c, FACING_RIGHT, null, mat)
+			add_box(origin + Vector3(-w * 0.5 + WALL_THICKNESS * 0.5, cy, z), panel, c, FACING_LEFT, null, mat)
 		if stairs:
 			_add_ramp(origin, w, d, f, color.darkened(0.15))
+		Interior.furnish(self, origin, footprint, f, wall_bottom, h, stairs, CELL, WALL_THICKNESS, rng)
 	var roof := floors * FLOOR_HEIGHT
-	_add_slab(origin, footprint, roof, slab_color, (floors - 1) % 2 if stairs else -1)
+	_add_slab(origin, footprint, roof, slab_color, (floors - 1) % 2 if stairs else -1, Look.roof(slab_color))
 	_add_parapet(origin, footprint, roof + SLAB_THICKNESS, color.darkened(0.1))
 	if footprint.x >= 3 and footprint.y >= 3:
 		# An air-conditioning unit on the front-right roof tile (away from the stair hole).
@@ -152,6 +202,10 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 
 
 ## A low wall around the roof edge, sitting on the outer roof tiles.
+func _wall_material(color: Color) -> Material:
+	return Look.surface(color) if color == WINDOW_COLOR else Look.wall(color)
+
+
 func _add_parapet(origin: Vector3, footprint: Vector2i, y: float, color: Color) -> void:
 	var w := footprint.x * CELL
 	var d := footprint.y * CELL
@@ -170,14 +224,14 @@ func _add_parapet(origin: Vector3, footprint: Vector2i, y: float, color: Color) 
 
 
 ## Floor tiles at height y. hole_row >= 0 leaves out the two tiles a ramp comes up through.
-func _add_slab(origin: Vector3, footprint: Vector2i, y: float, color: Color, hole_row: int) -> void:
+func _add_slab(origin: Vector3, footprint: Vector2i, y: float, color: Color, hole_row: int, material: Material) -> void:
 	for i in footprint.x:
 		for j in footprint.y:
 			if j == hole_row and i < 2:
 				continue
 			var x := -footprint.x * CELL * 0.5 + CELL * (i + 0.5)
 			var z := -footprint.y * CELL * 0.5 + CELL * (j + 0.5)
-			add_box(origin + Vector3(x, y + SLAB_THICKNESS * 0.5, z), Vector3(CELL, SLAB_THICKNESS, CELL), color)
+			add_box(origin + Vector3(x, y + SLAB_THICKNESS * 0.5, z), Vector3(CELL, SLAB_THICKNESS, CELL), color, Basis.IDENTITY, null, material)
 
 
 ## Ramp from floor f up to floor f + 1 over the first two cells of the back row
@@ -197,6 +251,50 @@ func _add_ramp(origin: Vector3, w: float, d: float, f: int, color: Color) -> voi
 	var center := Vector3((x0 + x1) * 0.5, (bottom + top) * 0.5, (z0 + z1) * 0.5) - normal * RAMP_THICKNESS * 0.5
 	var ramp_size := Vector3(sqrt(run * run + rise * rise), RAMP_THICKNESS, z1 - z0)
 	add_box(origin + center, ramp_size, color, Basis(Vector3.BACK, angle))
+
+
+## One MultiMeshInstance per mesh/material pair, holding every intact piece of it.
+func _build_batches() -> void:
+	var groups := {}
+	for i in _pieces.size():
+		var key := _batch_keys[i]
+		if not groups.has(key):
+			groups[key] = []
+		groups[key].append(i)
+	_batch_of.resize(_pieces.size())
+	_slot_of.resize(_pieces.size())
+	for key: Array in groups:
+		var members: Array = groups[key]
+		var unit: bool = key[0] == _unit_box()
+		var multimesh := MultiMesh.new()
+		multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		multimesh.use_colors = key[1] == Look.tinted()
+		multimesh.mesh = key[0]
+		multimesh.instance_count = members.size()
+		for slot in members.size():
+			var i: int = members[slot]
+			multimesh.set_instance_transform(slot, _batch_transform(i, unit))
+			if multimesh.use_colors:
+				multimesh.set_instance_color(slot, _tints[i])
+			_batch_of[i] = _batches.size()
+			_slot_of[i] = slot
+		var batch := MultiMeshInstance3D.new()
+		batch.multimesh = multimesh
+		batch.material_override = key[1]
+		batch.cast_shadow = _visuals[members[0]].cast_shadow
+		add_child(batch)
+		_batches.append(multimesh)
+
+
+## Unit cubes carry the piece's size in their instance transform.
+func _batch_transform(i: int, unit: bool) -> Transform3D:
+	var t := _pieces[i].transform
+	return Transform3D(t.basis * Basis.from_scale(_sizes[i]), t.origin) if unit else t
+
+
+func _unbatch(i: int) -> void:
+	var multimesh := _batches[_batch_of[i]]
+	multimesh.set_instance_transform(_slot_of[i], Transform3D(_HIDDEN_SCALE, _pieces[i].transform.origin))
 
 
 func _link_pieces() -> void:
@@ -371,6 +469,8 @@ func _release(i: int) -> void:
 		_shatter(i, _pieces[i].global_position - _pieces[i].global_basis.z, 2.5)
 		return
 	_dust(_pieces[i].global_position)
+	_unbatch(i)
+	_visuals[i].visible = true
 	_loose[i] = 1
 	_pieces[i].freeze = false
 	_pieces[i].sleeping = false
@@ -387,6 +487,7 @@ func _shatter(i: int, from: Vector3, power: float) -> void:
 	var rb := _pieces[i]
 	_dust(rb.global_position)
 	get_tree().call_group("debris", "shatter", rb.global_transform, _sizes[i], _colors[i], rb.linear_velocity, from, power)
+	_unbatch(i)
 	_loose[i] = 1
 	_gone[i] = 1
 	rb.freeze = true
@@ -454,6 +555,10 @@ static func _get_physics_material() -> PhysicsMaterial:
 		_physics_material.friction = 0.9
 		_physics_material.bounce = 0.05
 	return _physics_material
+
+
+static func _unit_box() -> BoxMesh:
+	return _box_mesh(Vector3.ONE)
 
 
 static func _box_mesh(s: Vector3) -> BoxMesh:

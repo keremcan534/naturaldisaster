@@ -6,7 +6,7 @@ extends Node
 ##   --shots=<dir>       saves a screenshot every 2 seconds into <dir>
 ##   --run-for=<sec>     quits after <sec> seconds
 ##   --log               prints round status changes
-##   --perf              prints process/physics time per frame every second
+##   --perf              prints frame costs every second (process, physics, draws)
 ##   --map=<i>           always loads map i (see maps.gd)
 ##   --disaster=<i>      always picks disaster i (see disaster_manager.gd)
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
@@ -69,10 +69,11 @@ func _process(delta: float) -> void:
 		_perf_timer -= delta
 		if _perf_timer <= 0.0:
 			_perf_timer = 1.0
-			print("[%.1fs] process %.2f ms, physics %.2f ms, bodies %d" % [_elapsed,
+			print("[%.1fs] process %.2f ms, physics %.2f ms, draw calls %d, primitives %d" % [_elapsed,
 					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
-					Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)])
+					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+					Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)])
 	if _run_for > 0.0 and _elapsed >= _run_for:
 		get_tree().quit()
 		return

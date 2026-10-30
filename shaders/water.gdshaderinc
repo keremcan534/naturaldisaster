@@ -1,22 +1,23 @@
 // Shared water surface. Defines pick the shape:
-//   SEA      long Gerstner swells (height from the weather) and foam at the island's shore
+//   SEA      long Gerstner swells (height from the weather), foam lapping at the island
 //   TSUNAMI  a breaking wave front moving along local +X (see tsunami.gd)
 //   CLEAR    see-through (floods)
-// Two scrolling noise layers add small ripples; fresnel blends toward the sky.
+//   (none)   a pool: calm, with a tiled floor seen through the water
+// The look is mostly what water really shows: the sky (with its clouds) mirrored
+// by a fresnel term, a sharp sun glint, and a dark body that turns turquoise where
+// light passes through crests or the water is shallow.
 
-global uniform vec4 sky_top;
-global uniform vec4 sky_horizon;
-global uniform vec4 sea_haze;
 global uniform float wave_height;
 global uniform float island_half;
 
-uniform vec3 deep_color : source_color = vec3(0.02, 0.1, 0.16);
-uniform vec3 shallow_color : source_color = vec3(0.05, 0.36, 0.4);
+uniform vec3 deep_color : source_color = vec3(0.01, 0.06, 0.1);
+uniform vec3 shallow_color : source_color = vec3(0.05, 0.42, 0.42);
 uniform sampler2D noise : filter_linear_mipmap, repeat_enable;
-uniform float ripple_scale = 0.06;
-uniform float ripple_strength = 0.35;
+uniform float ripple_strength = 1.0;
 uniform vec2 flow = vec2(0.0);
 uniform float alpha = 0.85;
+
+#include "res://shaders/sky_common.gdshaderinc"
 
 #ifdef TSUNAMI
 uniform float front = 0.0;
@@ -31,9 +32,11 @@ uniform float back = -60.0;
 
 varying vec3 world_pos;
 varying vec3 world_normal;
-// 0..1: how much of this point is breaking water (crests, shore).
+// 0..1: breaking water (crests, the wave lip).
 varying float foam_amount;
-varying float shallow;
+// Distance (m) from the island's edge, and how high this point rides in its swell.
+varying float shore;
+varying float crest;
 
 #ifdef SEA
 vec3 gerstner(vec2 p, vec2 dir, float wavelength, float steep, inout vec3 tangent, inout vec3 binormal) {
@@ -63,10 +66,9 @@ float wave_profile(float s) {
 void vertex() {
 	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	foam_amount = 0.0;
+	crest = 0.0;
 	world_normal = vec3(0.0, 1.0, 0.0);
-	vec2 to_island = max(abs(wp.xz) - vec2(island_half), vec2(0.0));
-	float shore = length(to_island);
-	shallow = 1.0 - smoothstep(2.0, 30.0, shore);
+	shore = length(max(abs(wp.xz) - vec2(island_half), vec2(0.0)));
 #ifdef SEA
 	// Swells fade out far away (the mesh gets coarse there) and calm near the cliffs.
 	float fade = (1.0 - smoothstep(120.0, 380.0, length(wp.xz))) * mix(0.35, 1.0, smoothstep(0.0, 12.0, shore));
@@ -79,8 +81,9 @@ void vertex() {
 	offset += gerstner(wp.xz, vec2(-0.9, -0.2), 7.5, 0.07 * steep, t, b);
 	wp += offset;
 	world_normal = normalize(cross(b, t));
-	foam_amount = smoothstep(0.55, 1.1, offset.y / max(wave_height, 0.05)) * 0.45 * smoothstep(0.6, 1.2, wave_height);
-	foam_amount = max(foam_amount, 1.0 - smoothstep(0.0, 3.0, shore));
+	crest = clamp(offset.y / max(wave_height * 0.9, 0.05), -1.0, 1.0);
+	// Whitecaps only once the sea gets rough.
+	foam_amount = smoothstep(0.6, 1.0, crest) * smoothstep(0.8, 1.3, wave_height);
 	VERTEX = (inverse(MODEL_MATRIX) * vec4(wp, 1.0)).xyz;
 #endif
 #ifdef TSUNAMI
@@ -94,50 +97,85 @@ void vertex() {
 	VERTEX.x += lip * 2.2 * edge;
 	VERTEX.y = mix(bottom, h, edge);
 	world_normal = normalize((MODEL_MATRIX * vec4(-slope, 1.0, 0.0, 0.0)).xyz);
-	foam_amount = smoothstep(level + 1.0, crest_height, h) + smoothstep(0.4, 1.5, abs(slope)) * 0.5;
+	crest = smoothstep(level, crest_height, h);
+	foam_amount = smoothstep(0.75, 1.0, crest) + smoothstep(0.6, 1.6, abs(slope)) * 0.6;
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 #endif
 	world_pos = wp;
 }
 
-float ripples(vec2 p) {
+// Small ripples: a few travelling sines (clean, like real wind ripples) broken up
+// by noise. Returns the surface slope (d height / dx, dz).
+vec2 ripple_slope(vec2 p) {
 	vec2 q = p - flow * TIME;
-	float a = texture(noise, q * ripple_scale + vec2(TIME * 0.012, TIME * 0.007)).r;
-	float b = texture(noise, q * ripple_scale * 2.3 - vec2(TIME * 0.009, -TIME * 0.014)).r;
-	return a * 0.6 + b * 0.4;
+	vec2 slope = vec2(0.0);
+	vec2 dirs[4] = vec2[](vec2(0.8, 0.6), vec2(-0.6, 0.8), vec2(0.96, -0.28), vec2(-0.3, -0.95));
+	float lengths[4] = float[](3.1, 2.3, 1.7, 1.15);
+	for (int i = 0; i < 4; i++) {
+		float k = 6.2832 / lengths[i];
+		float phase = k * dot(dirs[i], q) - sqrt(9.8 * k) * TIME;
+		slope += dirs[i] * cos(phase) * k * 0.012;
+	}
+	float e = 0.25;
+	float n0 = texture(noise, q * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
+	float nx = texture(noise, (q + vec2(e, 0.0)) * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
+	float nz = texture(noise, (q + vec2(0.0, e)) * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
+	slope += vec2(nx - n0, nz - n0) / e * 0.6;
+	return slope;
 }
 
 void fragment() {
-	float e = 0.3;
+	vec3 cam = (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+	float dist = length(world_pos - cam);
 	vec2 p = world_pos.xz;
 #ifdef TSUNAMI
-	// The steep face would smear the ripples into streaks; let height vary them too.
+	// The steep face would smear ripples into streaks; let height vary them too.
 	p += vec2(world_pos.y * 1.3);
 #endif
-	float h = ripples(p);
 	// Ripples fade with distance, where they would only alias into sparkles.
-	float near = 1.0 - smoothstep(25.0, 160.0, length(world_pos - (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz));
-	vec2 slope = vec2(h - ripples(p + vec2(e, 0.0)), h - ripples(p + vec2(0.0, e))) * ripple_strength * near / e * 4.0;
-	vec3 n = normalize(world_normal + vec3(slope.x, 0.0, slope.y));
+	float near = 1.0 - smoothstep(20.0, 140.0, dist);
+	vec2 slope = ripple_slope(p) * ripple_strength * near;
+	vec3 n = normalize(world_normal + vec3(-slope.x, 0.0, -slope.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
-	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
-	float fresnel = 0.04 + 0.96 * pow(1.0 - facing, 5.0);
 
-	vec3 view_world = normalize((INV_VIEW_MATRIX * vec4(-VIEW, 0.0)).xyz);
-	vec3 r = reflect(view_world, n);
-	vec3 sky = mix(sky_horizon.rgb, sky_top.rgb, pow(clamp(r.y, 0.0, 1.0), 0.5));
-	vec3 body = mix(deep_color, shallow_color, shallow * 0.8 + smoothstep(0.45, 0.8, h) * 0.2);
+	vec3 view_dir = normalize(world_pos - cam);
+	vec3 r = reflect(view_dir, n);
+	r.y = abs(r.y);
+	float cos_v = clamp(dot(-view_dir, n), 0.0, 1.0);
+	float fresnel = 0.02 + 0.98 * pow(1.0 - cos_v, 5.0);
+	vec3 sky = sky_color(r, TIME, false);
 
-	float foam_noise = texture(noise, p * 0.35 + vec2(TIME * 0.03, 0.0)).r * 0.6 + texture(noise, p * 1.1 - vec2(0.0, TIME * 0.05)).r * 0.4;
-	float foam = smoothstep(0.6, 0.8, foam_amount * 0.75 + foam_noise * 0.55) * smoothstep(0.02, 0.2, foam_amount);
+	// Sun glint: a tight hot core and a softer sheen around it.
+	float sun_dot = max(dot(r, sun_dir), 0.0);
+	vec3 glint = sun_color.rgb * (pow(sun_dot, 900.0) * 30.0 + pow(sun_dot, 80.0) * 0.5);
 
-	vec3 col = mix(body, sky, fresnel * 0.85);
-	col = mix(col, vec3(0.92, 0.95, 0.96), foam);
-	ALBEDO = col * 0.75;
-	// The reflected sky is light the water sends back by itself, not lit by the sun.
-	EMISSION = sky * fresnel * 0.35 * (1.0 - foam);
-	ROUGHNESS = mix(0.04, 0.8, foam);
-	SPECULAR = 0.7;
+	// The water's own color: deep blue-green, turquoise in the shallows and where
+	// light shines through the thin top of a crest.
+	float shallow = 1.0 - smoothstep(1.0, 28.0, shore);
+	vec3 body = mix(deep_color, shallow_color, shallow * 0.75);
+	float through = max(crest, 0.0) * (0.4 + 0.6 * max(dot(view_dir, sun_dir) * -1.0 + 0.3, 0.0));
+	body += shallow_color * through * 0.35;
+#if !defined(SEA) && !defined(TSUNAMI)
+	// Pool: light tiles under clear water, wobbling with the surface.
+	vec2 tile = (p + slope * 0.6) * 2.0;
+	float grout = smoothstep(0.0, 0.06, min(fract(tile.x), fract(tile.y)));
+	body = mix(shallow_color * 0.55, shallow_color * 1.25, grout);
+	fresnel *= 0.8;
+#endif
+
+	// Foam: whitecaps and, on the sea, lines lapping onto the island.
+	float bubbles = texture(noise, p * 0.35 + vec2(TIME * 0.03, 0.0)).r * 0.6 + texture(noise, p * 1.3 - vec2(0.0, TIME * 0.05)).r * 0.4;
+	float foam = smoothstep(0.55, 0.85, foam_amount * 0.7 + bubbles * 0.5) * step(0.02, foam_amount);
+#ifdef SEA
+	float lap = sin(shore * 1.4 - TIME * 1.6 + bubbles * 3.0) * 0.5 + 0.5;
+	float shore_foam = (1.0 - smoothstep(0.0, 6.0, shore)) * smoothstep(0.35, 0.75, lap * 0.6 + bubbles * 0.6);
+	foam = max(foam, shore_foam * 0.9);
+#endif
+
+	ALBEDO = mix(body * (1.0 - fresnel), vec3(0.9, 0.93, 0.94), foam);
+	EMISSION = (sky * fresnel + glint) * (1.0 - foam);
+	ROUGHNESS = mix(0.25, 0.9, foam);
+	SPECULAR = 0.0;
 #ifdef CLEAR
 	ALPHA = mix(alpha, 1.0, max(fresnel, foam));
 #endif

@@ -10,12 +10,20 @@ const STICK_DEADZONE := 0.15
 const BUTTON_RADIUS := 58.0
 ## Radians of turn per pixel dragged.
 const LOOK_SENSITIVITY := 0.005
+## A drag step longer than this (fraction of screen height) is not a real finger
+## movement: browsers can renumber fingers or skip events when one lifts, and
+## trusting that step would whip the camera around.
+const MAX_STEP := 0.15
 
 var player: Node
 
 var _stick_finger := -1
 var _stick_origin := Vector2.ZERO
 var _look_finger := -1
+## Last positions of the look and stick fingers; deltas are computed from these
+## instead of trusting event.relative.
+var _look_last := Vector2.ZERO
+var _stick_last := Vector2.ZERO
 ## Finger index -> action held by that finger.
 var _button_fingers := {}
 var _base: Panel
@@ -48,10 +56,38 @@ func _input(event: InputEvent) -> void:
 		else:
 			_release(event.index)
 	elif event is InputEventScreenDrag:
-		if event.index == _stick_finger:
-			_move_stick(event.position)
-		elif event.index == _look_finger and player:
-			player.add_look(event.relative * LOOK_SENSITIVITY)
+		_drag(event.index, event.position)
+
+
+## Routes a drag to the stick or the look finger. A finger is matched by index
+## first, but only if the new position is a plausible step from where that finger
+## was; otherwise by position, so a renumbered finger keeps its role.
+func _drag(finger: int, pos: Vector2) -> void:
+	if _button_fingers.has(finger):
+		return
+	var max_step := get_viewport().get_visible_rect().size.y * MAX_STEP
+	var to_look := pos.distance_to(_look_last) if _look_finger >= 0 else INF
+	var to_stick := pos.distance_to(_stick_last) if _stick_finger >= 0 else INF
+	if finger == _look_finger and to_look <= max_step:
+		_look(pos)
+	elif finger == _stick_finger and to_stick <= max_step:
+		_move_stick(pos)
+	elif to_look <= max_step and to_look <= to_stick:
+		_look_finger = finger
+		_look(pos)
+	elif to_stick <= max_step:
+		_stick_finger = finger
+		_move_stick(pos)
+	elif finger == _look_finger:
+		# A jump: start again from here without turning.
+		_look_last = pos
+
+
+func _look(pos: Vector2) -> void:
+	var step := pos - _look_last
+	_look_last = pos
+	if player:
+		player.add_look(step * LOOK_SENSITIVITY)
 
 
 func _press(finger: int, pos: Vector2) -> void:
@@ -62,16 +98,23 @@ func _press(finger: int, pos: Vector2) -> void:
 			Input.action_press(action)
 			button.modulate.a = 0.6
 			return
+	# A new touch always takes over its side: if a lift was missed (renumbered
+	# finger), the stale finger would otherwise block the stick or look for good.
+	if finger == _stick_finger:
+		_release(finger)
+	if finger == _look_finger:
+		_release(finger)
 	if pos.x < get_viewport().get_visible_rect().size.x * 0.5:
-		if _stick_finger < 0:
-			_stick_finger = finger
-			_stick_origin = pos
-			_place(_base, pos)
-			_place(_knob, pos)
-			_base.visible = true
-			_knob.visible = true
-	elif _look_finger < 0:
+		_stick_finger = finger
+		_stick_origin = pos
+		_stick_last = pos
+		_place(_base, pos)
+		_place(_knob, pos)
+		_base.visible = true
+		_knob.visible = true
+	else:
 		_look_finger = finger
+		_look_last = pos
 
 
 func _release(finger: int) -> void:
@@ -91,6 +134,7 @@ func _release(finger: int) -> void:
 
 
 func _move_stick(pos: Vector2) -> void:
+	_stick_last = pos
 	var offset := (pos - _stick_origin).limit_length(STICK_RADIUS)
 	_place(_knob, _stick_origin + offset)
 	var v := offset / STICK_RADIUS

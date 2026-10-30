@@ -56,7 +56,7 @@ static func _skyscraper(root: Node3D) -> Dictionary:
 	_ground(root, size, Color(0.55, 0.55, 0.52))
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_decal(root, Vector3(corner.x * 19, 0, corner.y * 19), Vector2(14, 14), GRASS_COLOR)
-	_building(root, Vector3(0, 0, -2), Vector2i(4, 4), 12, Color(0.7, 0.76, 0.82), 1.3)
+	_building(root, Vector3(0, 0, -2), Vector2i(5, 5), 10, Color(0.7, 0.76, 0.82), 1.3)
 	var props := _props()
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_tree(props, Vector3(corner.x * 19, 0, corner.y * 19))
@@ -71,8 +71,8 @@ static func _garden_house(root: Node3D) -> Dictionary:
 	_ground(root, size, GRASS_COLOR)
 	_decal(root, Vector3(0, 0, 9), Vector2(2, 14), PATH_COLOR)
 	_pool(root, Vector3(-10, 0, 6), Vector2(6, 4))
-	_building(root, Vector3(0, 0, -6), Vector2i(4, 3), 2, Color(0.9, 0.82, 0.68), 1.0)
-	_building(root, Vector3(12, 0, -1), Vector2i(2, 2), 1, Color(0.6, 0.42, 0.3), 0.8)
+	_building(root, Vector3(0, 0, -6), Vector2i(6, 5), 2, Color(0.9, 0.82, 0.68), 1.0)
+	_building(root, Vector3(12, 0, -1), Vector2i(3, 3), 1, Color(0.6, 0.42, 0.3), 0.8)
 	var props := _props()
 	_fence(props, Rect2(-18, -18, 36, 34), 2.0)
 	for pos: Vector3 in [Vector3(-12, 0, -13), Vector3(12, 0, -13), Vector3(-14, 0, 12), Vector3(13, 0, 10)]:
@@ -86,7 +86,7 @@ static func _apartment(root: Node3D) -> Dictionary:
 	_ground(root, size, GRASS_COLOR)
 	_road(root, Vector3(0, 0, 14), size, true)
 	_decal(root, Vector3(0, 0, 5.5), Vector2(2, 7), PATH_COLOR)
-	_building(root, Vector3(0, 0, -4), Vector2i(5, 4), 6, Color(0.85, 0.62, 0.5), 1.1)
+	_building(root, Vector3(0, 0, -3), Vector2i(7, 5), 6, Color(0.85, 0.62, 0.5), 1.1)
 	var props := _props()
 	for i in 4:
 		_car(props, Vector3(-15 + i * 10, 0, 14), i % 2 == 0, CAR_COLORS[i])
@@ -106,7 +106,7 @@ static func _neighbourhood(root: Node3D) -> Dictionary:
 	var colors := [Color(0.85, 0.78, 0.66), Color(0.78, 0.55, 0.45), Color(0.7, 0.74, 0.78), Color(0.62, 0.68, 0.58)]
 	var lots := [Vector3(-18, 0, -18), Vector3(18, 0, -18), Vector3(-18, 0, 18), Vector3(18, 0, 18)]
 	for k in lots.size():
-		var footprint := Vector2i(rng.randi_range(3, 5), rng.randi_range(3, 5))
+		var footprint := Vector2i(rng.randi_range(4, 6), rng.randi_range(4, 5))
 		_building(root, lots[k], footprint, rng.randi_range(2, 5), colors[k], rng.randf_range(0.7, 1.4))
 	var props := _props()
 	for pos: Vector3 in [Vector3(-30, 0, -6), Vector3(30, 0, 6), Vector3(-6, 0, 30), Vector3(6, 0, -30)]:

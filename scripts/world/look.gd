@@ -10,6 +10,9 @@ const LAVA_SHADER := preload("res://shaders/lava.gdshader")
 const WINDOW_SHADER := preload("res://shaders/window.gdshader")
 const GRASS_SHADER := preload("res://shaders/grass.gdshader")
 const LEAVES_SHADER := preload("res://shaders/leaves.gdshader")
+const BUILDING_SHADER := preload("res://shaders/building.gdshader")
+const INTERIOR_PAINT := Color(0.9, 0.88, 0.83)
+const CEILING := Color(0.93, 0.92, 0.9)
 const MAX_SHADES := 16
 
 const ROCK_COLOR := Color(0.42, 0.36, 0.3)
@@ -25,9 +28,12 @@ static var _panel: Texture2D
 static var _surfaces := {}
 static var _grounds := {}
 static var _leaves := {}
+static var _buildings := {}
 static var _canopies := {}
 static var _trunks := {}
 static var _shard: StandardMaterial3D
+static var _tinted: StandardMaterial3D
+static var _lamp: StandardMaterial3D
 static var _grass: ShaderMaterial
 static var _tuft: ArrayMesh
 
@@ -40,6 +46,7 @@ static func surface(color: Color) -> Material:
 		if color == GLASS_KEY:
 			var window := ShaderMaterial.new()
 			window.shader = WINDOW_SHADER
+			window.set_shader_parameter("noise", noise_texture())
 			_surfaces[color] = window
 			return window
 		var mat := StandardMaterial3D.new()
@@ -56,6 +63,21 @@ static func surface(color: Color) -> Material:
 	return _surfaces[color]
 
 
+## Lamp shades: they glow brighter as the weather darkens (see weather.gd).
+static func lamp() -> StandardMaterial3D:
+	if _lamp == null:
+		_lamp = StandardMaterial3D.new()
+		_lamp.albedo_color = Color(1.0, 0.92, 0.75)
+		_lamp.emission_enabled = true
+		_lamp.emission = Color(1.0, 0.8, 0.5)
+		_lamp.emission_energy_multiplier = 0.5
+	return _lamp
+
+
+static func set_lamps(glow: float) -> void:
+	lamp().emission_energy_multiplier = 0.3 + glow * 2.5
+
+
 ## Broken glass: see-through, glinting.
 static func shard() -> StandardMaterial3D:
 	if _shard == null:
@@ -66,6 +88,54 @@ static func shard() -> StandardMaterial3D:
 		_shard.metallic_specular = 1.0
 		_shard.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return _shard
+
+
+## Colors that get their own material instead of a tint (glass).
+static func is_special(color: Color) -> bool:
+	return color == GLASS_KEY or color == CAR_GLASS_KEY
+
+
+## Plain pieces drawn in batches: the panel look, colored per instance.
+static func tinted() -> StandardMaterial3D:
+	if _tinted == null:
+		_tinted = StandardMaterial3D.new()
+		_tinted.vertex_color_use_as_albedo = true
+		_tinted.vertex_color_is_srgb = true
+		_tinted.albedo_texture = _panel_texture()
+		_tinted.roughness = 0.85
+		_tinted.uv1_scale = Vector3(3, 2, 1)
+	return _tinted
+
+
+## Exterior wall: the building's color outside (local +Z), paint inside.
+static func wall(color: Color) -> Material:
+	return _building_material(color, INTERIOR_PAINT, color, color, color, false)
+
+
+## Floor slab: plank floor on top, ceiling below, trim color on the edges.
+static func slab(floor_color: Color, trim: Color) -> Material:
+	return _building_material(trim, trim, floor_color, CEILING, trim, true)
+
+
+## Roof: plain on top, ceiling below.
+static func roof(trim: Color) -> Material:
+	return _building_material(trim, trim, trim, CEILING, trim, false)
+
+
+static func _building_material(outside: Color, inside: Color, top: Color, bottom: Color, edge: Color, planks: bool) -> Material:
+	var key := [outside, inside, top, bottom, edge, planks]
+	if not _buildings.has(key):
+		var mat := ShaderMaterial.new()
+		mat.shader = BUILDING_SHADER
+		mat.set_shader_parameter("panel", _panel_texture())
+		mat.set_shader_parameter("outside_color", outside)
+		mat.set_shader_parameter("inside_color", inside)
+		mat.set_shader_parameter("top_color", top)
+		mat.set_shader_parameter("bottom_color", bottom)
+		mat.set_shader_parameter("edge_color", edge)
+		mat.set_shader_parameter("planks", planks)
+		_buildings[key] = mat
+	return _buildings[key]
 
 
 ## Grass, plaza, paths. road_size (width, length) adds lane markings.
@@ -116,9 +186,8 @@ static func water() -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = WATER_SHADER
 	mat.set_shader_parameter("noise", noise_texture())
-	mat.set_shader_parameter("ripple_strength", 0.12)
-	mat.set_shader_parameter("deep_color", Color(0.05, 0.32, 0.45))
-	mat.set_shader_parameter("shallow_color", Color(0.15, 0.6, 0.68))
+	mat.set_shader_parameter("ripple_strength", 0.35)
+	mat.set_shader_parameter("shallow_color", Color(0.25, 0.65, 0.72))
 	return mat
 
 

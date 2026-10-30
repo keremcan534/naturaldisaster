@@ -18,7 +18,7 @@ const SEA_SEGMENTS := 128
 
 ## top/horizon: sky colors (the fog uses horizon), haze: far sea, sun: color and
 ## energy, fog: density, saturation: color adjustment, clouds: cover and lit/shaded
-## colors, wind: grass and trees, waves: swell height, rooms: how bright lit windows glow,
+## colors, wind: grass and trees, waves: swell height, rooms: how bright indoor lamps glow,
 ## rain/lightning: storm effects.
 const MOODS := {
 	"clear": {
@@ -133,6 +133,8 @@ func _ready() -> void:
 	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	_sun.directional_shadow_max_distance = 90.0
 	add_child(_sun)
+	# The light shines along its -Z, so +Z points at the sun.
+	RenderingServer.global_shader_parameter_set("sun_dir", _sun.global_basis.z.normalized())
 
 	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
 		_sun_base = 1.0
@@ -184,6 +186,7 @@ func _process(delta: float) -> void:
 	_flash = maxf(_flash - delta * 3.0, 0.0)
 	var flicker := _flash * (1.0 if fmod(_flash, 0.4) > 0.15 else 0.3)
 	_sun.light_energy = _sun_base * _energy + flicker * 2.5
+	RenderingServer.global_shader_parameter_set("sun_color", _sun.light_color * minf(_energy + flicker, 1.5))
 	_sky.set_shader_parameter("flash", flicker * 1.5)
 
 	var camera := get_viewport().get_camera_3d()
@@ -205,15 +208,15 @@ func _apply(a: Dictionary, b: Dictionary, t: float) -> void:
 	_clouds = lerpf(a.clouds, b.clouds, t)
 	_cloud_light = (a.cloud_light as Color).lerp(b.cloud_light, t)
 	_cloud_dark = (a.cloud_dark as Color).lerp(b.cloud_dark, t)
-	_sky.set_shader_parameter("cloud_cover", _clouds)
-	_sky.set_shader_parameter("cloud_light", _cloud_light)
-	_sky.set_shader_parameter("cloud_dark", _cloud_dark)
+	RenderingServer.global_shader_parameter_set("cloud_cover", _clouds)
+	RenderingServer.global_shader_parameter_set("cloud_light", _cloud_light)
+	RenderingServer.global_shader_parameter_set("cloud_dark", _cloud_dark)
 	_wind = lerpf(a.wind, b.wind, t)
 	RenderingServer.global_shader_parameter_set("wind", _wind)
 	_waves = lerpf(a.waves, b.waves, t)
 	RenderingServer.global_shader_parameter_set("wave_height", _waves)
 	_rooms = lerpf(a.rooms, b.rooms, t)
-	RenderingServer.global_shader_parameter_set("room_light", _rooms)
+	Look.set_lamps(_rooms)
 	_env.fog_light_color = horizon
 	_env.fog_density = lerpf(a.fog, b.fog, t)
 	_ambient = lerpf(a.ambient, b.ambient, t)

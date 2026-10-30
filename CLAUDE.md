@@ -24,14 +24,23 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   `RigidBody3D`s (free for physics); damage unfreezes them and `_settle()` drops
   whatever lost support. Disasters only talk to structures through `quake()`,
   `damage_sphere()` and `apply_field()` via `call_group("structures", ...)`.
+  Intact pieces are drawn as MultiMesh batches (plain boxes: one unit cube scaled and
+  tinted per instance), so a building is a few draw calls; check `--perf` draw counts
+  after adding pieces. Shaders on batched boxes must read the piece size from
+  `MODEL_MATRIX` scale, not from `VERTEX`.
+- `scripts/world/interior.gd`: rooms per floor (partition with a doorway) and furniture
+  against the walls; all ordinary structure pieces.
 - `scripts/world/look.gd`: the visual style; procedural textures (generated once, no
   image files) and cached materials. Structures get theirs through `Look.surface(color)`;
-  `Look.GLASS_KEY` pieces get the interior-mapped window shader (wall pieces are
-  rotated so local +Z faces outward), `CAR_GLASS_KEY` plain dark glass.
-- `shaders/`: sky (clouds), ground (road markings, contact shadows), water include
-  (`SEA` Gerstner swells + shore foam, `TSUNAMI` breaking wave, flat pools), window,
-  grass, leaves, lava. Weather values shared by shaders are global uniforms declared in
-  `project.godot` `[shader_globals]` (sky colors, wind, wave height, room lights, island size).
+  `Look.GLASS_KEY` pieces get see-through glass (window shader), `CAR_GLASS_KEY` plain
+  dark glass. Wall pieces are rotated so local +Z faces outward: the building shader
+  paints them outside/inside, and gives slabs a plank floor and a ceiling.
+- `shaders/`: `sky_common.gdshaderinc` (the sky as a function of direction; the sky,
+  water and glass all use it, so reflections show the real clouds and sun), ground
+  (road markings, contact shadows), water include (`SEA` Gerstner swells + shore foam,
+  `TSUNAMI` breaking wave, pools with a tiled floor), window, building, grass, leaves,
+  lava. Weather values shared by shaders are global uniforms declared in
+  `project.godot` `[shader_globals]` (sky/sun/cloud colors, wind, wave height, island size).
 - `scripts/world/debris.gd`: pooled chunks that pieces shatter into (explosions, very
   strong winds, hard landings; glass always). Falling pieces that hit hard call
   `impact()` on structures, so collapses spread.

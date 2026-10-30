@@ -41,6 +41,7 @@ var _body: MeshInstance3D
 var _head: Node3D
 var _camera: Camera3D
 var _shake := 0.0
+var _shake_time := 0.0
 var _fall_speed := 0.0
 ## Horizontal velocity from input / from the world (blasts, wind, water).
 var _walk := Vector3.ZERO
@@ -183,8 +184,11 @@ func _physics_process(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
-	_camera.h_offset = randf_range(-1, 1) * _shake * 0.25
-	_camera.v_offset = randf_range(-1, 1) * _shake * 0.25
+	# Smooth wobble rather than a new random offset every frame, which reads as jitter.
+	_shake_time += delta
+	var t := _shake_time * 22.0
+	_camera.h_offset = (sin(t) + sin(t * 2.3 + 1.7)) * 0.5 * _shake * 0.25
+	_camera.v_offset = (sin(t * 1.3 + 0.5) + sin(t * 2.9 + 2.1)) * 0.5 * _shake * 0.25
 	_shake = move_toward(_shake, 0.0, delta * 2.0)
 	var surface := _water_level if Engine.get_physics_frames() - _water_frame <= 1 else SEA_LEVEL
 	_underwater_tint.visible = _camera.global_position.y < surface
