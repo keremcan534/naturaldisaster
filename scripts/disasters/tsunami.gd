@@ -16,6 +16,10 @@ const CREST_PLAYER_DAMAGE := 30.0
 const TRAVEL_PART := 0.45
 const DRAIN_PART := 0.25
 const EDGE_MARGIN := 20.0
+## The water reaches down this far so it meets the sea past the island's edge.
+const BOTTOM := -3.0
+
+const Look := preload("res://scripts/world/look.gd")
 
 var _dir := Vector3.RIGHT
 var _half := 30.0
@@ -45,10 +49,10 @@ func begin() -> void:
 	add_child(_root)
 	_front = -_half - EDGE_MARGIN
 
-	_body = _water_mesh(BoxMesh.new(), Color(0.1, 0.35, 0.6, 0.75))
+	_body = _water_mesh(BoxMesh.new(), 0.75, Color(0.06, 0.3, 0.4))
 	var crest_mesh := PrismMesh.new()
 	crest_mesh.left_to_right = 1.0
-	_crest = _water_mesh(crest_mesh, Color(0.55, 0.75, 0.85, 0.85))
+	_crest = _water_mesh(crest_mesh, 0.92, Color(0.75, 0.88, 0.9))
 
 
 func _physics_process(delta: float) -> void:
@@ -101,18 +105,18 @@ func _update_meshes(travel: float) -> void:
 	var body_len := _front - CREST_DEPTH - back
 	_body.visible = body_len > 0.0 and _level > 0.01
 	if _body.visible:
-		_body.scale = Vector3(body_len, _level, width)
-		_body.position = Vector3(back + body_len * 0.5, _level * 0.5, 0)
+		_body.scale = Vector3(body_len, _level - BOTTOM, width)
+		_body.position = Vector3(back + body_len * 0.5, (_level + BOTTOM) * 0.5, 0)
 	_crest.visible = travel < 1.0
-	_crest.scale = Vector3(CREST_DEPTH, CREST_HEIGHT, width)
-	_crest.position = Vector3(_front - CREST_DEPTH * 0.5, CREST_HEIGHT * 0.5, 0)
+	_crest.scale = Vector3(CREST_DEPTH, CREST_HEIGHT - BOTTOM, width)
+	_crest.position = Vector3(_front - CREST_DEPTH * 0.5, (CREST_HEIGHT + BOTTOM) * 0.5, 0)
 
 
-func _water_mesh(mesh: PrimitiveMesh, color: Color) -> MeshInstance3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.roughness = 0.15
+func _water_mesh(mesh: PrimitiveMesh, alpha: float, shallow: Color) -> MeshInstance3D:
+	var mat := Look.water(true)
+	mat.set_shader_parameter("alpha", alpha)
+	mat.set_shader_parameter("shallow_color", shallow)
+	mat.set_shader_parameter("flow", Vector2(_dir.x, _dir.z) * 3.0)
 	mesh.material = mat
 	var instance := MeshInstance3D.new()
 	instance.mesh = mesh

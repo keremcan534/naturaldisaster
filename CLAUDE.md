@@ -24,6 +24,10 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   `RigidBody3D`s (free for physics); damage unfreezes them and `_settle()` drops
   whatever lost support. Disasters only talk to structures through `quake()`,
   `damage_sphere()` and `apply_field()` via `call_group("structures", ...)`.
+- `scripts/world/look.gd`: the visual style; procedural textures (generated once, no
+  image files) and cached materials. Structures get theirs through `Look.surface(color)`;
+  `Look.GLASS_KEY` / `CAR_GLASS_KEY` colors turn into glass. Shaders live in `shaders/`
+  (ground with road markings, water for the sea/pools/floods, lava).
 - `scripts/world/maps.gd`: the small maps (skyscraper, garden house, apartment, neighbourhood).
 - `scripts/disasters/`: `disaster.gd` base + one file per disaster, registered in
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.

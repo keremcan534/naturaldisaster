@@ -3,6 +3,7 @@ extends "res://scripts/disasters/disaster.gd"
 ## sends a lava flow toward the south. It sinks back before the round ends.
 
 const ProjectilePool := preload("res://scripts/disasters/projectile_pool.gd")
+const Look := preload("res://scripts/world/look.gd")
 
 const HEIGHT := 24.0
 const BASE_RADIUS := 18.0
@@ -25,7 +26,7 @@ var _sink := SINK_TIME
 var _bomb_timer := 0.0
 var _mountain: AnimatableBody3D
 var _lava: MeshInstance3D
-var _lava_mat: StandardMaterial3D
+var _lava_mat: ShaderMaterial
 var _lava_start := 0.0
 var _lava_length := 0.0
 var _bombs: ProjectilePool
@@ -53,9 +54,7 @@ func begin() -> void:
 	cone.height = HEIGHT
 	cone.radial_segments = 24
 	cone.rings = 1
-	var rock := StandardMaterial3D.new()
-	rock.albedo_color = Color(0.3, 0.25, 0.22)
-	cone.material = rock
+	cone.material = Look.cliff(Color(0.17, 0.15, 0.14))
 	var cone_mesh := MeshInstance3D.new()
 	cone_mesh.mesh = cone
 	cone_mesh.position.y = HEIGHT * 0.5
@@ -70,7 +69,7 @@ func begin() -> void:
 	crater_mesh.top_radius = CRATER_RADIUS * 0.9
 	crater_mesh.bottom_radius = CRATER_RADIUS * 0.9
 	crater_mesh.height = 0.4
-	crater_mesh.material = _glow_material(Color(1.0, 0.35, 0.05))
+	crater_mesh.material = Look.lava()
 	crater.mesh = crater_mesh
 	crater.position.y = HEIGHT
 	_mountain.add_child(crater)
@@ -78,7 +77,7 @@ func begin() -> void:
 	_mountain.position = _center - Vector3(0, HEIGHT, 0)
 	add_child(_mountain)
 
-	_lava_mat = _glow_material(Color(1.0, 0.3, 0.05))
+	_lava_mat = Look.lava()
 	var lava_mesh := BoxMesh.new()
 	lava_mesh.material = _lava_mat
 	_lava = MeshInstance3D.new()
@@ -115,7 +114,7 @@ func _physics_process(delta: float) -> void:
 		_update_lava()
 		_burn_players(delta)
 	elif _elapsed >= sink_start:
-		_lava_mat.emission_energy_multiplier = lerpf(2.5, 0.0, sink_t)
+		_lava_mat.set_shader_parameter("energy", lerpf(3.0, 0.0, sink_t))
 
 
 func _throw_bomb() -> void:
@@ -178,11 +177,3 @@ func _smoke() -> GPUParticles3D:
 	smoke.position.y = HEIGHT
 	return smoke
 
-
-func _glow_material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.emission_enabled = true
-	mat.emission = color
-	mat.emission_energy_multiplier = 2.5
-	return mat

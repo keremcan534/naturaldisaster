@@ -3,12 +3,19 @@ extends RefCounted
 ## is freed, so a map always starts intact.
 
 const Structure := preload("res://scripts/world/structure.gd")
+const Look := preload("res://scripts/world/look.gd")
 
 const COUNT := 4
-const LEAF_COLOR := Color(0.25, 0.55, 0.25)
+const LEAF_COLOR := Color(0.22, 0.48, 0.2)
+const LEAF_LIGHT_COLOR := Color(0.32, 0.58, 0.24)
 const TRUNK_COLOR := Color(0.45, 0.3, 0.18)
 const FENCE_COLOR := Color(0.92, 0.9, 0.85)
-const ROAD_COLOR := Color(0.25, 0.25, 0.27)
+const ROAD_COLOR := Color(0.2, 0.2, 0.22)
+const GRASS_COLOR := Color(0.27, 0.43, 0.19)
+const POOL_RIM_COLOR := Color(0.78, 0.76, 0.72)
+const WHEEL_COLOR := Color(0.08, 0.08, 0.09)
+## How far the island's rock sides reach down (they go below the sea).
+const CLIFF_DEPTH := 14.0
 const PATH_COLOR := Color(0.7, 0.66, 0.6)
 const EPS_FENCE := 0.01
 const CAR_COLORS := [Color(0.8, 0.15, 0.15), Color(0.15, 0.3, 0.75), Color(0.9, 0.9, 0.9), Color(0.2, 0.2, 0.22)]
@@ -31,7 +38,7 @@ static func _skyscraper(root: Node3D) -> Dictionary:
 	var size := 56.0
 	_ground(root, size, Color(0.55, 0.55, 0.52))
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
-		_decal(root, Vector3(corner.x * 19, 0, corner.y * 19), Vector2(14, 14), Color(0.36, 0.55, 0.3))
+		_decal(root, Vector3(corner.x * 19, 0, corner.y * 19), Vector2(14, 14), GRASS_COLOR)
 	_building(root, Vector3(0, 0, -2), Vector2i(4, 4), 12, Color(0.7, 0.76, 0.82), 1.3)
 	var props := _props()
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
@@ -44,9 +51,9 @@ static func _skyscraper(root: Node3D) -> Dictionary:
 
 static func _garden_house(root: Node3D) -> Dictionary:
 	var size := 44.0
-	_ground(root, size, Color(0.36, 0.55, 0.3))
+	_ground(root, size, GRASS_COLOR)
 	_decal(root, Vector3(0, 0, 9), Vector2(2, 14), PATH_COLOR)
-	_decal(root, Vector3(-10, 0, 6), Vector2(6, 4), Color(0.2, 0.55, 0.85))
+	_pool(root, Vector3(-10, 0, 6), Vector2(6, 4))
 	_building(root, Vector3(0, 0, -6), Vector2i(4, 3), 2, Color(0.9, 0.82, 0.68), 1.0)
 	_building(root, Vector3(12, 0, -1), Vector2i(2, 2), 1, Color(0.6, 0.42, 0.3), 0.8)
 	var props := _props()
@@ -59,8 +66,8 @@ static func _garden_house(root: Node3D) -> Dictionary:
 
 static func _apartment(root: Node3D) -> Dictionary:
 	var size := 50.0
-	_ground(root, size, Color(0.36, 0.55, 0.3))
-	_decal(root, Vector3(0, 0, 14), Vector2(size, 8), ROAD_COLOR)
+	_ground(root, size, GRASS_COLOR)
+	_road(root, Vector3(0, 0, 14), size, true)
 	_decal(root, Vector3(0, 0, 5.5), Vector2(2, 7), PATH_COLOR)
 	_building(root, Vector3(0, 0, -4), Vector2i(5, 4), 6, Color(0.85, 0.62, 0.5), 1.1)
 	var props := _props()
@@ -74,9 +81,9 @@ static func _apartment(root: Node3D) -> Dictionary:
 
 static func _neighbourhood(root: Node3D) -> Dictionary:
 	var size := 76.0
-	_ground(root, size, Color(0.36, 0.55, 0.3))
-	_decal(root, Vector3.ZERO, Vector2(8, size), ROAD_COLOR)
-	_decal(root, Vector3.ZERO, Vector2(size, 8), ROAD_COLOR)
+	_ground(root, size, GRASS_COLOR)
+	_road(root, Vector3.ZERO, size, false)
+	_road(root, Vector3(0, 0.003, 0), size, true)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1337
 	var colors := [Color(0.85, 0.78, 0.66), Color(0.78, 0.55, 0.45), Color(0.7, 0.74, 0.78), Color(0.62, 0.68, 0.58)]
@@ -103,27 +110,51 @@ static func _ground(root: Node3D, size: float, color: Color) -> void:
 	shape.shape = box
 	shape.position.y = -1.0
 	ground.add_child(shape)
-	# A visible slab, so the map reads as an island with an edge you can fall off.
-	var mesh := MeshInstance3D.new()
-	var slab := BoxMesh.new()
-	slab.size = box.size
-	slab.material = _flat_material(color)
-	mesh.mesh = slab
-	mesh.position.y = -1.0
-	ground.add_child(mesh)
+	var top := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(size, size)
+	plane.material = Look.ground(color)
+	top.mesh = plane
+	ground.add_child(top)
+	# Rock sides down into the sea, so the map reads as an island with an edge you can fall off.
+	var cliff := MeshInstance3D.new()
+	var rock := BoxMesh.new()
+	rock.size = Vector3(size, CLIFF_DEPTH, size)
+	rock.material = Look.cliff()
+	cliff.mesh = rock
+	cliff.position.y = -CLIFF_DEPTH * 0.5 - 0.03
+	cliff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ground.add_child(cliff)
 	root.add_child(ground)
 
 
 ## Purely visual flat patch (roads, paths, pools).
 static func _decal(root: Node3D, center: Vector3, size: Vector2, color: Color) -> void:
+	_flat(root, center, size, Look.ground(color))
+
+
+## A road with lane markings along Z, or along X.
+static func _road(root: Node3D, center: Vector3, length: float, along_x: bool) -> void:
+	var road := _flat(root, center, Vector2(8, length), Look.ground(ROAD_COLOR, Vector2(8, length)))
+	if along_x:
+		road.rotation.y = PI * 0.5
+
+
+static func _pool(root: Node3D, center: Vector3, size: Vector2) -> void:
+	_flat(root, center, size + Vector2(1.2, 1.2), Look.ground(POOL_RIM_COLOR))
+	_flat(root, center + Vector3(0, 0.005, 0), size, Look.water())
+
+
+static func _flat(root: Node3D, center: Vector3, size: Vector2, material: Material) -> MeshInstance3D:
 	var mesh := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = size
-	plane.material = _flat_material(color)
+	plane.material = material
 	mesh.mesh = plane
 	mesh.position = center + Vector3(0, 0.01, 0)
 	mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(mesh)
+	return mesh
 
 
 static func _building(root: Node3D, pos: Vector3, footprint: Vector2i, floors: int, color: Color, strength: float) -> void:
@@ -141,9 +172,13 @@ static func _props() -> Structure:
 	return props
 
 
+## Trunk and three stacked canopy blocks, the middle one turned 45 degrees.
 static func _tree(props: Structure, pos: Vector3) -> void:
+	var turn := Basis(Vector3.UP, (pos.x + pos.z) * 0.37)
 	props.add_box(pos + Vector3(0, 1.2, 0), Vector3(0.5, 2.4, 0.5), TRUNK_COLOR)
-	props.add_box(pos + Vector3(0, 3.5, 0), Vector3(2.4, 2.2, 2.4), LEAF_COLOR)
+	props.add_box(pos + Vector3(0, 3.1, 0), Vector3(3.0, 1.4, 3.0), LEAF_COLOR, turn)
+	props.add_box(pos + Vector3(0, 4.3, 0), Vector3(2.3, 1.0, 2.3), LEAF_LIGHT_COLOR, turn.rotated(Vector3.UP, PI * 0.25))
+	props.add_box(pos + Vector3(0, 5.15, 0), Vector3(1.3, 0.7, 1.3), LEAF_COLOR, turn)
 
 
 static func _car(props: Structure, pos: Vector3, along_x: bool, color: Color) -> void:
@@ -154,8 +189,16 @@ static func _car(props: Structure, pos: Vector3, along_x: bool, color: Color) ->
 		body = Vector3(body.z, body.y, body.x)
 		cabin = Vector3(cabin.z, cabin.y, cabin.x)
 		cabin_offset = Vector3(0, 0, -0.3)
-	props.add_box(pos + Vector3(0, body.y * 0.5, 0), body, color)
-	props.add_box(pos + cabin_offset + Vector3(0, body.y + cabin.y * 0.5, 0), cabin, color.lightened(0.3))
+	var lift := 0.3
+	props.add_box(pos + Vector3(0, lift + body.y * 0.5, 0), body, color)
+	props.add_box(pos + cabin_offset + Vector3(0, lift + body.y + cabin.y * 0.5, 0), cabin, Look.CAR_GLASS_KEY)
+	props.add_box(pos + cabin_offset + Vector3(0, lift + body.y + cabin.y + 0.06, 0), cabin + Vector3(0.1, -cabin.y + 0.12, 0.1), color)
+	# Wheels poke out a little on both sides, under the body.
+	var wheel := Vector3(0.75, 0.75, 0.3) if along_x else Vector3(0.3, 0.75, 0.75)
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			var offset := Vector3(sx * 1.3, 0, sz * 0.88) if along_x else Vector3(sx * 0.88, 0, sz * 1.3)
+			props.add_box(pos + offset + Vector3(0, wheel.y * 0.5, 0), wheel, WHEEL_COLOR)
 
 
 ## Fence along the rectangle's edges with a gate gap in the middle of the +Z side.
@@ -182,8 +225,3 @@ static func _fence(props: Structure, rect: Rect2, gate_width: float) -> void:
 		props.add_box(Vector3(x1, height * 0.5, z + length * 0.5), Vector3(thick, height, length), FENCE_COLOR)
 		z += panel
 
-
-static func _flat_material(color: Color) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	return mat

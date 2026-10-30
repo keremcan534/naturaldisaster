@@ -96,7 +96,7 @@ func _ready() -> void:
 	_camera = Camera3D.new()
 	_camera.fov = 80.0
 	_camera.near = 0.05
-	_camera.far = 400.0
+	_camera.far = 800.0
 	_head.add_child(_camera)
 	_camera.make_current()
 	# Our own body would fill the view; keep only its shadow.

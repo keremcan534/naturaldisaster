@@ -7,12 +7,14 @@ extends Node3D
 ## pieces, and after every hit a support pass drops whatever is no longer held up
 ## from the ground. Fill it with add_box()/add_building() before adding it to the tree.
 
+const Look := preload("res://scripts/world/look.gd")
+
 const WALL_THICKNESS := 0.3
 const SLAB_THICKNESS := 0.3
 const RAMP_THICKNESS := 0.25
 const CELL := 2.0
 const FLOOR_HEIGHT := 3.0
-const WINDOW_COLOR := Color(0.25, 0.35, 0.45)
+const WINDOW_COLOR := Look.GLASS_KEY
 ## How many pieces a piece may hang sideways from something supported below.
 const MAX_SPAN := 2
 const DENSITY := 1.5
@@ -25,7 +27,6 @@ const BREAK_RATE := 5.0
 
 static var _meshes := {}
 static var _shapes := {}
-static var _materials := {}
 static var _physics_material: PhysicsMaterial
 
 ## Higher survives more shaking.
@@ -63,7 +64,7 @@ func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis :=
 	rb.add_child(shape)
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = _box_mesh(box_size)
-	mesh.material_override = _material(color)
+	mesh.material_override = Look.surface(color)
 	rb.add_child(mesh)
 	add_child(rb)
 
@@ -316,10 +317,3 @@ static func _box_shape(s: Vector3) -> BoxShape3D:
 		_shapes[s] = shape
 	return _shapes[s]
 
-
-static func _material(c: Color) -> StandardMaterial3D:
-	if not _materials.has(c):
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = c
-		_materials[c] = mat
-	return _materials[c]
