@@ -26,8 +26,15 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   `damage_sphere()` and `apply_field()` via `call_group("structures", ...)`.
 - `scripts/world/look.gd`: the visual style; procedural textures (generated once, no
   image files) and cached materials. Structures get theirs through `Look.surface(color)`;
-  `Look.GLASS_KEY` / `CAR_GLASS_KEY` colors turn into glass. Shaders live in `shaders/`
-  (ground with road markings, water for the sea/pools/floods, lava).
+  `Look.GLASS_KEY` pieces get the interior-mapped window shader (wall pieces are
+  rotated so local +Z faces outward), `CAR_GLASS_KEY` plain dark glass.
+- `shaders/`: sky (clouds), ground (road markings, contact shadows), water include
+  (`SEA` Gerstner swells + shore foam, `TSUNAMI` breaking wave, flat pools), window,
+  grass, leaves, lava. Weather values shared by shaders are global uniforms declared in
+  `project.godot` `[shader_globals]` (sky colors, wind, wave height, room lights, island size).
+- `scripts/world/debris.gd`: pooled chunks that pieces shatter into (explosions, very
+  strong winds, hard landings; glass always). Falling pieces that hit hard call
+  `impact()` on structures, so collapses spread.
 - `scripts/world/weather.gd`: sky, sun, fog and the sea. Each disaster sets a `mood`
   (clear, dust, dusk, overcast, storm, ash) that the weather blends into from the
   warning on; storms add camera-following rain and lightning.
@@ -60,5 +67,6 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 ```
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
-(`--fast`, `--log`, `--map=<i>`, `--disaster=<i>`, `--shots=<dir>`, `--pos=`, `--touch`).
+(`--fast`, `--log`, `--perf`, `--map=<i>`, `--disaster=<i>`, `--shots=<dir>`, `--pos=`,
+`--yaw=`, `--pitch=`, `--touch`). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

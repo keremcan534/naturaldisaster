@@ -10,6 +10,7 @@ const Hud := preload("res://scripts/ui/hud.gd")
 const TouchControls := preload("res://scripts/ui/touch_controls.gd")
 const Weather := preload("res://scripts/world/weather.gd")
 const Effects := preload("res://scripts/world/effects.gd")
+const Debris := preload("res://scripts/world/debris.gd")
 
 ## Set by the loaded map; disasters read these.
 var map_name := ""
@@ -28,6 +29,7 @@ func _ready() -> void:
 	_weather = Weather.new()
 	add_child(_weather)
 	add_child(Effects.new())
+	add_child(Debris.new())
 
 	var touch := OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") \
 			or "--touch" in OS.get_cmdline_user_args()
@@ -61,6 +63,7 @@ func _ready() -> void:
 func load_next_map() -> void:
 	if _map_root:
 		_map_root.free()
+	get_tree().call_group("debris", "clear")
 	if forced_map >= 0:
 		_map_index = forced_map
 	else:
@@ -72,6 +75,7 @@ func load_next_map() -> void:
 	map_name = info.name
 	map_size = info.size
 	spawn_point = info.spawn
+	_weather.set_island(map_size * 0.5)
 
 
 ## Blends sky, light and fog toward one of Weather.MOODS.

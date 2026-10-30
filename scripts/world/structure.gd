@@ -12,9 +12,15 @@ const Look := preload("res://scripts/world/look.gd")
 const WALL_THICKNESS := 0.3
 const SLAB_THICKNESS := 0.3
 const RAMP_THICKNESS := 0.25
+const PARAPET_HEIGHT := 0.7
+const PARAPET_THICKNESS := 0.25
 const CELL := 2.0
 const FLOOR_HEIGHT := 3.0
 const WINDOW_COLOR := Look.GLASS_KEY
+## Wall piece orientations: local +Z points out of the building.
+const FACING_BACK := Basis(Vector3.UP, PI)
+const FACING_RIGHT := Basis(Vector3.UP, PI * 0.5)
+const FACING_LEFT := Basis(Vector3.UP, -PI * 0.5)
 ## How many pieces a piece may hang sideways from something supported below.
 const MAX_SPAN := 2
 const DENSITY := 1.5
@@ -26,6 +32,13 @@ const HOLD_FORCE := 25.0
 const BREAK_RATE := 5.0
 ## Minimum time between dust puffs from one structure.
 const DUST_INTERVAL_MS := 120
+## Falling pieces: checked this often; losing this much speed at once is a hard hit.
+const IMPACT_TICK := 0.1
+const IMPACT_DV := 8.0
+## Hit energy (mass * speed lost) that knocks an intact piece loose at strength 1.
+const IMPACT_HOLD := 60.0
+## Explosions shatter pieces within this fraction of their radius.
+const SHATTER_RADIUS := 0.55
 
 static var _meshes := {}
 static var _shapes := {}
@@ -36,7 +49,18 @@ static var _physics_material: PhysicsMaterial
 
 var _pieces: Array[RigidBody3D] = []
 var _boxes: Array[AABB] = []
+## Per piece: size and color (for breaking it into chunks), and whether it is a
+## plain box that can break up that way.
+var _sizes: Array[Vector3] = []
+var _colors: Array[Color] = []
+var _solid: Array[bool] = []
 var _loose := PackedByteArray()
+## Pieces broken into debris chunks (hidden, no collision).
+var _gone := PackedByteArray()
+## Loose pieces still moving, watched for hard hits; their speed last tick.
+var _moving: Array[int] = []
+var _last_speed := PackedFloat32Array()
+var _impact_timer := 0.0
 var _grounded := PackedByteArray()
 ## Per piece: indices of pieces resting on it / touching it sideways.
 var _up: Array[Array] = []
@@ -51,8 +75,9 @@ func _ready() -> void:
 
 
 ## center is in this node's local space. A rotated piece links to its neighbours
-## through its axis-aligned bounds.
-func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis := Basis.IDENTITY) -> void:
+## through its axis-aligned bounds. visual replaces the box mesh (tree canopies,
+## trunks); the collision shape stays a box.
+func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis := Basis.IDENTITY, visual: Mesh = null) -> void:
 	var rb := RigidBody3D.new()
 	rb.collision_layer = 2
 	rb.collision_mask = 1 | 2 | 4
@@ -66,14 +91,20 @@ func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis :=
 	shape.shape = _box_shape(box_size)
 	rb.add_child(shape)
 	var mesh := MeshInstance3D.new()
-	mesh.mesh = _box_mesh(box_size)
-	mesh.material_override = Look.surface(color)
+	if visual:
+		mesh.mesh = visual
+	else:
+		mesh.mesh = _box_mesh(box_size)
+		mesh.material_override = Look.surface(color)
 	rb.add_child(mesh)
 	add_child(rb)
 
 	var box := rb.transform * AABB(-box_size * 0.5, box_size)
 	_pieces.append(rb)
 	_boxes.append(box)
+	_sizes.append(box_size)
+	_colors.append(color)
+	_solid.append(visual == null)
 	_bounds = box if _pieces.size() == 1 else _bounds.merge(box)
 
 
@@ -92,22 +123,50 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 		var wall_bottom := y0 + (SLAB_THICKNESS if f > 0 else 0.0)
 		var h := y0 + FLOOR_HEIGHT - wall_bottom
 		var cy := wall_bottom + h * 0.5
-		# Front/back walls span the full width; side walls fit between them.
+		# Front/back walls span the full width; side walls fit between them. Every
+		# wall piece is turned so its local +Z faces outward (the window shader needs it).
 		for i in footprint.x:
 			var x := -w * 0.5 + CELL * (i + 0.5)
 			var c := WINDOW_COLOR if f > 0 and i % 2 == 1 else color
+			var panel := Vector3(CELL, h, WALL_THICKNESS)
 			if not (f == 0 and i == door):
-				add_box(origin + Vector3(x, cy, d * 0.5 - WALL_THICKNESS * 0.5), Vector3(CELL, h, WALL_THICKNESS), c)
-			add_box(origin + Vector3(x, cy, -d * 0.5 + WALL_THICKNESS * 0.5), Vector3(CELL, h, WALL_THICKNESS), c)
+				add_box(origin + Vector3(x, cy, d * 0.5 - WALL_THICKNESS * 0.5), panel, c)
+			add_box(origin + Vector3(x, cy, -d * 0.5 + WALL_THICKNESS * 0.5), panel, c, FACING_BACK)
 		var side_len := (d - WALL_THICKNESS * 2.0) / footprint.y
 		for j in footprint.y:
 			var z := -d * 0.5 + WALL_THICKNESS + side_len * (j + 0.5)
 			var c := WINDOW_COLOR if f > 0 and j % 2 == 1 else color
-			add_box(origin + Vector3(w * 0.5 - WALL_THICKNESS * 0.5, cy, z), Vector3(WALL_THICKNESS, h, side_len), c)
-			add_box(origin + Vector3(-w * 0.5 + WALL_THICKNESS * 0.5, cy, z), Vector3(WALL_THICKNESS, h, side_len), c)
+			var panel := Vector3(side_len, h, WALL_THICKNESS)
+			add_box(origin + Vector3(w * 0.5 - WALL_THICKNESS * 0.5, cy, z), panel, c, FACING_RIGHT)
+			add_box(origin + Vector3(-w * 0.5 + WALL_THICKNESS * 0.5, cy, z), panel, c, FACING_LEFT)
 		if stairs:
 			_add_ramp(origin, w, d, f, color.darkened(0.15))
-	_add_slab(origin, footprint, floors * FLOOR_HEIGHT, slab_color, (floors - 1) % 2 if stairs else -1)
+	var roof := floors * FLOOR_HEIGHT
+	_add_slab(origin, footprint, roof, slab_color, (floors - 1) % 2 if stairs else -1)
+	_add_parapet(origin, footprint, roof + SLAB_THICKNESS, color.darkened(0.1))
+	if footprint.x >= 3 and footprint.y >= 3:
+		# An air-conditioning unit on the front-right roof tile (away from the stair hole).
+		var unit := Vector3(1.2, 0.8, 1.0)
+		var pos := Vector3(w * 0.5 - CELL * 0.5, roof + SLAB_THICKNESS + unit.y * 0.5, d * 0.5 - CELL * 0.5)
+		add_box(origin + pos, unit, Color(0.62, 0.64, 0.66))
+
+
+## A low wall around the roof edge, sitting on the outer roof tiles.
+func _add_parapet(origin: Vector3, footprint: Vector2i, y: float, color: Color) -> void:
+	var w := footprint.x * CELL
+	var d := footprint.y * CELL
+	var cy := y + PARAPET_HEIGHT * 0.5
+	for i in footprint.x:
+		var x := -w * 0.5 + CELL * (i + 0.5)
+		var panel := Vector3(CELL, PARAPET_HEIGHT, PARAPET_THICKNESS)
+		add_box(origin + Vector3(x, cy, d * 0.5 - PARAPET_THICKNESS * 0.5), panel, color)
+		add_box(origin + Vector3(x, cy, -d * 0.5 + PARAPET_THICKNESS * 0.5), panel, color, FACING_BACK)
+	var side_len := (d - PARAPET_THICKNESS * 2.0) / footprint.y
+	for j in footprint.y:
+		var z := -d * 0.5 + PARAPET_THICKNESS + side_len * (j + 0.5)
+		var panel := Vector3(side_len, PARAPET_HEIGHT, PARAPET_THICKNESS)
+		add_box(origin + Vector3(w * 0.5 - PARAPET_THICKNESS * 0.5, cy, z), panel, color, FACING_RIGHT)
+		add_box(origin + Vector3(-w * 0.5 + PARAPET_THICKNESS * 0.5, cy, z), panel, color, FACING_LEFT)
 
 
 ## Floor tiles at height y. hole_row >= 0 leaves out the two tiles a ramp comes up through.
@@ -144,6 +203,10 @@ func _link_pieces() -> void:
 	var n := _pieces.size()
 	_loose.resize(n)
 	_loose.fill(0)
+	_gone.resize(n)
+	_gone.fill(0)
+	_last_speed.resize(n)
+	_last_speed.fill(0.0)
 	_grounded.resize(n)
 	_up.resize(n)
 	_side.resize(n)
@@ -196,7 +259,7 @@ func quake(intensity: float) -> void:
 	if broke:
 		_settle()
 	for i in _pieces.size():
-		if _loose[i]:
+		if _loose[i] and not _gone[i]:
 			var rb := _pieces[i]
 			var push := Vector3(randf_range(-1, 1), randf_range(0, 0.3), randf_range(-1, 1))
 			rb.apply_central_impulse(push * rb.mass * intensity * 1.5)
@@ -206,10 +269,15 @@ func damage_sphere(center: Vector3, radius: float, force: float) -> void:
 	if not AABB(_bounds.position + global_position, _bounds.size).grow(radius).has_point(center):
 		return
 	for i in _pieces.size():
+		if _gone[i]:
+			continue
 		var rb := _pieces[i]
 		var offset := rb.global_position - center
 		var dist := offset.length()
 		if dist >= radius:
+			continue
+		if dist < radius * SHATTER_RADIUS:
+			_shatter(i, center, force * (1.0 - dist / radius))
 			continue
 		if not _loose[i]:
 			_release(i)
@@ -226,6 +294,8 @@ func apply_field(region: AABB, force_at: Callable, delta: float) -> void:
 	var hold := HOLD_FORCE * strength
 	var broke := false
 	for i in _pieces.size():
+		if _gone[i]:
+			continue
 		var rb := _pieces[i]
 		var pos := rb.global_position
 		if not region.has_point(pos):
@@ -237,21 +307,99 @@ func apply_field(region: AABB, force_at: Callable, delta: float) -> void:
 			var over := force.length() / hold - 1.0
 			if over <= 0.0 or randf() > minf(over, 1.0) * BREAK_RATE * delta:
 				continue
-			_release(i)
 			broke = true
+			# Far beyond what it can hold: it doesn't come off whole.
+			if over > 1.0 and randf() < 0.5:
+				_shatter(i, pos - force.normalized(), force.length() * 0.12)
+				continue
+			_release(i)
 		rb.apply_central_impulse(force * rb.mass * delta)
 	if broke:
 		_settle()
 
 
+## A falling piece (or anything) hit something hard at pos: intact pieces right
+## there may be knocked loose, so collapses spread.
+func impact(pos: Vector3, energy: float) -> void:
+	if not AABB(_bounds.position + global_position, _bounds.size).grow(1.0).has_point(pos):
+		return
+	var chance := energy / (IMPACT_HOLD * strength)
+	var broke := false
+	for i in _pieces.size():
+		if _loose[i]:
+			continue
+		var box := AABB(_boxes[i].position + global_position, _boxes[i].size).grow(0.5)
+		if box.has_point(pos) and randf() < chance:
+			_release(i)
+			broke = true
+	if broke:
+		_settle()
+
+
+func _physics_process(delta: float) -> void:
+	if _moving.is_empty():
+		return
+	_impact_timer -= delta
+	if _impact_timer > 0.0:
+		return
+	_impact_timer = IMPACT_TICK
+	var k := 0
+	while k < _moving.size():
+		var i := _moving[k]
+		var rb := _pieces[i]
+		if _gone[i] or rb.sleeping:
+			_moving.remove_at(k)
+			continue
+		k += 1
+		var speed := rb.linear_velocity.length()
+		var lost := _last_speed[i] - speed
+		_last_speed[i] = speed
+		if lost < IMPACT_DV:
+			continue
+		var pos := rb.global_position
+		get_tree().call_group("effects", "dust", pos)
+		get_tree().call_group("structures", "impact", pos, lost * rb.mass)
+		if randf() < clampf((lost - IMPACT_DV) / 10.0, 0.15, 0.7):
+			_shatter(i, pos + Vector3.DOWN, lost * 0.3)
+
+
 func _release(i: int) -> void:
-	var now := Time.get_ticks_msec()
-	if now - _last_dust_ms >= DUST_INTERVAL_MS:
-		_last_dust_ms = now
-		get_tree().call_group("effects", "dust", _pieces[i].global_position)
+	if _loose[i]:
+		return
+	# Glass never comes out in one piece.
+	if _solid[i] and _colors[i] == WINDOW_COLOR:
+		_shatter(i, _pieces[i].global_position - _pieces[i].global_basis.z, 2.5)
+		return
+	_dust(_pieces[i].global_position)
 	_loose[i] = 1
 	_pieces[i].freeze = false
 	_pieces[i].sleeping = false
+	_last_speed[i] = 0.0
+	_moving.append(i)
+
+
+## Replaces a piece with debris chunks flying away from `from` at up to `power` m/s.
+## Pieces with a custom look (trees) just come loose.
+func _shatter(i: int, from: Vector3, power: float) -> void:
+	if not _solid[i]:
+		_release(i)
+		return
+	var rb := _pieces[i]
+	_dust(rb.global_position)
+	get_tree().call_group("debris", "shatter", rb.global_transform, _sizes[i], _colors[i], rb.linear_velocity, from, power)
+	_loose[i] = 1
+	_gone[i] = 1
+	rb.freeze = true
+	rb.visible = false
+	rb.collision_layer = 0
+	rb.collision_mask = 0
+
+
+func _dust(pos: Vector3) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _last_dust_ms >= DUST_INTERVAL_MS:
+		_last_dust_ms = now
+		get_tree().call_group("effects", "dust", pos)
 
 
 ## Drops every intact piece that can't trace support back to the ground.

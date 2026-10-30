@@ -44,11 +44,7 @@ func begin() -> void:
 	_root.position = _pos
 	add_child(_root)
 
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.04
-	var texture := NoiseTexture2D.new()
-	texture.noise = noise
-	texture.seamless = true
+	var texture := Look.noise_texture()
 	for spec: Array in [[1.5, 9.0, Color(0.5, 0.5, 0.55, 0.65)], [3.0, 13.0, Color(0.65, 0.65, 0.7, 0.3)]]:
 		var mesh := CylinderMesh.new()
 		mesh.bottom_radius = spec[0]

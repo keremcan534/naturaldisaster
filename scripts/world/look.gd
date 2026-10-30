@@ -5,11 +5,13 @@ extends RefCounted
 
 const GROUND_SHADER := preload("res://shaders/ground.gdshader")
 const WATER_SHADER := preload("res://shaders/water.gdshader")
-const CLEAR_WATER_SHADER := preload("res://shaders/water_clear.gdshader")
+const TSUNAMI_SHADER := preload("res://shaders/tsunami.gdshader")
 const LAVA_SHADER := preload("res://shaders/lava.gdshader")
+const WINDOW_SHADER := preload("res://shaders/window.gdshader")
+const GRASS_SHADER := preload("res://shaders/grass.gdshader")
+const LEAVES_SHADER := preload("res://shaders/leaves.gdshader")
+const MAX_SHADES := 16
 
-const WINDOW_GLASS := Color(0.16, 0.24, 0.32)
-const WINDOW_FRAME := Color(0.88, 0.87, 0.84)
 const ROCK_COLOR := Color(0.42, 0.36, 0.3)
 ## Pieces whose color is this get the glass material (see Structure).
 const GLASS_KEY := Color(0.25, 0.35, 0.45)
@@ -20,9 +22,14 @@ static var _noise: Texture2D
 static var _puff: Texture2D
 static var _sprites := {}
 static var _panel: Texture2D
-static var _window: Texture2D
 static var _surfaces := {}
 static var _grounds := {}
+static var _leaves := {}
+static var _canopies := {}
+static var _trunks := {}
+static var _shard: StandardMaterial3D
+static var _grass: ShaderMaterial
+static var _tuft: ArrayMesh
 
 
 ## Box pieces: the color times a plaster-like panel texture with darkened edges.
@@ -30,13 +37,13 @@ static var _grounds := {}
 ## face the whole texture.
 static func surface(color: Color) -> Material:
 	if not _surfaces.has(color):
-		var mat := StandardMaterial3D.new()
 		if color == GLASS_KEY:
-			mat.albedo_texture = _window_texture()
-			mat.roughness = 0.12
-			mat.metallic = 0.3
-			mat.metallic_specular = 0.8
-		elif color == CAR_GLASS_KEY:
+			var window := ShaderMaterial.new()
+			window.shader = WINDOW_SHADER
+			_surfaces[color] = window
+			return window
+		var mat := StandardMaterial3D.new()
+		if color == CAR_GLASS_KEY:
 			mat.albedo_color = color
 			mat.roughness = 0.08
 			mat.metallic = 0.4
@@ -47,6 +54,18 @@ static func surface(color: Color) -> Material:
 		mat.uv1_scale = Vector3(3, 2, 1)
 		_surfaces[color] = mat
 	return _surfaces[color]
+
+
+## Broken glass: see-through, glinting.
+static func shard() -> StandardMaterial3D:
+	if _shard == null:
+		_shard = StandardMaterial3D.new()
+		_shard.albedo_color = Color(0.7, 0.85, 0.9, 0.45)
+		_shard.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_shard.roughness = 0.05
+		_shard.metallic_specular = 1.0
+		_shard.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return _shard
 
 
 ## Grass, plaza, paths. road_size (width, length) adds lane markings.
@@ -65,6 +84,18 @@ static func ground(color: Color, road_size := Vector2.ZERO) -> Material:
 	return _grounds[key]
 
 
+## Contact shadows on every ground material: one Rect2 (x/z) per building, tree or car.
+static func set_shades(rects: Array[Rect2]) -> void:
+	var packed := PackedVector4Array()
+	for r: Rect2 in rects.slice(0, MAX_SHADES):
+		var c := r.get_center()
+		packed.append(Vector4(c.x, c.y, r.size.x * 0.5, r.size.y * 0.5))
+	packed.resize(MAX_SHADES)
+	for mat: ShaderMaterial in _grounds.values():
+		mat.set_shader_parameter("shade_rects", packed)
+		mat.set_shader_parameter("shade_count", mini(rects.size(), MAX_SHADES))
+
+
 ## Rock seen from the side (island cliffs, the volcano).
 static func cliff(color := ROCK_COLOR) -> Material:
 	var key := ["cliff", color]
@@ -80,11 +111,21 @@ static func cliff(color := ROCK_COLOR) -> Material:
 	return _grounds[key]
 
 
-## Opaque water for the sea and pools; clear water for floods (fresh material, so
-## a disaster can animate its parameters).
-static func water(clear := false) -> ShaderMaterial:
+## Flat water (pools). The sea is set up in weather.gd.
+static func water() -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
-	mat.shader = CLEAR_WATER_SHADER if clear else WATER_SHADER
+	mat.shader = WATER_SHADER
+	mat.set_shader_parameter("noise", noise_texture())
+	mat.set_shader_parameter("ripple_strength", 0.12)
+	mat.set_shader_parameter("deep_color", Color(0.05, 0.32, 0.45))
+	mat.set_shader_parameter("shallow_color", Color(0.15, 0.6, 0.68))
+	return mat
+
+
+## The tsunami's breaking wave (fresh material: the disaster animates it).
+static func tsunami_water() -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = TSUNAMI_SHADER
 	mat.set_shader_parameter("noise", noise_texture())
 	return mat
 
@@ -95,6 +136,82 @@ static func lava() -> ShaderMaterial:
 	mat.shader = LAVA_SHADER
 	mat.set_shader_parameter("noise", noise_texture())
 	return mat
+
+
+## A canopy blob filling a box of this size (slightly bigger, so blobs merge).
+static func canopy(box_size: Vector3, color: Color) -> Mesh:
+	var key := [box_size, color]
+	if not _canopies.has(key):
+		var mesh := SphereMesh.new()
+		mesh.radius = box_size.x * 0.6
+		mesh.height = box_size.y * 1.25
+		mesh.radial_segments = 14
+		mesh.rings = 8
+		if not _leaves.has(color):
+			var mat := ShaderMaterial.new()
+			mat.shader = LEAVES_SHADER
+			mat.set_shader_parameter("noise", noise_texture())
+			mat.set_shader_parameter("leaf_color", color)
+			_leaves[color] = mat
+		mesh.material = _leaves[color]
+		_canopies[key] = mesh
+	return _canopies[key]
+
+
+static func trunk(box_size: Vector3, color: Color) -> Mesh:
+	var key := [box_size, color]
+	if not _trunks.has(key):
+		var mesh := CylinderMesh.new()
+		mesh.top_radius = box_size.x * 0.32
+		mesh.bottom_radius = box_size.x * 0.48
+		mesh.height = box_size.y
+		mesh.radial_segments = 8
+		mesh.rings = 1
+		mesh.material = surface(color)
+		_trunks[key] = mesh
+	return _trunks[key]
+
+
+static func grass_material(color: Color) -> ShaderMaterial:
+	if _grass == null:
+		_grass = ShaderMaterial.new()
+		_grass.shader = GRASS_SHADER
+		_grass.set_shader_parameter("noise", noise_texture())
+	_grass.set_shader_parameter("root_color", color.darkened(0.2))
+	_grass.set_shader_parameter("tip_color", color.lerp(Color(0.62, 0.66, 0.3), 0.35))
+	return _grass
+
+
+## A tuft of eight blades fanned around the origin; UV.y runs 0 (root) to 1 (tip).
+static func grass_tuft() -> ArrayMesh:
+	if _tuft == null:
+		var verts := PackedVector3Array()
+		var uvs := PackedVector2Array()
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 7
+		for b in 8:
+			var a := TAU * b / 8.0 + rng.randf_range(-0.4, 0.4)
+			var side := Vector3(cos(a), 0, sin(a)) * 0.022
+			var base := Vector3(-sin(a), 0, cos(a)) * rng.randf_range(0.03, 0.2)
+			var lean := Vector3(-sin(a), 0, cos(a)) * rng.randf_range(0.05, 0.18)
+			var h := rng.randf_range(0.22, 0.45)
+			var mid := base + lean * 0.4 + Vector3(0, h * 0.5, 0)
+			var top := base + lean + Vector3(0, h, 0)
+			verts.append_array([base - side, base + side, mid - side * 0.7, base + side, mid + side * 0.7, mid - side * 0.7,
+					mid - side * 0.7, mid + side * 0.7, top])
+			uvs.append_array([Vector2(0, 0), Vector2(1, 0), Vector2(0, 0.5), Vector2(1, 0), Vector2(1, 0.5), Vector2(0, 0.5),
+					Vector2(0, 0.5), Vector2(1, 0.5), Vector2(0.5, 1)])
+		var normals := PackedVector3Array()
+		normals.resize(verts.size())
+		normals.fill(Vector3.UP)
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		arrays[Mesh.ARRAY_NORMAL] = normals
+		arrays[Mesh.ARRAY_TEX_UV] = uvs
+		_tuft = ArrayMesh.new()
+		_tuft.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return _tuft
 
 
 ## Camera-facing particle quads tinted by the particles' color ramp. A brightness
@@ -182,25 +299,3 @@ static func _panel_texture() -> Texture2D:
 		image.generate_mipmaps()
 		_panel = ImageTexture.create_from_image(image)
 	return _panel
-
-
-## A window pane: light frame, a mullion cross, glass darker toward the bottom.
-static func _window_texture() -> Texture2D:
-	if _window == null:
-		var size := 64
-		var image := Image.create(size, size, false, Image.FORMAT_RGB8)
-		var frame := 5
-		var bar := 2
-		var mid := size / 2
-		for y in size:
-			for x in size:
-				var border := x < frame or y < frame or x >= size - frame or y >= size - frame
-				var cross := absi(x - mid) < bar or absi(y - mid + 6) < bar
-				if border or cross:
-					image.set_pixel(x, y, WINDOW_FRAME)
-				else:
-					var glare := 0.12 if (x + y) % 40 < 9 else 0.0
-					image.set_pixel(x, y, WINDOW_GLASS.lightened(0.25 * (1.0 - float(y) / size) + glare))
-		image.generate_mipmaps()
-		_window = ImageTexture.create_from_image(image)
-	return _window

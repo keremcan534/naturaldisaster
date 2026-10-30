@@ -14,6 +14,23 @@ var _health_fill: StyleBoxFlat
 
 
 func _ready() -> void:
+	# Soft dark edges pull the eye to the middle of the screen.
+	var vignette := TextureRect.new()
+	var shade := GradientTexture2D.new()
+	shade.fill = GradientTexture2D.FILL_RADIAL
+	shade.fill_from = Vector2(0.5, 0.5)
+	shade.fill_to = Vector2(1.1, 1.1)
+	shade.gradient = Gradient.new()
+	shade.gradient.set_color(0, Color(0, 0, 0, 0))
+	shade.gradient.set_color(1, Color(0, 0, 0, 0.55))
+	shade.gradient.add_point(0.55, Color(0, 0, 0, 0))
+	vignette.texture = shade
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(vignette)
+
 	_status = _label(30)
 	_status.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_status.offset_top = 16

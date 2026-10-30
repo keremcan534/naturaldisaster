@@ -24,6 +24,9 @@ const HEAD_HEIGHT := 1.6
 const BREATH_TIME := 4.0
 const DROWN_DAMAGE_PER_SEC := 20.0
 
+## The sea around the island (see weather.gd), for the underwater tint.
+const SEA_LEVEL := -2.5
+
 const EYE_HEIGHT := 1.6
 const PITCH_LIMIT := 1.45
 const MOUSE_JUMP_LIMIT := 250.0
@@ -46,6 +49,7 @@ var _water_level := 0.0
 var _water_current := Vector3.ZERO
 var _water_frame := -10
 var _underwater_time := 0.0
+var _underwater_tint: ColorRect
 
 
 func _ready() -> void:
@@ -101,6 +105,17 @@ func _ready() -> void:
 	_camera.make_current()
 	# Our own body would fill the view; keep only its shadow.
 	_body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+
+	# Murky blue over the view while the camera is below a water surface.
+	var tint_layer := CanvasLayer.new()
+	tint_layer.layer = -1
+	_underwater_tint = ColorRect.new()
+	_underwater_tint.color = Color(0.05, 0.25, 0.32, 0.65)
+	_underwater_tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_underwater_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_underwater_tint.visible = false
+	tint_layer.add_child(_underwater_tint)
+	add_child(tint_layer)
 
 	if use_mouse:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -171,6 +186,8 @@ func _process(delta: float) -> void:
 	_camera.h_offset = randf_range(-1, 1) * _shake * 0.25
 	_camera.v_offset = randf_range(-1, 1) * _shake * 0.25
 	_shake = move_toward(_shake, 0.0, delta * 2.0)
+	var surface := _water_level if Engine.get_physics_frames() - _water_frame <= 1 else SEA_LEVEL
+	_underwater_tint.visible = _camera.global_position.y < surface
 
 
 ## Called every frame by shaking disasters; amount is 0..1.

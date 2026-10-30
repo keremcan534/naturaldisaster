@@ -6,11 +6,13 @@ extends Node
 ##   --shots=<dir>       saves a screenshot every 2 seconds into <dir>
 ##   --run-for=<sec>     quits after <sec> seconds
 ##   --log               prints round status changes
+##   --perf              prints process/physics time per frame every second
 ##   --map=<i>           always loads map i (see maps.gd)
 ##   --disaster=<i>      always picks disaster i (see disaster_manager.gd)
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
 ##   --pos=x,y,z         puts the player there on the first frame
 ##   --yaw=<deg>         with --pos, turns the player
+##   --pitch=<deg>       with --pos, looks up (positive) or down
 
 const SHOT_INTERVAL := 2.0
 
@@ -23,6 +25,9 @@ var _elapsed := 0.0
 var _shot_index := 0
 var _start_pos: Variant = null
 var _start_yaw := 0.0
+var _start_pitch := 0.0
+var _perf := false
+var _perf_timer := 0.0
 
 
 func _ready() -> void:
@@ -43,6 +48,10 @@ func _ready() -> void:
 			_start_pos = Vector3(p[0], p[1], p[2])
 		elif arg.begins_with("--yaw="):
 			_start_yaw = deg_to_rad(arg.get_slice("=", 1).to_float())
+		elif arg.begins_with("--pitch="):
+			_start_pitch = deg_to_rad(arg.get_slice("=", 1).to_float())
+		elif arg == "--perf":
+			_perf = true
 		elif arg == "--log":
 			manager.status_changed.connect(func(text: String) -> void: print("[%.1fs] %s" % [_elapsed, text]))
 		elif arg.begins_with("--run-for="):
@@ -54,7 +63,16 @@ func _process(delta: float) -> void:
 		for player: Node3D in get_tree().get_nodes_in_group("player"):
 			player.global_position = _start_pos
 			player.rotation.y = _start_yaw
+			player.add_look(Vector2(0, -_start_pitch))
 	_elapsed += delta
+	if _perf:
+		_perf_timer -= delta
+		if _perf_timer <= 0.0:
+			_perf_timer = 1.0
+			print("[%.1fs] process %.2f ms, physics %.2f ms, bodies %d" % [_elapsed,
+					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+					Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+					Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS)])
 	if _run_for > 0.0 and _elapsed >= _run_for:
 		get_tree().quit()
 		return

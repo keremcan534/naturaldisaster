@@ -45,3 +45,34 @@ renderer/rendering_method="mobile"
 renderer/rendering_method.web="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/msaa_3d=1
+
+[shader_globals]
+
+sky_top={
+"type": "color",
+"value": Color(0.18, 0.38, 0.72, 1)
+}
+sky_horizon={
+"type": "color",
+"value": Color(0.66, 0.76, 0.86, 1)
+}
+sea_haze={
+"type": "color",
+"value": Color(0.32, 0.48, 0.62, 1)
+}
+wave_height={
+"type": "float",
+"value": 0.5
+}
+island_half={
+"type": "float",
+"value": 25.0
+}
+room_light={
+"type": "float",
+"value": 0.2
+}
+wind={
+"type": "float",
+"value": 0.3
+}

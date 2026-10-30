@@ -18,20 +18,37 @@ const WHEEL_COLOR := Color(0.08, 0.08, 0.09)
 const CLIFF_DEPTH := 14.0
 const PATH_COLOR := Color(0.7, 0.66, 0.6)
 const EPS_FENCE := 0.01
+## Grass tufts per square meter, and a cap so big maps stay cheap.
+const GRASS_DENSITY := 3.0
+const MAX_TUFTS := 12000
 const CAR_COLORS := [Color(0.8, 0.15, 0.15), Color(0.15, 0.3, 0.75), Color(0.9, 0.9, 0.9), Color(0.2, 0.2, 0.22)]
+
+
+## Filled while a map is built: where grass grows, where it can't (roads,
+## buildings, ...), and what casts a contact shadow on the ground.
+static var _grass_areas: Array[Rect2] = []
+static var _bare: Array[Rect2] = []
+static var _shades: Array[Rect2] = []
 
 
 ## Builds map `index` under root and returns {name, size, spawn}.
 static func build(index: int, root: Node3D) -> Dictionary:
+	_grass_areas.clear()
+	_bare.clear()
+	_shades.clear()
+	var info: Dictionary
 	match index:
 		0:
-			return _skyscraper(root)
+			info = _skyscraper(root)
 		1:
-			return _garden_house(root)
+			info = _garden_house(root)
 		2:
-			return _apartment(root)
+			info = _apartment(root)
 		_:
-			return _neighbourhood(root)
+			info = _neighbourhood(root)
+	_scatter_grass(root, index)
+	Look.set_shades(_shades)
+	return info
 
 
 static func _skyscraper(root: Node3D) -> Dictionary:
@@ -116,6 +133,8 @@ static func _ground(root: Node3D, size: float, color: Color) -> void:
 	plane.material = Look.ground(color)
 	top.mesh = plane
 	ground.add_child(top)
+	if color == GRASS_COLOR:
+		_grass_areas.append(Rect2(-size * 0.5, -size * 0.5, size, size))
 	# Rock sides down into the sea, so the map reads as an island with an edge you can fall off.
 	var cliff := MeshInstance3D.new()
 	var rock := BoxMesh.new()
@@ -131,6 +150,11 @@ static func _ground(root: Node3D, size: float, color: Color) -> void:
 ## Purely visual flat patch (roads, paths, pools).
 static func _decal(root: Node3D, center: Vector3, size: Vector2, color: Color) -> void:
 	_flat(root, center, size, Look.ground(color))
+	var rect := _rect(center, size)
+	if color == GRASS_COLOR:
+		_grass_areas.append(rect)
+	else:
+		_bare.append(rect)
 
 
 ## A road with lane markings along Z, or along X.
@@ -138,9 +162,11 @@ static func _road(root: Node3D, center: Vector3, length: float, along_x: bool) -
 	var road := _flat(root, center, Vector2(8, length), Look.ground(ROAD_COLOR, Vector2(8, length)))
 	if along_x:
 		road.rotation.y = PI * 0.5
+	_bare.append(_rect(center, Vector2(length, 8) if along_x else Vector2(8, length)))
 
 
 static func _pool(root: Node3D, center: Vector3, size: Vector2) -> void:
+	_bare.append(_rect(center, size + Vector2(1.2, 1.2)))
 	_flat(root, center, size + Vector2(1.2, 1.2), Look.ground(POOL_RIM_COLOR))
 	_flat(root, center + Vector3(0, 0.005, 0), size, Look.water())
 
@@ -163,6 +189,9 @@ static func _building(root: Node3D, pos: Vector3, footprint: Vector2i, floors: i
 	building.strength = strength
 	building.add_building(Vector3.ZERO, footprint, floors, color)
 	root.add_child(building)
+	var rect := _rect(pos, Vector2(footprint) * Structure.CELL)
+	_bare.append(rect)
+	_shades.append(rect)
 
 
 ## Trees, fences and cars share one structure; it is added to the tree after filling.
@@ -172,16 +201,24 @@ static func _props() -> Structure:
 	return props
 
 
-## Trunk and three stacked canopy blocks, the middle one turned 45 degrees.
+## A trunk and two leafy blobs (box collision, rounded visuals).
 static func _tree(props: Structure, pos: Vector3) -> void:
 	var turn := Basis(Vector3.UP, (pos.x + pos.z) * 0.37)
-	props.add_box(pos + Vector3(0, 1.2, 0), Vector3(0.5, 2.4, 0.5), TRUNK_COLOR)
-	props.add_box(pos + Vector3(0, 3.1, 0), Vector3(3.0, 1.4, 3.0), LEAF_COLOR, turn)
-	props.add_box(pos + Vector3(0, 4.3, 0), Vector3(2.3, 1.0, 2.3), LEAF_LIGHT_COLOR, turn.rotated(Vector3.UP, PI * 0.25))
-	props.add_box(pos + Vector3(0, 5.15, 0), Vector3(1.3, 0.7, 1.3), LEAF_COLOR, turn)
+	var trunk := Vector3(0.5, 2.4, 0.5)
+	var low := Vector3(3.4, 2.6, 3.4)
+	var high := Vector3(2.4, 1.7, 2.4)
+	props.add_box(pos + Vector3(0, trunk.y * 0.5, 0), trunk, TRUNK_COLOR, turn, Look.trunk(trunk, TRUNK_COLOR))
+	props.add_box(pos + Vector3(0, trunk.y + low.y * 0.5, 0), low, LEAF_COLOR, turn, Look.canopy(low, LEAF_COLOR))
+	props.add_box(pos + Vector3(0.3, trunk.y + low.y + high.y * 0.5, -0.2), high, LEAF_LIGHT_COLOR, turn,
+			Look.canopy(high, LEAF_LIGHT_COLOR))
+	_bare.append(_rect(pos, Vector2(0.8, 0.8)))
+	_shades.append(_rect(pos, Vector2(2.2, 2.2)))
 
 
 static func _car(props: Structure, pos: Vector3, along_x: bool, color: Color) -> void:
+	var rect := _rect(pos, Vector2(4.0, 1.9) if along_x else Vector2(1.9, 4.0))
+	_bare.append(rect)
+	_shades.append(rect.grow(-0.3))
 	var body := Vector3(4.0, 1.1, 1.9)
 	var cabin := Vector3(2.2, 0.8, 1.7)
 	var cabin_offset := Vector3(-0.3, 0, 0)
@@ -225,3 +262,51 @@ static func _fence(props: Structure, rect: Rect2, gate_width: float) -> void:
 		props.add_box(Vector3(x1, height * 0.5, z + length * 0.5), Vector3(thick, height, length), FENCE_COLOR)
 		z += panel
 
+
+static func _rect(center: Vector3, size: Vector2) -> Rect2:
+	return Rect2(center.x - size.x * 0.5, center.z - size.y * 0.5, size.x, size.y)
+
+
+## One MultiMesh of grass tufts over the grass areas, kept off bare ground.
+static func _scatter_grass(root: Node3D, seed_value: int) -> void:
+	var area := 0.0
+	for r in _grass_areas:
+		area += r.get_area()
+	if area <= 0.0:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value * 7919 + 13
+	var transforms: Array[Transform3D] = []
+	var wanted := mini(int(area * GRASS_DENSITY), MAX_TUFTS)
+	var attempts := wanted * 2
+	while transforms.size() < wanted and attempts > 0:
+		attempts -= 1
+		# Pick an area weighted by size, then a point in it.
+		var pick := rng.randf() * area
+		var rect := _grass_areas[0]
+		for r in _grass_areas:
+			rect = r
+			pick -= r.get_area()
+			if pick <= 0.0:
+				break
+		var p := Vector2(rng.randf_range(rect.position.x, rect.end.x), rng.randf_range(rect.position.y, rect.end.y))
+		var blocked := false
+		for b in _bare:
+			if b.grow(0.2).has_point(p):
+				blocked = true
+				break
+		if blocked:
+			continue
+		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.25))
+		transforms.append(Transform3D(basis, Vector3(p.x, 0, p.y)))
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.mesh = Look.grass_tuft()
+	multimesh.instance_count = transforms.size()
+	for i in transforms.size():
+		multimesh.set_instance_transform(i, transforms[i])
+	var grass := MultiMeshInstance3D.new()
+	grass.multimesh = multimesh
+	grass.material_override = Look.grass_material(GRASS_COLOR)
+	grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(grass)

@@ -30,8 +30,9 @@ var _field_timer := 0.0
 var _hit_players := {}
 ## Rotated so local +X is the travel direction.
 var _root: Node3D
-var _body: MeshInstance3D
-var _crest: MeshInstance3D
+## One surface for the whole flood: the shader shapes the wave front from "front".
+var _water: MeshInstance3D
+var _water_mat: ShaderMaterial
 var _spray: CPUParticles3D
 
 
@@ -51,10 +52,8 @@ func begin() -> void:
 	add_child(_root)
 	_front = -_half - EDGE_MARGIN
 
-	_body = _water_mesh(BoxMesh.new(), 0.75, Color(0.06, 0.3, 0.4))
-	var crest_mesh := PrismMesh.new()
-	crest_mesh.left_to_right = 1.0
-	_crest = _water_mesh(crest_mesh, 0.92, Color(0.75, 0.88, 0.9))
+	_water = _make_water()
+	_root.add_child(_water)
 	_spray = _make_spray()
 	_root.add_child(_spray)
 
@@ -104,32 +103,36 @@ func _affect_players() -> void:
 
 
 func _update_meshes(travel: float) -> void:
-	var width := (_half + EDGE_MARGIN) * 2.0
-	var back := -_half - EDGE_MARGIN
-	var body_len := _front - CREST_DEPTH - back
-	_body.visible = body_len > 0.0 and _level > 0.01
-	if _body.visible:
-		_body.scale = Vector3(body_len, _level - BOTTOM, width)
-		_body.position = Vector3(back + body_len * 0.5, (_level + BOTTOM) * 0.5, 0)
-	_crest.visible = travel < 1.0
-	_crest.scale = Vector3(CREST_DEPTH, CREST_HEIGHT - BOTTOM, width)
-	_crest.position = Vector3(_front - CREST_DEPTH * 0.5, (CREST_HEIGHT + BOTTOM) * 0.5, 0)
-	_spray.emitting = _crest.visible
+	var breaking := travel < 1.0
+	_water.visible = _level > 0.02 or breaking
+	_water_mat.set_shader_parameter("front", _front if breaking else _half + EDGE_MARGIN * 3.0)
+	_water_mat.set_shader_parameter("level", _level)
+	_water_mat.set_shader_parameter("crest_height", CREST_HEIGHT if breaking else _level)
+	_spray.emitting = breaking
 	_spray.position = Vector3(_front - 0.5, CREST_HEIGHT, 0)
 
 
-func _water_mesh(mesh: PrimitiveMesh, alpha: float, shallow: Color) -> MeshInstance3D:
-	var mat := Look.water(true)
-	mat.set_shader_parameter("alpha", alpha)
-	mat.set_shader_parameter("shallow_color", shallow)
-	mat.set_shader_parameter("flow", Vector2(_dir.x, _dir.z) * 3.0)
-	mesh.material = mat
-	var instance := MeshInstance3D.new()
-	instance.mesh = mesh
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	instance.visible = false
-	_root.add_child(instance)
-	return instance
+func _make_water() -> MeshInstance3D:
+	var reach := _half + EDGE_MARGIN
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(reach * 2.0 + 20.0, reach * 2.0)
+	# Dense along the travel direction, where the wave's profile is.
+	plane.subdivide_width = int(plane.size.x / 0.6)
+	plane.subdivide_depth = 6
+	_water_mat = Look.tsunami_water()
+	_water_mat.set_shader_parameter("crest_depth", CREST_DEPTH)
+	_water_mat.set_shader_parameter("bottom", BOTTOM)
+	_water_mat.set_shader_parameter("side_half", reach)
+	_water_mat.set_shader_parameter("back", -reach - 10.0)
+	_water_mat.set_shader_parameter("flow", Vector2(_dir.x, _dir.z) * 3.0)
+	var water := MeshInstance3D.new()
+	water.mesh = plane
+	water.material_override = _water_mat
+	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# The shader lifts the flat plane into the wave.
+	water.extra_cull_margin = CREST_HEIGHT - BOTTOM
+	water.visible = false
+	return water
 
 
 ## White spray blown off the top of the crest along its whole width.

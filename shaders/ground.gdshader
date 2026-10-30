@@ -11,6 +11,9 @@ uniform float roughness_value = 0.9;
 uniform bool vertical = false;
 // Roads: x is the width, y the length (meters); UV.x runs across, UV.y along.
 uniform vec2 road_size = vec2(0.0);
+// Soft contact shadow around buildings, trees and cars: center.xy, half size.zw.
+uniform vec4 shade_rects[16];
+uniform int shade_count = 0;
 
 varying vec3 world_pos;
 
@@ -38,6 +41,14 @@ void fragment() {
 		float paint = max(dash, edge) * mix(0.75, 0.95, fine);
 		col = mix(col, vec3(0.86, 0.85, 0.8), paint);
 		rough = mix(rough, 0.6, paint);
+	}
+	if (!vertical) {
+		for (int i = 0; i < shade_count; i++) {
+			vec4 r = shade_rects[i];
+			vec2 q = abs(world_pos.xz - r.xy) - r.zw;
+			float dist = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0);
+			col *= mix(0.5, 1.0, smoothstep(-0.3, 2.4, dist));
+		}
 	}
 	ALBEDO = col;
 	ROUGHNESS = rough;
