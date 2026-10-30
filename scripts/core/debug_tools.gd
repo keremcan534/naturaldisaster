@@ -1,0 +1,79 @@
+extends Node
+## Dev helpers.
+##   F12                 saves a screenshot to user://screenshots
+## Command line options (after `--`):
+##   --fast              shortens every round timer
+##   --shots=<dir>       saves a screenshot every 2 seconds into <dir>
+##   --run-for=<sec>     quits after <sec> seconds
+##   --log               prints round status changes
+##   --map=<i>           always loads map i (see maps.gd)
+##   --disaster=<i>      always picks disaster i (see disaster_manager.gd)
+##   --touch             shows the mobile controls on desktop (read in main.gd)
+##   --pos=x,y,z         puts the player there on the first frame
+##   --yaw=<deg>         with --pos, turns the player
+
+const SHOT_INTERVAL := 2.0
+
+var manager: Node
+
+var _shot_dir := ""
+var _shot_timer := 0.0
+var _run_for := -1.0
+var _elapsed := 0.0
+var _shot_index := 0
+var _start_pos: Variant = null
+var _start_yaw := 0.0
+
+
+func _ready() -> void:
+	for arg in OS.get_cmdline_user_args():
+		if arg == "--fast":
+			manager.time_scale = 0.3
+		elif arg.begins_with("--shots="):
+			_shot_dir = arg.get_slice("=", 1)
+			DirAccess.make_dir_recursive_absolute(_shot_dir)
+			# Unattended capture: don't grab the mouse of whoever is at the desk.
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif arg.begins_with("--map="):
+			manager.world.forced_map = arg.get_slice("=", 1).to_int()
+		elif arg.begins_with("--disaster="):
+			manager.forced_disaster = arg.get_slice("=", 1).to_int()
+		elif arg.begins_with("--pos="):
+			var p := arg.get_slice("=", 1).split_floats(",")
+			_start_pos = Vector3(p[0], p[1], p[2])
+		elif arg.begins_with("--yaw="):
+			_start_yaw = deg_to_rad(arg.get_slice("=", 1).to_float())
+		elif arg == "--log":
+			manager.status_changed.connect(func(text: String) -> void: print("[%.1fs] %s" % [_elapsed, text]))
+		elif arg.begins_with("--run-for="):
+			_run_for = arg.get_slice("=", 1).to_float()
+
+
+func _process(delta: float) -> void:
+	if _elapsed == 0.0 and _start_pos != null:
+		for player: Node3D in get_tree().get_nodes_in_group("player"):
+			player.global_position = _start_pos
+			player.rotation.y = _start_yaw
+	_elapsed += delta
+	if _run_for > 0.0 and _elapsed >= _run_for:
+		get_tree().quit()
+		return
+	if _shot_dir != "":
+		_shot_timer -= delta
+		if _shot_timer <= 0.0:
+			_shot_timer = SHOT_INTERVAL
+			_save_screenshot(_shot_dir.path_join("shot_%03d.png" % _shot_index))
+			_shot_index += 1
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F12:
+		DirAccess.make_dir_recursive_absolute("user://screenshots")
+		_save_screenshot("user://screenshots/%d.png" % Time.get_unix_time_from_system())
+
+
+func _save_screenshot(path: String) -> void:
+	await RenderingServer.frame_post_draw
+	var image := get_viewport().get_texture().get_image()
+	if image:
+		image.save_png(path)
