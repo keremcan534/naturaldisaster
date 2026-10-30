@@ -21,6 +21,11 @@ const EPS_FENCE := 0.01
 ## Grass tufts per square meter, and a cap so big maps stay cheap.
 const GRASS_DENSITY := 3.0
 const MAX_TUFTS := 12000
+## Flowers grow in clumps: clumps per square meter, flowers per clump.
+const FLOWER_CLUMPS := 0.05
+const FLOWERS_PER_CLUMP := 9
+const FLOWER_COLORS := [Color(0.97, 0.97, 0.95), Color(0.95, 0.85, 0.2), Color(0.85, 0.12, 0.1),
+		Color(0.6, 0.35, 0.85), Color(0.55, 0.7, 0.95), Color(0.98, 0.6, 0.75)]
 const CAR_COLORS := [Color(0.8, 0.15, 0.15), Color(0.15, 0.3, 0.75), Color(0.9, 0.9, 0.9), Color(0.2, 0.2, 0.22)]
 
 
@@ -267,7 +272,8 @@ static func _rect(center: Vector3, size: Vector2) -> Rect2:
 	return Rect2(center.x - size.x * 0.5, center.z - size.y * 0.5, size.x, size.y)
 
 
-## One MultiMesh of grass tufts over the grass areas, kept off bare ground.
+## One MultiMesh of grass tufts over the grass areas, kept off bare ground, and
+## one of flowers in small clumps.
 static func _scatter_grass(root: Node3D, seed_value: int) -> void:
 	var area := 0.0
 	for r in _grass_areas:
@@ -281,32 +287,66 @@ static func _scatter_grass(root: Node3D, seed_value: int) -> void:
 	var attempts := wanted * 2
 	while transforms.size() < wanted and attempts > 0:
 		attempts -= 1
-		# Pick an area weighted by size, then a point in it.
-		var pick := rng.randf() * area
-		var rect := _grass_areas[0]
-		for r in _grass_areas:
-			rect = r
-			pick -= r.get_area()
-			if pick <= 0.0:
-				break
-		var p := Vector2(rng.randf_range(rect.position.x, rect.end.x), rng.randf_range(rect.position.y, rect.end.y))
-		var blocked := false
-		for b in _bare:
-			if b.grow(0.2).has_point(p):
-				blocked = true
-				break
-		if blocked:
+		var p := _grass_point(rng, area)
+		if is_nan(p.x):
 			continue
 		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.25))
 		transforms.append(Transform3D(basis, Vector3(p.x, 0, p.y)))
+	var grass := _multimesh(Look.grass_tuft(), transforms, [])
+	grass.material_override = Look.grass_material(GRASS_COLOR)
+	root.add_child(grass)
+
+	var flowers: Array[Transform3D] = []
+	var colors: Array[Color] = []
+	for clump in int(area * FLOWER_CLUMPS):
+		var center := _grass_point(rng, area)
+		if is_nan(center.x):
+			continue
+		var color: Color = FLOWER_COLORS[rng.randi() % FLOWER_COLORS.size()]
+		for k in FLOWERS_PER_CLUMP:
+			var p := center + Vector2(rng.randfn(0.0, 0.6), rng.randfn(0.0, 0.6))
+			if _is_bare(p):
+				continue
+			var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.8, 1.3))
+			flowers.append(Transform3D(basis, Vector3(p.x, 0, p.y)))
+			colors.append(color * rng.randf_range(0.85, 1.05))
+	if not flowers.is_empty():
+		var bed := _multimesh(Look.flower(), flowers, colors)
+		bed.material_override = Look.flowers_material()
+		root.add_child(bed)
+
+
+## A random point on grass (weighted by area), or NAN if it fell on bare ground.
+static func _grass_point(rng: RandomNumberGenerator, area: float) -> Vector2:
+	var pick := rng.randf() * area
+	var rect := _grass_areas[0]
+	for r in _grass_areas:
+		rect = r
+		pick -= r.get_area()
+		if pick <= 0.0:
+			break
+	var p := Vector2(rng.randf_range(rect.position.x, rect.end.x), rng.randf_range(rect.position.y, rect.end.y))
+	return Vector2(NAN, NAN) if _is_bare(p) else p
+
+
+static func _is_bare(p: Vector2) -> bool:
+	for b in _bare:
+		if b.grow(0.2).has_point(p):
+			return true
+	return false
+
+
+static func _multimesh(mesh: Mesh, transforms: Array[Transform3D], colors: Array[Color]) -> MultiMeshInstance3D:
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
-	multimesh.mesh = Look.grass_tuft()
+	multimesh.use_colors = not colors.is_empty()
+	multimesh.mesh = mesh
 	multimesh.instance_count = transforms.size()
 	for i in transforms.size():
 		multimesh.set_instance_transform(i, transforms[i])
-	var grass := MultiMeshInstance3D.new()
-	grass.multimesh = multimesh
-	grass.material_override = Look.grass_material(GRASS_COLOR)
-	grass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	root.add_child(grass)
+		if multimesh.use_colors:
+			multimesh.set_instance_color(i, colors[i])
+	var instance := MultiMeshInstance3D.new()
+	instance.multimesh = multimesh
+	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return instance

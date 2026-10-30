@@ -39,14 +39,18 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   water and glass all use it, so reflections show the real clouds and sun), ground
   (road markings, contact shadows), water include (`SEA` Gerstner swells + shore foam,
   `TSUNAMI` breaking wave, pools with a tiled floor), window, building, grass, leaves,
-  lava. Weather values shared by shaders are global uniforms declared in
-  `project.godot` `[shader_globals]` (sky/sun/cloud colors, wind, wave height, island size).
+  lava, flowers. Weather values shared by shaders are global uniforms declared in
+  `project.godot` `[shader_globals]` (sky/sun/cloud colors, night/stars/aurora/rainbow,
+  wetness, wind, wave height, island size, player position for grass).
 - `scripts/world/debris.gd`: pooled chunks that pieces shatter into (explosions, very
   strong winds, hard landings; glass always). Falling pieces that hit hard call
   `impact()` on structures, so collapses spread.
-- `scripts/world/weather.gd`: sky, sun, fog and the sea. Each disaster sets a `mood`
-  (clear, dust, dusk, overcast, storm, ash) that the weather blends into from the
-  warning on; storms add camera-following rain and lightning.
+- `scripts/world/weather.gd`: sky, sun, fog and the sea. Each round picks a time of day
+  (`TIMES`: morning, day, golden, night; `--time=` forces one) and each disaster sets a
+  `mood` (clear, dust, dusk, overcast, storm, ash) that the weather blends into from the
+  warning on; moods are tinted by the time of day. Rain wets the ground (puddles via
+  the `wetness` global), storms throw lightning bolts, rain ends in a rainbow, clear
+  nights get stars and an aurora, and a lens flare follows the sun.
 - `scripts/world/effects.gd`: pooled particle bursts (explosions, dust from breaking
   pieces), reached through `call_group("effects", ...)`.
 - `scripts/world/maps.gd`: the small maps (skyscraper, garden house, apartment, neighbourhood).
@@ -81,6 +85,6 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 ```
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
-(`--fast`, `--log`, `--perf`, `--map=<i>`, `--disaster=<i>`, `--shots=<dir>`, `--pos=`,
+(`--fast`, `--log`, `--perf`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
 `--yaw=`, `--pitch=`, `--touch`). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

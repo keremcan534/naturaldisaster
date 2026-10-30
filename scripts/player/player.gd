@@ -199,6 +199,8 @@ func _physics_process(delta: float) -> void:
 	velocity.x = _walk.x + _push.x
 	velocity.z = _walk.z + _push.z
 	move_and_slide()
+	# Grass and flowers bend away from the player's legs.
+	RenderingServer.global_shader_parameter_set("player_pos", global_position)
 
 	if global_position.y < KILL_HEIGHT:
 		take_damage(MAX_HEALTH)

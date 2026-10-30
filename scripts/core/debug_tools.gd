@@ -8,6 +8,7 @@ extends Node
 ##   --log               prints round status changes
 ##   --perf              prints frame costs every second (process, physics, draws)
 ##   --map=<i>           always loads map i (see maps.gd)
+##   --time=<name>       always uses this time of day (morning, day, golden, night)
 ##   --disaster=<i>      always picks disaster i (see disaster_manager.gd)
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
 ##   --pos=x,y,z         puts the player there on the first frame
@@ -41,6 +42,8 @@ func _ready() -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		elif arg.begins_with("--map="):
 			manager.world.forced_map = arg.get_slice("=", 1).to_int()
+		elif arg.begins_with("--time="):
+			manager.world.forced_time = arg.get_slice("=", 1)
 		elif arg.begins_with("--disaster="):
 			manager.forced_disaster = arg.get_slice("=", 1).to_int()
 		elif arg.begins_with("--pos="):

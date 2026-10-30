@@ -18,6 +18,11 @@ var map_size := 50.0
 var spawn_point := Vector3(0, 0.5, 0)
 ## Debug: >= 0 always loads this map.
 var forced_map := -1
+## Debug: a time of day (see weather.gd TIMES) for every round.
+var forced_time := "":
+	set(value):
+		forced_time = value
+		_weather.forced_time = value
 
 var _map_root: Node3D
 var _map_index := -1
@@ -78,6 +83,7 @@ func load_next_map() -> void:
 	map_size = info.size
 	spawn_point = info.spawn
 	_weather.set_island(map_size * 0.5)
+	_weather.new_day()
 
 
 ## Blends sky, light and fog toward one of Weather.MOODS.

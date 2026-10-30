@@ -92,3 +92,27 @@ wind={
 "type": "float",
 "value": 0.3
 }
+night={
+"type": "float",
+"value": 0.0
+}
+stars={
+"type": "float",
+"value": 0.0
+}
+aurora={
+"type": "float",
+"value": 0.0
+}
+rainbow={
+"type": "float",
+"value": 0.0
+}
+wetness={
+"type": "float",
+"value": 0.0
+}
+player_pos={
+"type": "vec3",
+"value": Vector3(0, -100, 0)
+}

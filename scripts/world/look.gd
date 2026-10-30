@@ -13,6 +13,7 @@ const LEAVES_SHADER := preload("res://shaders/leaves.gdshader")
 const BUILDING_SHADER := preload("res://shaders/building.gdshader")
 const INTERIOR_PAINT := Color(0.9, 0.88, 0.83)
 const CEILING := Color(0.93, 0.92, 0.9)
+const FLOWERS_SHADER := preload("res://shaders/flowers.gdshader")
 const MAX_SHADES := 16
 
 const ROCK_COLOR := Color(0.42, 0.36, 0.3)
@@ -36,6 +37,8 @@ static var _tinted: StandardMaterial3D
 static var _lamp: StandardMaterial3D
 static var _grass: ShaderMaterial
 static var _tuft: ArrayMesh
+static var _flower: ArrayMesh
+static var _flowers: ShaderMaterial
 
 
 ## Box pieces: the color times a plaster-like panel texture with darkened edges.
@@ -147,9 +150,12 @@ static func ground(color: Color, road_size := Vector2.ZERO) -> Material:
 		mat.set_shader_parameter("tint", color)
 		mat.set_shader_parameter("noise", noise_texture())
 		mat.set_shader_parameter("road_size", road_size)
+		# Green means grass: dirt patches and specks.
+		mat.set_shader_parameter("grassy", color.g > color.r * 1.3 and color.g > color.b * 1.3)
 		if road_size != Vector2.ZERO:
 			mat.set_shader_parameter("contrast", 0.2)
 			mat.set_shader_parameter("scale", 0.3)
+			mat.set_shader_parameter("puddles", 1.0)
 		_grounds[key] = mat
 	return _grounds[key]
 
@@ -281,6 +287,56 @@ static func grass_tuft() -> ArrayMesh:
 		_tuft = ArrayMesh.new()
 		_tuft.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	return _tuft
+
+
+static func flowers_material() -> ShaderMaterial:
+	if _flowers == null:
+		_flowers = ShaderMaterial.new()
+		_flowers.shader = FLOWERS_SHADER
+		_flowers.set_shader_parameter("noise", noise_texture())
+	return _flowers
+
+
+## A wild flower: a thin stem (UV.y 0..0.9) and a flat five-petal head (UV.y 1;
+## UV.x 1 marks the middle). Vertex colors are white so instance colors show.
+static func flower() -> ArrayMesh:
+	if _flower == null:
+		var verts := PackedVector3Array()
+		var uvs := PackedVector2Array()
+		var height := 0.36
+		var w := 0.014
+		verts.append_array([Vector3(-w, 0, 0), Vector3(w, 0, 0), Vector3(w, height, 0),
+				Vector3(-w, 0, 0), Vector3(w, height, 0), Vector3(-w, height, 0)])
+		uvs.append_array([Vector2(0, 0), Vector2(0, 0), Vector2(0, 0.9), Vector2(0, 0), Vector2(0, 0.9), Vector2(0, 0.9)])
+		var top := Vector3(0, height, 0)
+		for k in 5:
+			var a := TAU * k / 5.0
+			var tip := top + Vector3(cos(a), 0.25, sin(a)) * 0.085
+			var l := top + Vector3(cos(a - 0.45), 0.1, sin(a - 0.45)) * 0.045
+			var r := top + Vector3(cos(a + 0.45), 0.1, sin(a + 0.45)) * 0.045
+			verts.append_array([top, l, tip, top, tip, r])
+			uvs.append_array([Vector2(0, 1), Vector2(0, 1), Vector2(0, 1), Vector2(0, 1), Vector2(0, 1), Vector2(0, 1)])
+		for k in 4:
+			var a := TAU * k / 4.0
+			var b := TAU * (k + 1) / 4.0
+			verts.append_array([top + Vector3(0, 0.016, 0), top + Vector3(cos(a), 0.6, sin(a)) * 0.024,
+					top + Vector3(cos(b), 0.6, sin(b)) * 0.024])
+			uvs.append_array([Vector2(1, 1), Vector2(1, 1), Vector2(1, 1)])
+		var normals := PackedVector3Array()
+		normals.resize(verts.size())
+		normals.fill(Vector3.UP)
+		var colors := PackedColorArray()
+		colors.resize(verts.size())
+		colors.fill(Color.WHITE)
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		arrays[Mesh.ARRAY_NORMAL] = normals
+		arrays[Mesh.ARRAY_TEX_UV] = uvs
+		arrays[Mesh.ARRAY_COLOR] = colors
+		_flower = ArrayMesh.new()
+		_flower.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return _flower
 
 
 ## Camera-facing particle quads tinted by the particles' color ramp. A brightness
