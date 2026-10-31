@@ -28,6 +28,10 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   tinted per instance), so a building is a few draw calls; check `--perf` draw counts
   after adding pieces. Shaders on batched boxes must read the piece size from
   `MODEL_MATRIX` scale, not from `VERTEX`.
+- Building stairs (`Structure._add_ramp`): every floor's ramp runs along the back row
+  from a 1 m landing to the fourth column, stacked one storey apart; the second row is
+  the walkway back to the next ramp's foot, and furniture keeps clear of both. When
+  changing buildings, check a player can walk from the front door up to the roof.
 - `scripts/world/interior.gd`: rooms per floor (partition with a doorway) and furniture
   against the walls (homes, or lobby + desks for offices); `place()` is reused by the
   mall's shops. All ordinary structure pieces.
@@ -66,14 +70,18 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   some buildings.
 - `scripts/disasters/`: `disaster.gd` base + one file per disaster, registered in
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
-- `scripts/player/player.gd`: first-person controller; world effects go through
+- `scripts/player/player.gd`: first-person controller at human scale (1.75 m, 0.3 m
+  radius, 4.5/7 m/s, ~1.3 m jump, horizontal 90° FOV); world effects go through
   `push()`, `set_water()`, `explode_at()`, `take_damage()`, `add_shake()`.
 - `scripts/ui/`: HUD (with an FPS / quality readout) and touch controls (shown on phones
-  and with `-- --touch`): floating analog stick in the lower left (auto-sprint at full
-  forward), drag-to-look everywhere else, routed by finger position when browsers
-  renumber fingers (never drop fast swipes: on slow frames one event carries a big
-  step), a big jump button, a menu button (sensitivity, invert, graphics quality; saved
-  in `user://settings.cfg`). Touches also reach GUI as emulated mouse.
+  and with `-- --touch`), laid out like PUBG Mobile: floating analog stick in the lower
+  left (full forward sprints; dragged up onto the lock and released, it auto-runs),
+  drag-to-look everywhere else, routed by finger position when browsers renumber
+  fingers (never drop fast swipes: on slow frames one event carries a big step), a big
+  jump button under the right thumb, a menu button (sensitivity, invert, button size,
+  "Tuşları yerleştir" to drag the stick/jump spots, graphics quality; all saved in
+  `user://settings.cfg`, keep other sections when saving). Touches also reach GUI as
+  emulated mouse.
   Touch can be tested under `xvfb-run` by feeding `InputEventScreenTouch/Drag` through
   `Input.parse_input_event()` + `Input.flush_buffered_events()` (not in `--headless`).
 - Everything is built in code; `scenes/main.tscn` only holds the root script.

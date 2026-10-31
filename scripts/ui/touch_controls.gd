@@ -1,11 +1,14 @@
 extends CanvasLayer
-## On-screen controls for touch devices, laid out like a mobile shooter:
-## - lower left: a floating analog joystick. It rests at a home spot, jumps to
-##   where the thumb lands, and follows the thumb past its edge so the stick is
-##   never lost. Pushed all the way forward it sprints.
-## - everywhere else: drag to look. Dragging from the jump button looks too.
-## - buttons: a big jump button, and a menu button (top left) for look
-##   sensitivity, invert and graphics quality.
+## On-screen controls for touch devices, laid out the way mobile shooters do it
+## (PUBG Mobile, Minecraft): both thumbs rest near the bottom corners.
+## - Left thumb: a floating analog joystick. It rests at a home spot, jumps to
+##   where the thumb lands in the lower left, and follows the thumb past its edge.
+##   Pushed fully forward it sprints; dragged further up onto the lock above it
+##   and released, it keeps running forward (auto-run) until the stick is touched.
+## - Right thumb: drag anywhere outside the stick area to look; a big jump button
+##   where the thumb rests, which can also be dragged to look.
+## - A menu button (top left): look sensitivity, invert, button size, moving the
+##   buttons ("Tuşları yerleştir") and graphics quality. Saved in settings.cfg.
 ## Movement goes through the regular input actions (analog strengths), so the
 ## player doesn't care where input comes from.
 
@@ -13,52 +16,66 @@ const Quality := preload("res://scripts/core/quality.gd")
 
 const SETTINGS_PATH := "user://settings.cfg"
 
-const STICK_RADIUS := 105.0
-const KNOB_RADIUS := 46.0
-## Fraction of the radius ignored around the center, and the response curve
-## (above 1: finer control near the center).
+## Sizes at button size 1.
+const STICK_RADIUS := 100.0
+const KNOB_RADIUS := 44.0
+const JUMP_RADIUS := 74.0
+const GEAR_RADIUS := 28.0
+## Default spots (fractions of the screen); the player can move them.
+const STICK_HOME := Vector2(0.16, 0.72)
+const JUMP_HOME := Vector2(0.87, 0.7)
+## Fraction of the radius ignored around the center, and the response curve.
 const STICK_DEADZONE := 0.08
 const STICK_CURVE := 1.1
 ## Pushed this far, mostly forward, the player sprints.
 const AUTO_SPRINT := 0.92
-const JUMP_RADIUS := 80.0
-const GEAR_RADIUS := 28.0
+## The auto-run lock sits this many stick radii above the stick's center.
+const LOCK_DISTANCE := 1.9
+const LOCK_RADIUS := 34.0
 ## Radians of turn per pixel dragged at sensitivity 1 (half a turn is about a
 ## third of the screen width).
 const LOOK_SPEED := 0.0075
 ## A single drag step longer than this (fraction of screen height) can't be a
-## finger: browsers can renumber fingers when one lifts, and trusting such a step
-## would whip the camera around. Fast swipes on a slow frame stay well below it.
+## finger: browsers can renumber fingers when one lifts. Fast swipes on a slow
+## frame stay well below it.
 const MAX_STEP := 0.5
-## The stick takes touches that start in the lower left (fractions of the screen).
-const STICK_AREA := Vector2(0.42, 0.3)
+## Touches starting left of this and below the top band go to the stick.
+const STICK_AREA := Vector2(0.45, 0.3)
 const QUALITY_NAMES := ["Otomatik", "Düşük", "Orta", "Yüksek"]
 
 const COLOR_LINE := Color(1, 1, 1, 0.55)
-const COLOR_ACTIVE := Color(1, 0.85, 0.3, 0.75)
+const COLOR_ACTIVE := Color(1, 0.85, 0.3, 0.8)
 
 var player: Node
 
 var sensitivity := 1.0
 var invert_y := false
+var button_size := 1.0
+var stick_home := STICK_HOME
+var jump_home := JUMP_HOME
 
 var _canvas: Control
 var _settings: PanelContainer
 var _size := Vector2(1280, 720)
-var _margin := 28.0
 
 var _stick_finger := -1
-var _stick_home := Vector2.ZERO
 var _stick_center := Vector2.ZERO
 var _knob := Vector2.ZERO
 var _stick_value := Vector2.ZERO
 var _sprinting := false
+var _lock_armed := false
+var _auto_run := false
 
 var _look_finger := -1
 var _look_last := Vector2.ZERO
 var _jump_finger := -1
 var _jump_pos := Vector2.ZERO
 var _gear_pos := Vector2.ZERO
+
+## Layout editing: which control a finger is dragging ("stick"/"jump").
+var _editing := false
+var _edit_finger := -1
+var _edit_target := ""
 
 
 func _ready() -> void:
@@ -75,22 +92,30 @@ func _ready() -> void:
 	_request_fullscreen_on_touch()
 
 
+func _stick_radius() -> float:
+	return STICK_RADIUS * button_size
+
+
+func _jump_radius() -> float:
+	return JUMP_RADIUS * button_size
+
+
 func _layout() -> void:
 	_size = get_viewport().get_visible_rect().size
-	_margin = maxf(24.0, _size.y * 0.04)
-	_stick_home = Vector2(_margin + STICK_RADIUS + 20.0, _size.y - _margin - STICK_RADIUS - 10.0)
-	# Where the right thumb rests, a little in from the corner.
-	_jump_pos = _size - Vector2(_margin + JUMP_RADIUS + 40.0, _margin + JUMP_RADIUS + 50.0)
+	_jump_pos = jump_home * _size
 	# Under the health bar, out of the way of both thumbs.
-	_gear_pos = Vector2(_margin + GEAR_RADIUS + 4.0, 118.0)
+	_gear_pos = Vector2(maxf(24.0, _size.y * 0.04) + GEAR_RADIUS + 4.0, 118.0)
 	if _stick_finger < 0:
-		_stick_center = _stick_home
-		_knob = _stick_home
+		_stick_center = stick_home * _size
+		_knob = _stick_center
 	_canvas.queue_redraw()
 
 
 func _input(event: InputEvent) -> void:
 	if _settings.visible:
+		return
+	if _editing:
+		_edit_input(event)
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -109,7 +134,7 @@ func _press(finger: int, pos: Vector2) -> void:
 	if pos.distance_to(_gear_pos) < GEAR_RADIUS * 1.6:
 		_open_settings()
 		return
-	if pos.distance_to(_jump_pos) < JUMP_RADIUS * 1.15:
+	if pos.distance_to(_jump_pos) < _jump_radius() * 1.25:
 		_jump_finger = finger
 		Input.action_press("jump")
 		Input.vibrate_handheld(15)
@@ -121,6 +146,7 @@ func _press(finger: int, pos: Vector2) -> void:
 		return
 	if pos.x < _size.x * STICK_AREA.x and pos.y > _size.y * STICK_AREA.y:
 		_stick_finger = finger
+		_auto_run = false
 		_stick_center = pos
 		_knob = pos
 		_set_stick(Vector2.ZERO)
@@ -136,9 +162,12 @@ func _release(finger: int) -> void:
 		_canvas.queue_redraw()
 	if finger == _stick_finger:
 		_stick_finger = -1
-		_stick_center = _stick_home
-		_knob = _stick_home
-		_set_stick(Vector2.ZERO)
+		_auto_run = _lock_armed
+		_lock_armed = false
+		_stick_center = stick_home * _size
+		_knob = _stick_center
+		# Auto-run: keep running forward with the thumb off the screen.
+		_set_stick(Vector2(0, -1) if _auto_run else Vector2.ZERO)
 	if finger == _look_finger:
 		_look_finger = -1
 
@@ -175,13 +204,17 @@ func _look(pos: Vector2) -> void:
 
 
 func _move_stick(pos: Vector2) -> void:
+	var radius := _stick_radius()
 	var offset := pos - _stick_center
-	# Past the edge the base follows the thumb.
-	if offset.length() > STICK_RADIUS:
-		_stick_center = pos - offset.normalized() * STICK_RADIUS
+	# Dragged up toward the lock: arm auto-run instead of dragging the base along.
+	var up := offset.normalized().dot(Vector2.UP) > 0.8
+	_lock_armed = up and offset.length() > radius * (LOCK_DISTANCE - 0.5)
+	if not up and offset.length() > radius:
+		# Past the edge the base follows the thumb.
+		_stick_center = pos - offset.normalized() * radius
 		offset = pos - _stick_center
-	_knob = pos
-	var v := offset / STICK_RADIUS
+	_knob = _stick_center + offset.limit_length(radius * LOCK_DISTANCE)
+	var v := offset.limit_length(radius) / radius
 	var amount := clampf((v.length() - STICK_DEADZONE) / (1.0 - STICK_DEADZONE), 0.0, 1.0)
 	_set_stick(v.normalized() * pow(amount, STICK_CURVE) if amount > 0.0 else Vector2.ZERO)
 
@@ -190,19 +223,14 @@ func _set_stick(v: Vector2) -> void:
 	_stick_value = v
 	_set_axis("move_left", "move_right", v.x)
 	_set_axis("move_forward", "move_back", v.y)
-	_update_sprint()
-	_canvas.queue_redraw()
-
-
-func _update_sprint() -> void:
-	var forward := _stick_value.y < -0.3
-	var sprint := forward and _stick_value.length() >= AUTO_SPRINT and _stick_value.y < -0.75
+	var sprint := _auto_run or (v.length() >= AUTO_SPRINT and v.y < -0.75)
 	if sprint != _sprinting:
 		_sprinting = sprint
 		if sprint:
 			Input.action_press("sprint")
 		else:
 			Input.action_release("sprint")
+	_canvas.queue_redraw()
 
 
 func _set_axis(negative: String, positive: String, value: float) -> void:
@@ -219,29 +247,57 @@ func _set_axis(negative: String, positive: String, value: float) -> void:
 
 func _draw_controls() -> void:
 	var font := ThemeDB.fallback_font
-	# Stick: a ring with a direction mark, and the knob.
+	var radius := _stick_radius()
 	var active := _stick_finger >= 0
-	_canvas.draw_circle(_stick_center, STICK_RADIUS, Color(0, 0, 0, 0.18 if active else 0.1))
-	_canvas.draw_arc(_stick_center, STICK_RADIUS, 0, TAU, 48, COLOR_LINE if active else Color(1, 1, 1, 0.35), 3.0, true)
+	# Stick: a ring and the knob.
+	_canvas.draw_circle(_stick_center, radius, Color(0, 0, 0, 0.2 if active else 0.12))
+	_canvas.draw_arc(_stick_center, radius, 0, TAU, 48, COLOR_LINE if active else Color(1, 1, 1, 0.35), 3.0, true)
 	var knob_color := COLOR_ACTIVE if _sprinting else Color(1, 1, 1, 0.55 if active else 0.3)
-	_canvas.draw_circle(_knob, KNOB_RADIUS, knob_color)
-	_canvas.draw_arc(_knob, KNOB_RADIUS, 0, TAU, 32, Color(1, 1, 1, 0.8), 2.0, true)
-	if _sprinting:
-		_text(font, _stick_center + Vector2(0, -STICK_RADIUS - 18), "KOŞ", 22, COLOR_ACTIVE)
+	_canvas.draw_circle(_knob, KNOB_RADIUS * button_size, knob_color)
+	_canvas.draw_arc(_knob, KNOB_RADIUS * button_size, 0, TAU, 32, Color(1, 1, 1, 0.8), 2.0, true)
+	# The auto-run lock above the stick while it is held, or lit while running.
+	if active or _auto_run:
+		var lock := _stick_center + Vector2(0, -radius * LOCK_DISTANCE)
+		var lit := _lock_armed or _auto_run
+		_canvas.draw_circle(lock, LOCK_RADIUS, Color(1, 0.85, 0.3, 0.5) if lit else Color(0, 0, 0, 0.3))
+		_canvas.draw_arc(lock, LOCK_RADIUS, 0, TAU, 32, COLOR_ACTIVE if lit else COLOR_LINE, 2.0, true)
+		_arrow(lock, LOCK_RADIUS * 0.5, Color.WHITE)
+		if _auto_run and not active:
+			_text(font, lock + Vector2(0, -LOCK_RADIUS - 14), "OTOMATİK KOŞU", 18, COLOR_ACTIVE)
+	elif _sprinting:
+		_text(font, _stick_center + Vector2(0, -radius - 18), "KOŞ", 22, COLOR_ACTIVE)
 
-	_round_button(_jump_pos, JUMP_RADIUS, "ZIPLA", _jump_finger >= 0)
-	_round_button(_gear_pos, GEAR_RADIUS, "", false)
-	# A menu icon: three bars.
+	# Jump: a big round button with an up arrow.
+	var jr := _jump_radius()
+	var pressed := _jump_finger >= 0
+	_canvas.draw_circle(_jump_pos, jr, Color(1, 0.85, 0.3, 0.35) if pressed else Color(0, 0, 0, 0.25))
+	_canvas.draw_arc(_jump_pos, jr, 0, TAU, 48, COLOR_ACTIVE if pressed else COLOR_LINE, 3.0, true)
+	_arrow(_jump_pos + Vector2(0, -4), jr * 0.42, Color.WHITE)
+
+	# Menu: three bars.
+	_canvas.draw_circle(_gear_pos, GEAR_RADIUS, Color(0, 0, 0, 0.25))
+	_canvas.draw_arc(_gear_pos, GEAR_RADIUS, 0, TAU, 32, COLOR_LINE, 2.0, true)
 	for k in 3:
 		var y := _gear_pos.y + (k - 1) * 8.0
 		_canvas.draw_line(Vector2(_gear_pos.x - 11, y), Vector2(_gear_pos.x + 11, y), Color.WHITE, 3.0, true)
 
+	if _editing:
+		_canvas.draw_rect(Rect2(Vector2.ZERO, _size), Color(0, 0, 0, 0.35))
+		_text(font, Vector2(_size.x * 0.5, _size.y * 0.16), "Tuşları sürükleyip yerleştir", 30, Color.WHITE)
+		for button: Array in _edit_buttons():
+			var rect: Rect2 = button[1]
+			_canvas.draw_rect(rect, Color(0.15, 0.17, 0.2, 0.9))
+			_canvas.draw_rect(rect, COLOR_LINE, false, 2.0)
+			_text(font, rect.get_center(), button[0], 24, Color.WHITE)
+		_canvas.draw_arc(_stick_center, radius, 0, TAU, 48, COLOR_ACTIVE, 4.0, true)
+		_canvas.draw_arc(_jump_pos, jr, 0, TAU, 48, COLOR_ACTIVE, 4.0, true)
 
-func _round_button(pos: Vector2, radius: float, label: String, on: bool) -> void:
-	_canvas.draw_circle(pos, radius, Color(1, 0.85, 0.3, 0.35) if on else Color(0, 0, 0, 0.22))
-	_canvas.draw_arc(pos, radius, 0, TAU, 40, COLOR_ACTIVE if on else COLOR_LINE, 3.0, true)
-	if label != "":
-		_text(ThemeDB.fallback_font, pos, label, int(radius * 0.42), Color.WHITE)
+
+## An upward arrow: a triangle head on a short shaft.
+func _arrow(center: Vector2, size: float, color: Color) -> void:
+	var head := PackedVector2Array([center + Vector2(0, -size), center + Vector2(size * 0.8, 0), center + Vector2(-size * 0.8, 0)])
+	_canvas.draw_colored_polygon(head, color)
+	_canvas.draw_rect(Rect2(center + Vector2(-size * 0.28, -0.01), Vector2(size * 0.56, size * 0.8)), color)
 
 
 func _text(font: Font, center: Vector2, text: String, size: int, color: Color) -> void:
@@ -252,43 +308,150 @@ func _text(font: Font, center: Vector2, text: String, size: int, color: Color) -
 
 
 func _open_settings() -> void:
-	for finger in [_stick_finger, _look_finger, _jump_finger]:
-		if finger >= 0:
-			_release(finger)
+	_release_all()
 	_settings.visible = true
 
 
-## A small panel: look sensitivity and invert. Touches reach it as emulated mouse
-## clicks (project setting pointing/emulate_mouse_from_touch).
+func _release_all() -> void:
+	for finger in [_stick_finger, _look_finger, _jump_finger]:
+		if finger >= 0:
+			_release(finger)
+	_auto_run = false
+	_set_stick(Vector2.ZERO)
+
+
+## Layout editing: drag the stick or the jump button; "BİTTİ" saves, "SIFIRLA"
+## puts both back.
+func _edit_buttons() -> Array:
+	var w := 200.0
+	var y := _size.y * 0.25
+	return [["BİTTİ", Rect2(_size.x * 0.5 - w - 10.0, y, w, 64.0)], ["SIFIRLA", Rect2(_size.x * 0.5 + 10.0, y, w, 64.0)]]
+
+
+func _edit_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if not event.pressed:
+			if event.index == _edit_finger:
+				_edit_finger = -1
+			return
+		for button: Array in _edit_buttons():
+			if (button[1] as Rect2).has_point(event.position):
+				if button[0] == "SIFIRLA":
+					stick_home = STICK_HOME
+					jump_home = JUMP_HOME
+					_layout()
+				else:
+					_editing = false
+					_save_settings()
+					_canvas.queue_redraw()
+				return
+		var to_stick: float = event.position.distance_to(_stick_center)
+		var to_jump: float = event.position.distance_to(_jump_pos)
+		if minf(to_stick, to_jump) < maxf(_stick_radius(), _jump_radius()) * 1.4:
+			_edit_finger = event.index
+			_edit_target = "stick" if to_stick < to_jump else "jump"
+	elif event is InputEventScreenDrag and event.index == _edit_finger:
+		var at: Vector2 = (event.position / _size).clamp(Vector2(0.05, 0.3), Vector2(0.95, 0.92))
+		if _edit_target == "stick":
+			stick_home = at
+		else:
+			jump_home = at
+		_layout()
+
+
+## The settings panel. Touches reach it as emulated mouse clicks (project
+## setting pointing/emulate_mouse_from_touch).
 func _build_settings() -> PanelContainer:
 	var panel := PanelContainer.new()
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	panel.custom_minimum_size = Vector2(600, 0)
+	panel.custom_minimum_size = Vector2(640, 0)
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.1, 0.12, 0.92)
+	style.bg_color = Color(0.08, 0.1, 0.12, 0.94)
 	style.set_corner_radius_all(14)
-	style.set_content_margin_all(24)
+	style.set_content_margin_all(22)
 	panel.add_theme_stylebox_override("panel", style)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 18)
+	box.add_theme_constant_override("separation", 12)
 	panel.add_child(box)
 
 	var title := Label.new()
 	title.text = "Ayarlar"
-	title.add_theme_font_size_override("font_size", 30)
+	title.add_theme_font_size_override("font_size", 28)
 	box.add_child(title)
 
-	var value_label := Label.new()
-	value_label.add_theme_font_size_override("font_size", 22)
-	box.add_child(value_label)
+	box.add_child(_slider_row("Bakış hassasiyeti", 0.3, 3.0, sensitivity, func(v: float) -> void:
+		sensitivity = v))
+	box.add_child(_slider_row("Tuş boyutu", 0.8, 1.4, button_size, func(v: float) -> void:
+		button_size = v
+		_layout()))
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var invert := CheckButton.new()
+	invert.text = "Dikey bakışı ters çevir"
+	invert.add_theme_font_size_override("font_size", 20)
+	invert.button_pressed = invert_y
+	invert.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	invert.toggled.connect(func(on: bool) -> void:
+		invert_y = on
+		_save_settings())
+	row.add_child(invert)
+	var place := Button.new()
+	place.text = "Tuşları yerleştir"
+	place.add_theme_font_size_override("font_size", 20)
+	place.custom_minimum_size = Vector2(220, 52)
+	place.pressed.connect(func() -> void:
+		panel.visible = false
+		_editing = true
+		_canvas.queue_redraw())
+	row.add_child(place)
+	box.add_child(row)
+
+	var quality_label := Label.new()
+	quality_label.text = "Grafik kalitesi (takılıyorsa düşür)"
+	quality_label.add_theme_font_size_override("font_size", 20)
+	box.add_child(quality_label)
+	var choices := HBoxContainer.new()
+	choices.add_theme_constant_override("separation", 8)
+	var group := ButtonGroup.new()
+	for k in QUALITY_NAMES.size():
+		var choice := Button.new()
+		choice.text = QUALITY_NAMES[k]
+		choice.toggle_mode = true
+		choice.button_group = group
+		choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		choice.custom_minimum_size = Vector2(0, 52)
+		choice.add_theme_font_size_override("font_size", 20)
+		choice.button_pressed = Quality.auto if k == 0 else (not Quality.auto and Quality.level == k - 1)
+		choice.pressed.connect(func() -> void:
+			get_tree().current_scene.set_quality(Quality.level if k == 0 else k - 1, k == 0))
+		choices.add_child(choice)
+	box.add_child(choices)
+
+	var close := Button.new()
+	close.text = "Kapat"
+	close.add_theme_font_size_override("font_size", 22)
+	close.custom_minimum_size = Vector2(0, 56)
+	close.pressed.connect(func() -> void: panel.visible = false)
+	box.add_child(close)
+	panel.visible = false
+	return panel
+
+
+## A label with the current value and a thick, thumb-friendly slider.
+func _slider_row(caption: String, low: float, high: float, value: float, changed: Callable) -> VBoxContainer:
+	var row := VBoxContainer.new()
+	var label := Label.new()
+	label.add_theme_font_size_override("font_size", 20)
+	row.add_child(label)
 	var slider := HSlider.new()
-	slider.min_value = 0.3
-	slider.max_value = 3.0
+	slider.min_value = low
+	slider.max_value = high
 	slider.step = 0.05
-	slider.value = sensitivity
-	slider.custom_minimum_size = Vector2(0, 48)
+	slider.value = value
+	slider.custom_minimum_size = Vector2(0, 40)
 	var track := StyleBoxFlat.new()
 	track.bg_color = Color(1, 1, 1, 0.2)
 	track.set_corner_radius_all(6)
@@ -299,52 +462,13 @@ func _build_settings() -> PanelContainer:
 	filled.bg_color = Color(1, 0.85, 0.3, 0.8)
 	slider.add_theme_stylebox_override("grabber_area", filled)
 	slider.add_theme_stylebox_override("grabber_area_highlight", filled)
-	var show_value := func(v: float) -> void: value_label.text = "Bakış hassasiyeti: %.2f" % v
-	show_value.call(sensitivity)
+	label.text = "%s: %.2f" % [caption, value]
 	slider.value_changed.connect(func(v: float) -> void:
-		sensitivity = v
-		show_value.call(v)
+		label.text = "%s: %.2f" % [caption, v]
+		changed.call(v)
 		_save_settings())
-	box.add_child(slider)
-
-	var invert := CheckButton.new()
-	invert.text = "Dikey bakışı ters çevir"
-	invert.add_theme_font_size_override("font_size", 22)
-	invert.button_pressed = invert_y
-	invert.toggled.connect(func(on: bool) -> void:
-		invert_y = on
-		_save_settings())
-	box.add_child(invert)
-
-	var quality_label := Label.new()
-	quality_label.text = "Grafik kalitesi (takılıyorsa düşür)"
-	quality_label.add_theme_font_size_override("font_size", 22)
-	box.add_child(quality_label)
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	var group := ButtonGroup.new()
-	for k in QUALITY_NAMES.size():
-		var choice := Button.new()
-		choice.text = QUALITY_NAMES[k]
-		choice.toggle_mode = true
-		choice.button_group = group
-		choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		choice.custom_minimum_size = Vector2(0, 56)
-		choice.add_theme_font_size_override("font_size", 20)
-		choice.button_pressed = Quality.auto if k == 0 else (not Quality.auto and Quality.level == k - 1)
-		choice.pressed.connect(func() -> void:
-			get_tree().current_scene.set_quality(Quality.level if k == 0 else k - 1, k == 0))
-		row.add_child(choice)
-	box.add_child(row)
-
-	var close := Button.new()
-	close.text = "Kapat"
-	close.add_theme_font_size_override("font_size", 24)
-	close.custom_minimum_size = Vector2(0, 56)
-	close.pressed.connect(func() -> void: panel.visible = false)
-	box.add_child(close)
-	panel.visible = false
-	return panel
+	row.add_child(slider)
+	return row
 
 
 func _load_settings() -> void:
@@ -352,12 +476,20 @@ func _load_settings() -> void:
 	if config.load(SETTINGS_PATH) == OK:
 		sensitivity = config.get_value("touch", "sensitivity", 1.0)
 		invert_y = config.get_value("touch", "invert_y", false)
+		button_size = config.get_value("touch", "button_size", 1.0)
+		stick_home = config.get_value("touch", "stick_home", STICK_HOME)
+		jump_home = config.get_value("touch", "jump_home", JUMP_HOME)
 
 
+## Keeps the other sections (graphics) of the shared settings file.
 func _save_settings() -> void:
 	var config := ConfigFile.new()
+	config.load(SETTINGS_PATH)
 	config.set_value("touch", "sensitivity", sensitivity)
 	config.set_value("touch", "invert_y", invert_y)
+	config.set_value("touch", "button_size", button_size)
+	config.set_value("touch", "stick_home", stick_home)
+	config.set_value("touch", "jump_home", jump_home)
 	config.save(SETTINGS_PATH)
 
 

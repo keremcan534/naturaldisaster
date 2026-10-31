@@ -86,22 +86,25 @@ static var _lamp_meshes := {}
 
 ## Partition and furniture for one floor of structure s (untyped: structure.gd
 ## preloads this file). floor_y is the top of its floor slab; h the wall height.
-## With stairs, the back-left 2x2 cells hold the ramp and the hole from below.
+## With stairs, the back row's first four cells hold the ramp and its landings,
+## and the row in front of them is the walkway between ramps.
 static func furnish(s, origin: Vector3, footprint: Vector2i, f: int, floor_y: float, h: float,
 		stairs: bool, cell: float, wall: float, rng: RandomNumberGenerator, office := false) -> void:
 	var w := footprint.x * cell
 	var d := footprint.y * cell
 	var blocked: Array[Rect2] = []
 	if stairs:
-		blocked.append(Rect2(-w * 0.5, -d * 0.5, cell * 2.0 + CLEARANCE, cell * 2.0 + CLEARANCE))
+		blocked.append(Rect2(-w * 0.5, -d * 0.5, cell * 4.0 + CLEARANCE, cell * 2.0 + CLEARANCE))
 	if f == 0:
 		var door_x := -w * 0.5 + cell * (footprint.x / 2 + 0.5)
 		blocked.append(Rect2(door_x - 1.0, d * 0.5 - cell * 1.5, 2.0, cell * 1.5))
 
 	var inner := Rect2(-w * 0.5 + wall, -d * 0.5 + wall, w - wall * 2.0, d - wall * 2.0)
 	var rooms: Array[Rect2] = [inner]
-	if footprint.x >= 4:
-		var split := footprint.x / 2
+	# The partition stays right of the stairs and their landing; narrow buildings
+	# are one room.
+	var split := maxi(footprint.x / 2, 4 if stairs else 2)
+	if footprint.x - split >= 2:
 		var px := -w * 0.5 + cell * split
 		var gap_row := footprint.y / 2
 		for j in footprint.y:

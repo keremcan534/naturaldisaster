@@ -5,9 +5,13 @@ signal health_changed(value: float, max_value: float)
 signal died
 signal respawned
 
-const SPEED := 6.0
-const SPRINT_SPEED := 9.5
-const JUMP_VELOCITY := 6.5
+## Human scale: a brisk walk, a run, and a jump of about 1.3 m.
+const SPEED := 4.5
+const SPRINT_SPEED := 7.0
+const JUMP_VELOCITY := 5.0
+## Body: 1.75 m tall, shoulders about 0.6 m across.
+const BODY_RADIUS := 0.3
+const BODY_HEIGHT := 1.75
 const MOUSE_SENSITIVITY := 0.0025
 const MAX_HEALTH := 100.0
 ## Debris slower than this does not hurt.
@@ -31,19 +35,20 @@ const SEA_LEVEL := -2.5
 ## allows a jump this long after.
 ## Climbing speed on ladders (pieces tagged "ladder"); how long after touching
 ## one the player still counts as on it.
-const CLIMB_SPEED := 4.5
+const CLIMB_SPEED := 3.5
 const LADDER_GRACE := 0.2
 const JUMP_BUFFER := 0.15
 const COYOTE_TIME := 0.12
-const FOV := 80.0
-const SPRINT_FOV := 84.0
+## Horizontal field of view, as in most first-person games.
+const FOV := 90.0
+const SPRINT_FOV := 96.0
 ## Camera offset (m) at full shake.
 const SHAKE_AMOUNT := 0.15
 ## Gentle head bob while walking (meters, steps per meter).
 const BOB_HEIGHT := 0.035
 const BOB_RATE := 0.9
 
-const EYE_HEIGHT := 1.6
+const EYE_HEIGHT := 1.62
 const PITCH_LIMIT := 1.45
 const MOUSE_JUMP_LIMIT := 250.0
 
@@ -82,22 +87,22 @@ func _ready() -> void:
 	floor_max_angle = deg_to_rad(48.0)
 
 	var capsule := CapsuleShape3D.new()
-	capsule.radius = 0.4
-	capsule.height = 1.8
+	capsule.radius = BODY_RADIUS
+	capsule.height = BODY_HEIGHT
 	var shape := CollisionShape3D.new()
 	shape.shape = capsule
-	shape.position.y = 0.9
+	shape.position.y = BODY_HEIGHT * 0.5
 	add_child(shape)
 
 	_body = MeshInstance3D.new()
 	var mesh := CapsuleMesh.new()
-	mesh.radius = 0.4
-	mesh.height = 1.8
+	mesh.radius = BODY_RADIUS
+	mesh.height = BODY_HEIGHT
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.2, 0.55, 1.0)
 	mesh.material = mat
 	_body.mesh = mesh
-	_body.position.y = 0.9
+	_body.position.y = BODY_HEIGHT * 0.5
 	add_child(_body)
 
 	# Slightly larger than the capsule so falling debris registers before it rests on us.
@@ -107,10 +112,10 @@ func _ready() -> void:
 	hitbox.monitorable = false
 	var hit_shape := CollisionShape3D.new()
 	var hit_capsule := CapsuleShape3D.new()
-	hit_capsule.radius = 0.55
-	hit_capsule.height = 2.1
+	hit_capsule.radius = BODY_RADIUS + 0.12
+	hit_capsule.height = BODY_HEIGHT + 0.25
 	hit_shape.shape = hit_capsule
-	hit_shape.position.y = 0.95
+	hit_shape.position.y = (BODY_HEIGHT + 0.25) * 0.5
 	hitbox.add_child(hit_shape)
 	hitbox.body_entered.connect(_on_hitbox_body_entered)
 	add_child(hitbox)
@@ -120,6 +125,9 @@ func _ready() -> void:
 	_head.position.y = EYE_HEIGHT
 	add_child(_head)
 	_camera = Camera3D.new()
+	# FOV is horizontal, so wide phone screens don't turn into a fisheye that makes
+	# everything look small (and the player feel like a giant).
+	_camera.keep_aspect = Camera3D.KEEP_WIDTH
 	_camera.fov = FOV
 	_camera.near = 0.05
 	_camera.far = 800.0

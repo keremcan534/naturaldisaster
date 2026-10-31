@@ -19,6 +19,10 @@ const Interior := preload("res://scripts/world/interior.gd")
 const WALL_THICKNESS := 0.3
 const SLAB_THICKNESS := 0.3
 const RAMP_THICKNESS := 0.25
+## Stairs: flat floor before the ramp starts, and how many cells of the back row
+## the ramp spans (the next cell is the landing at the top).
+const RAMP_LANDING := 1.0
+const STAIR_CELLS := 3
 const PARAPET_HEIGHT := 0.7
 const PARAPET_THICKNESS := 0.25
 const CELL := 2.0
@@ -161,11 +165,11 @@ func add_incline(a: Vector3, b: Vector3, width: float, thickness: float, color: 
 	return add_box(center, Vector3(along.length(), thickness, width), color, basis)
 
 
-## A building with its front door facing +Z. With stairs (footprint at least 3x3),
-## ramps in the back-left corner connect every floor and the roof. Floors get
+## A building with its front door facing +Z. With stairs (footprint at least 4x3),
+## ramps along the back-left connect every floor and the roof. Floors get
 ## rooms and furniture (see interior.gd).
 func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Color, with_stairs := true, office := false) -> void:
-	var stairs := with_stairs and footprint.x >= 3 and footprint.y >= 3
+	var stairs := with_stairs and footprint.x >= STAIR_CELLS + 1 and footprint.y >= 3
 	# Wooden floors and white ceilings inside; the edges show as a band between storeys.
 	var slab_color := color.darkened(0.3)
 	var slab_material := Look.slab(FLOOR_WOOD, slab_color)
@@ -185,7 +189,7 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 	for f in floors:
 		var y0 := f * FLOOR_HEIGHT
 		if f > 0:
-			_add_slab(origin, footprint, y0, slab_color, (f - 1) % 2 if stairs else -1, slab_material)
+			_add_slab(origin, footprint, y0, slab_color, stairs, slab_material)
 		var wall_bottom := y0 + (SLAB_THICKNESS if f > 0 else 0.0)
 		var h := y0 + FLOOR_HEIGHT - wall_bottom
 		var cy := wall_bottom + h * 0.5
@@ -211,7 +215,7 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 			_add_ramp(origin, w, d, f, color.darkened(0.15))
 		Interior.furnish(self, origin, footprint, f, wall_bottom, h, stairs, CELL, WALL_THICKNESS, rng, office)
 	var roof := floors * FLOOR_HEIGHT
-	_add_slab(origin, footprint, roof, slab_color, (floors - 1) % 2 if stairs else -1, Look.roof(slab_color))
+	_add_slab(origin, footprint, roof, slab_color, stairs, Look.roof(slab_color))
 	_add_parapet(origin, footprint, roof + SLAB_THICKNESS, color.darkened(0.1))
 	if footprint.x >= 3 and footprint.y >= 3:
 		# An air-conditioning unit on the front-right roof tile (away from the stair hole).
@@ -242,34 +246,30 @@ func _add_parapet(origin: Vector3, footprint: Vector2i, y: float, color: Color) 
 		add_box(origin + Vector3(-w * 0.5 + PARAPET_THICKNESS * 0.5, cy, z), panel, color, FACING_LEFT)
 
 
-## Floor tiles at height y. hole_row >= 0 leaves out the two tiles a ramp comes up through.
-func _add_slab(origin: Vector3, footprint: Vector2i, y: float, color: Color, hole_row: int, material: Material) -> void:
+## Floor tiles at height y. stair_hole leaves out the tiles the ramp from the
+## floor below comes up through (see _add_ramp).
+func _add_slab(origin: Vector3, footprint: Vector2i, y: float, color: Color, stair_hole: bool, material: Material) -> void:
 	for i in footprint.x:
 		for j in footprint.y:
-			if j == hole_row and i < 2:
+			if stair_hole and j == 0 and (i == 1 or i == 2):
 				continue
 			var x := -footprint.x * CELL * 0.5 + CELL * (i + 0.5)
 			var z := -footprint.y * CELL * 0.5 + CELL * (j + 0.5)
 			add_box(origin + Vector3(x, y + SLAB_THICKNESS * 0.5, z), Vector3(CELL, SLAB_THICKNESS, CELL), color, Basis.IDENTITY, null, material)
 
 
-## Ramp from floor f up to floor f + 1 over the first two cells of the back row
-## (rows alternate per floor so ramps never stack on top of each other).
+## Ramp from floor f up to floor f + 1 along the back row: it starts a landing's
+## length from the left wall (walk straight onto it) and ends at the fourth
+## column, where the floor above continues. Every floor's ramp sits right above
+## the one below, a storey higher; the second row stays free as a walkway from
+## the top of one ramp back to the foot of the next.
 func _add_ramp(origin: Vector3, w: float, d: float, f: int, color: Color) -> void:
-	var row := f % 2
-	var x0 := -w * 0.5 + WALL_THICKNESS
-	var x1 := -w * 0.5 + CELL * 2.0
-	var z0 := -d * 0.5 + CELL * row + (WALL_THICKNESS if row == 0 else 0.0)
-	var z1 := -d * 0.5 + CELL * (row + 1)
+	var x0 := -w * 0.5 + WALL_THICKNESS + RAMP_LANDING
+	var x1 := -w * 0.5 + CELL * STAIR_CELLS
+	var z := -d * 0.5 + (CELL + WALL_THICKNESS) * 0.5
 	var bottom := f * FLOOR_HEIGHT + (SLAB_THICKNESS if f > 0 else 0.0)
 	var top := (f + 1) * FLOOR_HEIGHT + SLAB_THICKNESS
-	var run := x1 - x0
-	var rise := top - bottom
-	var angle := atan2(rise, run)
-	var normal := Vector3(-sin(angle), cos(angle), 0)
-	var center := Vector3((x0 + x1) * 0.5, (bottom + top) * 0.5, (z0 + z1) * 0.5) - normal * RAMP_THICKNESS * 0.5
-	var ramp_size := Vector3(sqrt(run * run + rise * rise), RAMP_THICKNESS, z1 - z0)
-	add_box(origin + center, ramp_size, color, Basis(Vector3.BACK, angle))
+	add_incline(origin + Vector3(x0, bottom, z), origin + Vector3(x1, top, z), CELL - WALL_THICKNESS, RAMP_THICKNESS, color)
 
 
 ## One MultiMeshInstance per mesh/material pair, holding every intact piece of it.
