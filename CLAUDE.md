@@ -19,7 +19,25 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
 
 ## Layout
 
-- `scripts/main.gd`: world root; loads a new map each round, spawns player, HUD, touch controls.
+- `scripts/main.gd`: world root; builds the player, HUD, touch controls, AI bots, menus and
+  the round loop. Starts in the main menu (live island behind it); OYNA starts a session
+  (`DisasterManager.start(keep_map)`), the pause menu (touch menu button, Esc, or a lost
+  pointer lock on desktop) can go back (`stop()`). The game never pauses.
+- `scripts/ui/menu.gd` (main menu with the player's character standing near the spawn,
+  shop, settings, pause), `settings_panel.gd` (shared settings window), `ui.gd` (panel and
+  button styles, coin label).
+- `scripts/core/settings.gd`: control settings (sensitivity, invert, button size/spots,
+  auto-jump), section "touch" of `user://settings.cfg`. `profile.gd`: coins, records, shop
+  items (perks the player reads at respawn, outfits), daily gift, in `user://profile.cfg`.
+- Scoring (`disaster_manager.gd`): survivors get 100 + half their health + streak and team
+  bonuses; `round_scored` shows the scoreboard; the player's points / 5 become coins.
+- `scripts/player/bot.gd`: AI teammates in the "player" group (disasters treat them like
+  the player; anything called on "player" must exist on bots too). They react a moment
+  after the warning: tsunami → up a building (`Maps.refuges`: `Structure.climb_path`
+  through the door and up the ramps, or a ladder), quake → open ground (`Maps.buildings`),
+  meteors → inside, tornado → away from `danger_center()`, volcano → the +Z side.
+  `--botlog` prints what they do. `avatar.gd` + `shaders/avatar.gdshader`: blocky
+  character in one draw call (limbs swing in the shader); also the player's shadow.
 - `scripts/world/structure.gd`: breakable structures. Intact pieces are frozen
   `RigidBody3D`s (free for physics); damage unfreezes them and `_settle()` drops
   whatever lost support. Disasters only talk to structures through `quake()`,
@@ -79,12 +97,17 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
 - `scripts/player/player.gd`: first-person controller at human scale (1.75 m, 0.3 m
   radius, 4.5/7 m/s, ~1.3 m jump, horizontal 90° FOV); world effects go through
-  `push()`, `set_water()`, `explode_at()`, `take_damage()`, `add_shake()`.
+  `push()`, `set_water()`, `explode_at()`, `take_damage()`, `add_shake()` (ground shaking:
+  sways footing) and `rumble()` (view only). The head is top-level and placed every frame
+  between the last two physics positions (`Engine.get_physics_interpolation_fraction()`),
+  so move it with `teleport()`/`set_view()`, not by setting transforms. Dead players
+  watch a bot. Touch screens get auto-jump over knee-high things.
 - `scripts/ui/`: HUD (with an FPS / quality readout) and touch controls (shown on phones
   and with `-- --touch`), laid out like PUBG Mobile: floating analog stick in the lower
   left (full forward sprints; dragged up onto the lock and released, it auto-runs),
-  drag-to-look everywhere else, routed by finger position when browsers renumber
-  fingers (never drop fast swipes: on slow frames one event carries a big step), a big
+  drag-to-look everywhere else (every finger tracked by index from press to release; the
+  view turns only by the newest look finger's own movement, so a second finger never
+  makes it jump; never drop fast swipes: on slow frames one event carries a big step), a big
   jump button under the right thumb, a menu button (sensitivity, invert, button size,
   "Tuşları yerleştir" to drag the stick/jump spots, graphics quality; all saved in
   `user://settings.cfg`, keep other sections when saving). Touches also reach GUI as
@@ -99,6 +122,8 @@ Mobile and web are the targets, so: nothing is instanced during a round (pool it
 intact geometry stays frozen, disasters touch physics on a fixed 0.1 s tick, and
 shared meshes/materials/shapes come from caches. Web builds use the Compatibility
 (OpenGL) renderer; check visuals there too (`--rendering-method gl_compatibility`).
+The web page (`export_presets.cfg` head include) shows uncaught JS errors and a lost
+WebGL context in a red box, so the user can screenshot them.
 
 `scripts/core/quality.gd` has three levels (Düşük/Orta/Yüksek) plus auto mode, which
 measures FPS and moves between them; phones start on Düşük. Levels change MSAA,
@@ -121,5 +146,5 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
 (`--fast`, `--log`, `--perf`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
-`--yaw=`, `--pitch=`, `--touch`). Screenshots need a display: `xvfb-run -a` works.
+`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

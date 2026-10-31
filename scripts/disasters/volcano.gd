@@ -34,6 +34,7 @@ var _bombs: ProjectilePool
 
 func _init() -> void:
 	display_name = "Volkan"
+	kind = "volcano"
 	warning = "Lavdan ve düşen kayalardan uzak dur!"
 	duration = 30.0
 	mood = "ash"
@@ -170,3 +171,7 @@ func _smoke() -> GPUParticles3D:
 	smoke.position.y = HEIGHT
 	return smoke
 
+
+
+func danger_center() -> Vector3:
+	return _center

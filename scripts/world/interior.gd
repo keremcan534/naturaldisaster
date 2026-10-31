@@ -98,6 +98,10 @@ static func furnish(s, origin: Vector3, footprint: Vector2i, f: int, floor_y: fl
 	if f == 0:
 		var door_x := -w * 0.5 + cell * (footprint.x / 2 + 0.5)
 		blocked.append(Rect2(door_x - 1.0, d * 0.5 - cell * 1.5, 2.0, cell * 1.5))
+		if stairs:
+			# A clear lane from the door back to the walkway (bots walk it, see
+			# Structure._climb_path).
+			blocked.append(Rect2(door_x - 0.8, -d * 0.5 + cell, 1.6, d - cell))
 
 	var inner := Rect2(-w * 0.5 + wall, -d * 0.5 + wall, w - wall * 2.0, d - wall * 2.0)
 	var rooms: Array[Rect2] = [inner]

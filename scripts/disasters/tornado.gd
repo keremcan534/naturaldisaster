@@ -30,6 +30,7 @@ var _orbits := PackedVector3Array()
 
 func _init() -> void:
 	display_name = "Hortum"
+	kind = "tornado"
 	warning = "Hortumun yolundan çekil!"
 	duration = 30.0
 	mood = "storm"
@@ -169,3 +170,7 @@ func _dust_cloud() -> CPUParticles3D:
 	p.position.y = 0.5
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
+
+
+func danger_center() -> Vector3:
+	return _pos

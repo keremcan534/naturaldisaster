@@ -66,6 +66,10 @@ const _HIDDEN_SCALE := Basis(Vector3(0.0001, 0, 0), Vector3(0, 0.0001, 0), Vecto
 
 ## Higher survives more shaking.
 @export var strength := 1.0
+## Waypoints (local) from outside the front door up the stairs to the roof, for
+## bots (see bot.gd); empty without stairs. roof_height: the roof's walking surface.
+var climb_path: Array[Vector3] = []
+var roof_height := 0.0
 
 var _pieces: Array[RigidBody3D] = []
 var _boxes: Array[AABB] = []
@@ -221,6 +225,9 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 			_add_ramp(origin, w, d, f, color.darkened(0.15))
 		Interior.furnish(self, origin, footprint, f, wall_bottom, h, stairs, CELL, WALL_THICKNESS, rng, office)
 	var roof := floors * FLOOR_HEIGHT
+	roof_height = roof + SLAB_THICKNESS
+	if stairs:
+		climb_path = _climb_path(origin, footprint, floors)
 	_add_slab(origin, footprint, roof, slab_color, stairs, Look.roof(slab_color))
 	_add_parapet(origin, footprint, roof + SLAB_THICKNESS, color.darkened(0.1))
 	if footprint.x >= 3 and footprint.y >= 3:
@@ -228,6 +235,40 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 		var unit := Vector3(1.2, 0.8, 1.0)
 		var pos := Vector3(w * 0.5 - CELL * 0.5, roof + SLAB_THICKNESS + unit.y * 0.5, d * 0.5 - CELL * 0.5)
 		add_box(origin + pos, unit, Color(0.62, 0.64, 0.66))
+
+
+## In through the front door, back to the walkway (the second row), along it to
+## the landing, and up each ramp; from every ramp's top back along the walkway
+## to the next. Matches _add_ramp, Interior.furnish (which keeps the way clear)
+## and the partition's doorway for wide buildings.
+func _climb_path(origin: Vector3, footprint: Vector2i, floors: int) -> Array[Vector3]:
+	var w := footprint.x * CELL
+	var d := footprint.y * CELL
+	var door_x := -w * 0.5 + CELL * (footprint.x / 2 + 0.5)
+	var walkway := -d * 0.5 + CELL * 1.5
+	var ramp_z := -d * 0.5 + (CELL + WALL_THICKNESS) * 0.5
+	var landing := -w * 0.5 + WALL_THICKNESS + 0.6
+	var past_top := -w * 0.5 + CELL * STAIR_CELLS + 0.9
+	var path: Array[Vector3] = [Vector3(door_x, 0, d * 0.5 + 1.6), Vector3(door_x, 0, d * 0.5 - 1.2)]
+	var split := maxi(footprint.x / 2, STAIR_CELLS + 1)
+	if footprint.x - split >= 2 and footprint.x / 2 >= split:
+		var gap_z := -d * 0.5 + CELL * (footprint.y / 2 + 0.5)
+		path.append(Vector3(door_x, 0, gap_z))
+		path.append(Vector3(-w * 0.5 + CELL * split - 1.0, 0, gap_z))
+	else:
+		path.append(Vector3(door_x, 0, walkway))
+	for f in floors:
+		var y := f * FLOOR_HEIGHT + (SLAB_THICKNESS if f > 0 else 0.0)
+		if f > 0:
+			path.append(Vector3(past_top, y, walkway))
+		path.append(Vector3(landing + 0.4, y, walkway))
+		path.append(Vector3(landing, y, ramp_z))
+		path.append(Vector3(past_top, (f + 1) * FLOOR_HEIGHT + SLAB_THICKNESS, ramp_z))
+	path.append(Vector3(past_top, floors * FLOOR_HEIGHT + SLAB_THICKNESS, walkway + 1.0))
+	var result: Array[Vector3] = []
+	for p in path:
+		result.append(origin + p)
+	return result
 
 
 ## A low wall around the roof edge, sitting on the outer roof tiles.

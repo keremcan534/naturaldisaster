@@ -1,8 +1,11 @@
 extends CanvasLayer
-## Round status, countdown, health bar and death message.
+## Round status, countdown, health bar, death message, score and coins, how many
+## are still alive, and the scoreboard after every disaster.
 
 const BuildInfo := preload("res://scripts/core/build_info.gd")
 const Quality := preload("res://scripts/core/quality.gd")
+const Profile := preload("res://scripts/core/profile.gd")
+const Ui := preload("res://scripts/ui/ui.gd")
 
 ## Set before adding to the tree; hides the keyboard hint.
 var touch_mode := false
@@ -14,6 +17,14 @@ var _health: ProgressBar
 var _health_fill: StyleBoxFlat
 var _fps: Label
 var _fps_timer := 0.0
+var _alive: Label
+var _score: Label
+var _coins: Ui.CoinLabel
+var _board: PanelContainer
+var _board_rows: VBoxContainer
+var _board_time := 0.0
+var _manager: Node
+var _player: Node
 
 
 func _ready() -> void:
@@ -93,6 +104,30 @@ func _ready() -> void:
 	_fps.offset_top = 64
 	_fps.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 
+	# Top right: coins and this session's score.
+	var corner := VBoxContainer.new()
+	corner.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	corner.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	corner.offset_right = -20
+	corner.offset_top = 16
+	corner.alignment = BoxContainer.ALIGNMENT_END
+	corner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_coins = Ui.CoinLabel.new(24)
+	_coins.size_flags_horizontal = Control.SIZE_SHRINK_END
+	corner.add_child(_coins)
+	_score = Ui.text("", 20)
+	_score.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	corner.add_child(_score)
+	add_child(corner)
+
+	_alive = _label(20)
+	_alive.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_alive.offset_top = 92
+	_alive.add_theme_color_override("font_color", Color(0.85, 0.95, 1.0))
+
+	_board = _build_board()
+	add_child(_board)
+
 	var hint := _label(14)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	hint.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -107,17 +142,100 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_fps_timer -= delta
 	if _fps_timer <= 0.0:
-		_fps_timer = 0.5
+		_fps_timer = 0.25
 		var mode := " (oto)" if Quality.auto else ""
 		_fps.text = "%d FPS · %s%s" % [Engine.get_frames_per_second(), Quality.current().name, mode]
+		_coins.set_amount(Profile.coins)
+		if _player:
+			_score.text = "Puan: %d" % _player.score
+		var players := get_tree().get_nodes_in_group("player")
+		var alive := players.filter(func(p: Node) -> bool: return p.alive).size()
+		var fighting: bool = _manager != null and _manager.coming_kind() != ""
+		_alive.text = "Hayatta: %d / %d" % [alive, players.size()] if fighting and players.size() > 1 else ""
+	if _board.visible:
+		_board_time -= delta
+		if _board_time <= 0.0:
+			_board.visible = false
 
 
 func bind(manager: Node, player: Node) -> void:
+	_manager = manager
+	_player = player
 	manager.status_changed.connect(func(text: String) -> void: _status.text = text)
 	manager.timer_changed.connect(func(seconds: int) -> void: _timer.text = str(seconds))
+	manager.round_started.connect(func() -> void: _board.visible = false)
 	player.health_changed.connect(_set_health)
-	player.died.connect(func() -> void: _center.visible = true)
+	player.died.connect(func() -> void:
+		_center.text = "Öldün! Sonraki turu bekle"
+		_center.visible = true)
 	player.respawned.connect(func() -> void: _center.visible = false)
+	player.spectating.connect(func(bot_name: String) -> void:
+		_center.text = "Öldün! İzliyorsun: %s" % bot_name if bot_name != "" else "Öldün! Sonraki turu bekle")
+
+
+## The ranking after a disaster: total score, this round's points, and the coins
+## the player just earned.
+func show_board(board: Array, coins_earned: int) -> void:
+	for child in _board_rows.get_children():
+		child.queue_free()
+	var rank := 0
+	for p: Node in board:
+		rank += 1
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		var mine: bool = not p.is_bot
+		var color := Ui.ACCENT if mine else Color.WHITE
+		var place := Ui.text("%d." % rank, 22, color)
+		place.custom_minimum_size.x = 36
+		row.add_child(place)
+		var dot := ColorRect.new()
+		dot.color = p.tint
+		dot.custom_minimum_size = Vector2(16, 16)
+		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(dot)
+		var name_label := Ui.text(p.display_name if p.alive else "%s (öldü)" % p.display_name, 22, color if p.alive else Color(1, 0.55, 0.5))
+		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(name_label)
+		var gained := Ui.text("+%d" % p.round_points if p.round_points > 0 else "0", 22,
+				Color(0.5, 1.0, 0.55) if p.round_points > 0 else Color(1, 1, 1, 0.5))
+		gained.custom_minimum_size.x = 80
+		gained.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(gained)
+		var total := Ui.text(str(p.score), 22, color)
+		total.custom_minimum_size.x = 90
+		total.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(total)
+		_board_rows.add_child(row)
+	if coins_earned > 0:
+		var earned := Ui.CoinLabel.new(22)
+		earned.set_amount(coins_earned)
+		var line := HBoxContainer.new()
+		line.alignment = BoxContainer.ALIGNMENT_CENTER
+		line.add_child(Ui.text("Kazandın:  +", 22, Ui.COIN))
+		line.add_child(earned)
+		_board_rows.add_child(line)
+	_board.visible = true
+	_board_time = 7.5
+
+
+func _build_board() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(560, 0)
+	panel.add_theme_stylebox_override("panel", Ui.panel_style(0.82))
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(box)
+	box.add_child(Ui.title("SKOR TABLOSU", 28))
+	_board_rows = VBoxContainer.new()
+	_board_rows.add_theme_constant_override("separation", 4)
+	box.add_child(_board_rows)
+	panel.visible = false
+	return panel
 
 
 func _set_health(value: float, max_value: float) -> void:

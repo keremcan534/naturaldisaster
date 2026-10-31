@@ -7,28 +7,30 @@ extends CanvasLayer
 ##   and released, it keeps running forward (auto-run) until the stick is touched.
 ## - Right thumb: drag anywhere outside the stick area to look; a big jump button
 ##   where the thumb rests, which can also be dragged to look.
-## - A menu button (top left): look sensitivity, invert, button size, moving the
-##   buttons ("Tuşları yerleştir") and graphics quality. Saved in settings.cfg.
+## - A menu button (top left) opens the pause menu (settings, main menu).
 ## Movement goes through the regular input actions (analog strengths), so the
-## player doesn't care where input comes from.
+## player doesn't care where input comes from. Settings live in settings.gd.
+##
+## Every finger is tracked by its own index from press to release, and the view
+## turns by that finger's own movement only, so a second finger landing or
+## lifting never makes the camera jump.
 
-const Quality := preload("res://scripts/core/quality.gd")
+signal menu_requested
 
-const SETTINGS_PATH := "user://settings.cfg"
+const Settings := preload("res://scripts/core/settings.gd")
 
 ## Sizes at button size 1.
 const STICK_RADIUS := 100.0
 const KNOB_RADIUS := 44.0
 const JUMP_RADIUS := 74.0
 const GEAR_RADIUS := 28.0
-## Default spots (fractions of the screen); the player can move them.
-const STICK_HOME := Vector2(0.16, 0.72)
-const JUMP_HOME := Vector2(0.87, 0.7)
 ## Fraction of the radius ignored around the center, and the response curve.
 const STICK_DEADZONE := 0.08
 const STICK_CURVE := 1.1
-## Pushed this far, mostly forward, the player sprints.
+## Pushed this far, mostly forward, the player sprints; it stops sprinting only
+## below SPRINT_OFF, so a thumb resting at the edge doesn't flicker between them.
 const AUTO_SPRINT := 0.92
+const SPRINT_OFF := 0.8
 ## The auto-run lock sits this many stick radii above the stick's center.
 const LOCK_DISTANCE := 1.9
 const LOCK_RADIUS := 34.0
@@ -36,39 +38,32 @@ const LOCK_RADIUS := 34.0
 ## third of the screen width).
 const LOOK_SPEED := 0.0075
 ## A single drag step longer than this (fraction of screen height) can't be a
-## finger: browsers can renumber fingers when one lifts. Fast swipes on a slow
-## frame stay well below it.
-const MAX_STEP := 0.5
+## finger moving; it is skipped. Fast swipes on a slow frame stay well below it.
+const MAX_STEP := 0.4
 ## Touches starting left of this and below the top band go to the stick.
 const STICK_AREA := Vector2(0.45, 0.3)
-const QUALITY_NAMES := ["Otomatik", "Düşük", "Orta", "Yüksek"]
 
 const COLOR_LINE := Color(1, 1, 1, 0.55)
 const COLOR_ACTIVE := Color(1, 0.85, 0.3, 0.8)
 
 var player: Node
 
-var sensitivity := 1.0
-var invert_y := false
-var button_size := 1.0
-var stick_home := STICK_HOME
-var jump_home := JUMP_HOME
-
 var _canvas: Control
-var _settings: PanelContainer
 var _size := Vector2(1280, 720)
 
+## Fingers on the screen: index -> {"role": "stick"/"look"/"jump", "last": Vector2}.
+var _fingers := {}
+## The finger turning the view (the newest one on the look side), or -1.
+var _look_finger := -1
 var _stick_finger := -1
+var _jump_finger := -1
+
 var _stick_center := Vector2.ZERO
 var _knob := Vector2.ZERO
 var _stick_value := Vector2.ZERO
 var _sprinting := false
 var _lock_armed := false
 var _auto_run := false
-
-var _look_finger := -1
-var _look_last := Vector2.ZERO
-var _jump_finger := -1
 var _jump_pos := Vector2.ZERO
 var _gear_pos := Vector2.ZERO
 
@@ -79,41 +74,56 @@ var _edit_target := ""
 
 
 func _ready() -> void:
-	_load_settings()
+	add_to_group("touch_controls")
 	_canvas = Control.new()
 	_canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_canvas.draw.connect(_draw_controls)
 	add_child(_canvas)
-	_settings = _build_settings()
-	add_child(_settings)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	_request_fullscreen_on_touch()
 
 
+## Shown while playing; hidden (and every finger let go) in menus.
+func set_active(on: bool) -> void:
+	if not on:
+		_release_all()
+	visible = on
+	set_process_input(on)
+
+
+## Settings changed (button size): redraw.
+func apply_settings() -> void:
+	_layout()
+
+
+func start_editing() -> void:
+	_release_all()
+	_editing = true
+	_canvas.queue_redraw()
+
+
 func _stick_radius() -> float:
-	return STICK_RADIUS * button_size
+	return STICK_RADIUS * Settings.button_size
 
 
 func _jump_radius() -> float:
-	return JUMP_RADIUS * button_size
+	return JUMP_RADIUS * Settings.button_size
 
 
 func _layout() -> void:
 	_size = get_viewport().get_visible_rect().size
-	_jump_pos = jump_home * _size
+	_jump_pos = Settings.jump_home * _size
 	# Under the health bar, out of the way of both thumbs.
 	_gear_pos = Vector2(maxf(24.0, _size.y * 0.04) + GEAR_RADIUS + 4.0, 118.0)
 	if _stick_finger < 0:
-		_stick_center = stick_home * _size
+		_stick_center = Settings.stick_home * _size
 		_knob = _stick_center
 	_canvas.queue_redraw()
 
 
 func _input(event: InputEvent) -> void:
-	if _settings.visible:
-		return
 	if _editing:
 		_edit_input(event)
 		return
@@ -129,22 +139,24 @@ func _input(event: InputEvent) -> void:
 func _press(finger: int, pos: Vector2) -> void:
 	# A new touch with the index of a stale finger (a lift that never arrived)
 	# replaces it.
-	if finger == _stick_finger or finger == _look_finger or finger == _jump_finger:
+	if _fingers.has(finger):
 		_release(finger)
 	if pos.distance_to(_gear_pos) < GEAR_RADIUS * 1.6:
-		_open_settings()
+		_release_all()
+		menu_requested.emit()
 		return
+	var role := "look"
 	if pos.distance_to(_jump_pos) < _jump_radius() * 1.25:
+		role = "jump"
 		_jump_finger = finger
 		Input.action_press("jump")
 		Input.vibrate_handheld(15)
-		# The jump thumb can keep turning the view.
+		# The jump thumb can keep turning the view if nothing else does.
 		if _look_finger < 0:
 			_look_finger = finger
-			_look_last = pos
 		_canvas.queue_redraw()
-		return
-	if pos.x < _size.x * STICK_AREA.x and pos.y > _size.y * STICK_AREA.y:
+	elif pos.x < _size.x * STICK_AREA.x and pos.y > _size.y * STICK_AREA.y and _stick_finger < 0:
+		role = "stick"
 		_stick_finger = finger
 		_auto_run = false
 		_stick_center = pos
@@ -152,10 +164,13 @@ func _press(finger: int, pos: Vector2) -> void:
 		_set_stick(Vector2.ZERO)
 	else:
 		_look_finger = finger
-		_look_last = pos
+	_fingers[finger] = {"role": role, "last": pos}
 
 
 func _release(finger: int) -> void:
+	if not _fingers.has(finger):
+		return
+	_fingers.erase(finger)
 	if finger == _jump_finger:
 		_jump_finger = -1
 		Input.action_release("jump")
@@ -164,43 +179,46 @@ func _release(finger: int) -> void:
 		_stick_finger = -1
 		_auto_run = _lock_armed
 		_lock_armed = false
-		_stick_center = stick_home * _size
+		_stick_center = Settings.stick_home * _size
 		_knob = _stick_center
 		# Auto-run: keep running forward with the thumb off the screen.
 		_set_stick(Vector2(0, -1) if _auto_run else Vector2.ZERO)
 	if finger == _look_finger:
+		# Another finger still on the look side takes over (from where it is now).
 		_look_finger = -1
+		for other: int in _fingers:
+			if _fingers[other].role != "stick":
+				_look_finger = other
 
 
-## Routes a drag to the stick or the look finger. Normally by index; but if the
-## position is clearly the other thumb's (browsers can renumber fingers when one
-## lifts), it goes to that thumb and the index is taken over.
 func _drag(finger: int, pos: Vector2) -> void:
-	# The jump thumb only looks if it started the look.
-	if finger == _jump_finger and finger != _look_finger:
+	if not _fingers.has(finger):
+		# A finger whose press never arrived: it starts counting from here. If it
+		# lands on the stick while the stick's own finger went stale, it takes the stick.
+		if _stick_finger >= 0 and pos.distance_to(_knob) < _stick_radius() * 1.2:
+			_release(_stick_finger)
+			_press(finger, pos)
+		else:
+			_fingers[finger] = {"role": "look", "last": pos}
+			if _look_finger < 0:
+				_look_finger = finger
 		return
-	var to_look := pos.distance_to(_look_last) if _look_finger >= 0 else INF
-	var to_stick := pos.distance_to(_knob) if _stick_finger >= 0 else INF
-	var own_look := finger == _look_finger and to_look <= to_stick
-	var own_stick := finger == _stick_finger and to_stick <= to_look
-	if own_look or (finger != _stick_finger and to_look < to_stick):
-		_look_finger = finger
-		_look(pos)
-	elif own_stick or to_stick < INF:
-		_stick_finger = finger
+	var state: Dictionary = _fingers[finger]
+	var step: Vector2 = pos - state.last
+	state.last = pos
+	if state.role == "stick":
 		_move_stick(pos)
+	elif finger == _look_finger:
+		_look(step)
 
 
-func _look(pos: Vector2) -> void:
-	var step := pos - _look_last
-	_look_last = pos
-	# Not a finger movement: start again from here without turning.
+func _look(step: Vector2) -> void:
 	if step.length() > _size.y * MAX_STEP:
 		return
-	if invert_y:
+	if Settings.invert_y:
 		step.y = -step.y
 	if player:
-		player.add_look(step * LOOK_SPEED * sensitivity)
+		player.add_look(step * LOOK_SPEED * Settings.sensitivity)
 
 
 func _move_stick(pos: Vector2) -> void:
@@ -223,7 +241,8 @@ func _set_stick(v: Vector2) -> void:
 	_stick_value = v
 	_set_axis("move_left", "move_right", v.x)
 	_set_axis("move_forward", "move_back", v.y)
-	var sprint := _auto_run or (v.length() >= AUTO_SPRINT and v.y < -0.75)
+	var forward := v.y < -0.7
+	var sprint := _auto_run or (forward and v.length() >= (SPRINT_OFF if _sprinting else AUTO_SPRINT))
 	if sprint != _sprinting:
 		_sprinting = sprint
 		if sprint:
@@ -253,8 +272,8 @@ func _draw_controls() -> void:
 	_canvas.draw_circle(_stick_center, radius, Color(0, 0, 0, 0.2 if active else 0.12))
 	_canvas.draw_arc(_stick_center, radius, 0, TAU, 48, COLOR_LINE if active else Color(1, 1, 1, 0.35), 3.0, true)
 	var knob_color := COLOR_ACTIVE if _sprinting else Color(1, 1, 1, 0.55 if active else 0.3)
-	_canvas.draw_circle(_knob, KNOB_RADIUS * button_size, knob_color)
-	_canvas.draw_arc(_knob, KNOB_RADIUS * button_size, 0, TAU, 32, Color(1, 1, 1, 0.8), 2.0, true)
+	_canvas.draw_circle(_knob, KNOB_RADIUS * Settings.button_size, knob_color)
+	_canvas.draw_arc(_knob, KNOB_RADIUS * Settings.button_size, 0, TAU, 32, Color(1, 1, 1, 0.8), 2.0, true)
 	# The auto-run lock above the stick while it is held, or lit while running.
 	if active or _auto_run:
 		var lock := _stick_center + Vector2(0, -radius * LOCK_DISTANCE)
@@ -307,15 +326,9 @@ func _text(font: Font, center: Vector2, text: String, size: int, color: Color) -
 	_canvas.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 
-func _open_settings() -> void:
-	_release_all()
-	_settings.visible = true
-
-
 func _release_all() -> void:
-	for finger in [_stick_finger, _look_finger, _jump_finger]:
-		if finger >= 0:
-			_release(finger)
+	for finger: int in _fingers.keys():
+		_release(finger)
 	_auto_run = false
 	_set_stick(Vector2.ZERO)
 
@@ -337,12 +350,12 @@ func _edit_input(event: InputEvent) -> void:
 		for button: Array in _edit_buttons():
 			if (button[1] as Rect2).has_point(event.position):
 				if button[0] == "SIFIRLA":
-					stick_home = STICK_HOME
-					jump_home = JUMP_HOME
+					Settings.stick_home = Settings.STICK_HOME
+					Settings.jump_home = Settings.JUMP_HOME
 					_layout()
 				else:
 					_editing = false
-					_save_settings()
+					Settings.save_settings()
 					_canvas.queue_redraw()
 				return
 		var to_stick: float = event.position.distance_to(_stick_center)
@@ -353,144 +366,10 @@ func _edit_input(event: InputEvent) -> void:
 	elif event is InputEventScreenDrag and event.index == _edit_finger:
 		var at: Vector2 = (event.position / _size).clamp(Vector2(0.05, 0.3), Vector2(0.95, 0.92))
 		if _edit_target == "stick":
-			stick_home = at
+			Settings.stick_home = at
 		else:
-			jump_home = at
+			Settings.jump_home = at
 		_layout()
-
-
-## The settings panel. Touches reach it as emulated mouse clicks (project
-## setting pointing/emulate_mouse_from_touch).
-func _build_settings() -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	panel.custom_minimum_size = Vector2(640, 0)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.1, 0.12, 0.94)
-	style.set_corner_radius_all(14)
-	style.set_content_margin_all(22)
-	panel.add_theme_stylebox_override("panel", style)
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 12)
-	panel.add_child(box)
-
-	var title := Label.new()
-	title.text = "Ayarlar"
-	title.add_theme_font_size_override("font_size", 28)
-	box.add_child(title)
-
-	box.add_child(_slider_row("Bakış hassasiyeti", 0.3, 3.0, sensitivity, func(v: float) -> void:
-		sensitivity = v))
-	box.add_child(_slider_row("Tuş boyutu", 0.8, 1.4, button_size, func(v: float) -> void:
-		button_size = v
-		_layout()))
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	var invert := CheckButton.new()
-	invert.text = "Dikey bakışı ters çevir"
-	invert.add_theme_font_size_override("font_size", 20)
-	invert.button_pressed = invert_y
-	invert.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	invert.toggled.connect(func(on: bool) -> void:
-		invert_y = on
-		_save_settings())
-	row.add_child(invert)
-	var place := Button.new()
-	place.text = "Tuşları yerleştir"
-	place.add_theme_font_size_override("font_size", 20)
-	place.custom_minimum_size = Vector2(220, 52)
-	place.pressed.connect(func() -> void:
-		panel.visible = false
-		_editing = true
-		_canvas.queue_redraw())
-	row.add_child(place)
-	box.add_child(row)
-
-	var quality_label := Label.new()
-	quality_label.text = "Grafik kalitesi (takılıyorsa düşür)"
-	quality_label.add_theme_font_size_override("font_size", 20)
-	box.add_child(quality_label)
-	var choices := HBoxContainer.new()
-	choices.add_theme_constant_override("separation", 8)
-	var group := ButtonGroup.new()
-	for k in QUALITY_NAMES.size():
-		var choice := Button.new()
-		choice.text = QUALITY_NAMES[k]
-		choice.toggle_mode = true
-		choice.button_group = group
-		choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		choice.custom_minimum_size = Vector2(0, 52)
-		choice.add_theme_font_size_override("font_size", 20)
-		choice.button_pressed = Quality.auto if k == 0 else (not Quality.auto and Quality.level == k - 1)
-		choice.pressed.connect(func() -> void:
-			get_tree().current_scene.set_quality(Quality.level if k == 0 else k - 1, k == 0))
-		choices.add_child(choice)
-	box.add_child(choices)
-
-	var close := Button.new()
-	close.text = "Kapat"
-	close.add_theme_font_size_override("font_size", 22)
-	close.custom_minimum_size = Vector2(0, 56)
-	close.pressed.connect(func() -> void: panel.visible = false)
-	box.add_child(close)
-	panel.visible = false
-	return panel
-
-
-## A label with the current value and a thick, thumb-friendly slider.
-func _slider_row(caption: String, low: float, high: float, value: float, changed: Callable) -> VBoxContainer:
-	var row := VBoxContainer.new()
-	var label := Label.new()
-	label.add_theme_font_size_override("font_size", 20)
-	row.add_child(label)
-	var slider := HSlider.new()
-	slider.min_value = low
-	slider.max_value = high
-	slider.step = 0.05
-	slider.value = value
-	slider.custom_minimum_size = Vector2(0, 40)
-	var track := StyleBoxFlat.new()
-	track.bg_color = Color(1, 1, 1, 0.2)
-	track.set_corner_radius_all(6)
-	track.content_margin_top = 6
-	track.content_margin_bottom = 6
-	slider.add_theme_stylebox_override("slider", track)
-	var filled := track.duplicate()
-	filled.bg_color = Color(1, 0.85, 0.3, 0.8)
-	slider.add_theme_stylebox_override("grabber_area", filled)
-	slider.add_theme_stylebox_override("grabber_area_highlight", filled)
-	label.text = "%s: %.2f" % [caption, value]
-	slider.value_changed.connect(func(v: float) -> void:
-		label.text = "%s: %.2f" % [caption, v]
-		changed.call(v)
-		_save_settings())
-	row.add_child(slider)
-	return row
-
-
-func _load_settings() -> void:
-	var config := ConfigFile.new()
-	if config.load(SETTINGS_PATH) == OK:
-		sensitivity = config.get_value("touch", "sensitivity", 1.0)
-		invert_y = config.get_value("touch", "invert_y", false)
-		button_size = config.get_value("touch", "button_size", 1.0)
-		stick_home = config.get_value("touch", "stick_home", STICK_HOME)
-		jump_home = config.get_value("touch", "jump_home", JUMP_HOME)
-
-
-## Keeps the other sections (graphics) of the shared settings file.
-func _save_settings() -> void:
-	var config := ConfigFile.new()
-	config.load(SETTINGS_PATH)
-	config.set_value("touch", "sensitivity", sensitivity)
-	config.set_value("touch", "invert_y", invert_y)
-	config.set_value("touch", "button_size", button_size)
-	config.set_value("touch", "stick_home", stick_home)
-	config.set_value("touch", "jump_home", jump_home)
-	config.save(SETTINGS_PATH)
 
 
 ## Browsers only allow fullscreen and an orientation lock from inside a real

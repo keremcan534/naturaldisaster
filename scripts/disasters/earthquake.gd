@@ -9,6 +9,7 @@ var _damage_timer := 0.0
 
 func _init() -> void:
 	display_name = "Deprem"
+	kind = "earthquake"
 	warning = "Binalardan uzak dur!"
 	duration = 25.0
 	mood = "dust"

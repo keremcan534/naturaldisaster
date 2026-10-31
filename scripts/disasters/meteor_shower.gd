@@ -12,6 +12,7 @@ var _spawn_timer := 0.0
 
 func _init() -> void:
 	display_name = "Meteor Yağmuru"
+	kind = "meteor"
 	warning = "Sağlam bir yere saklan!"
 	duration = 25.0
 	mood = "dusk"

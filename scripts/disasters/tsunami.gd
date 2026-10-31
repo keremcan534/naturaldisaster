@@ -43,6 +43,7 @@ var _spray: CPUParticles3D
 
 func _init() -> void:
 	display_name = "Tsunami"
+	kind = "tsunami"
 	warning = "Üst katlara ya da çatıya çık!"
 	duration = 28.0
 	mood = "overcast"

@@ -47,6 +47,12 @@ static var _bare: Array[Rect2] = []
 static var _shades: Array[Rect2] = []
 ## Roads on this map: [center, length, along_x], for street lamps.
 static var _roads: Array[Array] = []
+## For bots (see bot.gd): ways up to high ground, each {"path": waypoints in
+## world space (the last one on top), "height": how high it ends, "structure":
+## the building, "stairs": true for stairs inside (false for a ladder outside)}.
+## buildings: building footprints (world XZ), to keep away from in quakes.
+static var refuges: Array[Dictionary] = []
+static var buildings: Array[Rect2] = []
 
 
 ## Builds map `index` under root and returns {name, size, spawn}.
@@ -55,6 +61,7 @@ static func build(index: int, root: Node3D) -> Dictionary:
 	_bare.clear()
 	_shades.clear()
 	_roads.clear()
+	refuges.clear()
 	var info: Dictionary
 	match index:
 		0:
@@ -70,7 +77,27 @@ static func build(index: int, root: Node3D) -> Dictionary:
 	_clutter(root, info.size, info.spawn, index)
 	_scatter_grass(root, index)
 	Look.set_shades(_shades)
+	buildings = _shades.duplicate()
 	return info
+
+
+## A ladder up a building's wall as a refuge: walk to its foot, climb, step onto
+## the roof. The ladder's thin side (local +Z) faces away from the wall.
+static func _add_ladder_refuge(building: Structure, rung: Node3D, top: float) -> void:
+	var out := rung.transform.basis.z
+	out = Vector3(out.x, 0, out.z).normalized()
+	var at := building.position + Vector3(rung.position.x, 0, rung.position.z)
+	refuges.append({"path": [at + out * 1.0, at - out * 2.2 + Vector3(0, top, 0)], "height": top,
+			"structure": building, "stairs": false})
+
+
+static func _add_stairs_refuge(building: Structure) -> void:
+	if building.climb_path.is_empty():
+		return
+	var path: Array[Vector3] = []
+	for p in building.climb_path:
+		path.append(building.position + p)
+	refuges.append({"path": path, "height": building.roof_height, "structure": building, "stairs": true})
 
 
 static func _skyscraper(root: Node3D) -> Dictionary:
@@ -226,6 +253,8 @@ static func _building(root: Node3D, pos: Vector3, footprint: Vector2i, floors: i
 		var rung := building.add_box(Vector3(x, height * 0.5, z), Vector3(0.6, height, 0.12), Color(0.75, 0.62, 0.2),
 				Basis(Vector3.UP, PI * 0.5), Look.ladder(height))
 		rung.set_meta("ladder", true)
+		_add_ladder_refuge(building, rung, building.roof_height)
+	_add_stairs_refuge(building)
 	if helipad:
 		_helipad(building, Vector3(1.0, floors * Structure.FLOOR_HEIGHT + Structure.SLAB_THICKNESS, 1.0))
 	root.add_child(building)
@@ -281,6 +310,9 @@ static func _mall(root: Node3D) -> Dictionary:
 	_car(mall, Vector3(7, roof, -6), true, CAR_COLORS[1])
 	_car(mall, Vector3(8, roof, 5), false, CAR_COLORS[2])
 	root.add_child(mall)
+	for piece in mall.get_children():
+		if piece.has_meta("ladder"):
+			_add_ladder_refuge(mall, piece, roof)
 	var rect := _rect(mall.position, Vector2(Mall.SIZE) * Structure.CELL)
 	_bare.append(rect)
 	_shades.append(rect)

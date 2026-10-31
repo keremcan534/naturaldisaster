@@ -4,6 +4,8 @@ extends Node
 ## when the round ends. Disasters do their work in _process/_physics_process.
 
 var display_name := "Felaket"
+## What bots react to: earthquake, meteor, tsunami, tornado, volcano.
+var kind := ""
 var warning := ""
 ## Weather mood (see weather.gd) the sky turns to from the warning on.
 var mood := "clear"
@@ -19,3 +21,8 @@ func begin() -> void:
 
 func end() -> void:
 	pass
+
+
+## Where the danger is (bots run from it), or Vector3.INF when it is everywhere.
+func danger_center() -> Vector3:
+	return Vector3.INF

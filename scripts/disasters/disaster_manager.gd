@@ -3,6 +3,16 @@ extends Node
 
 signal status_changed(text: String)
 signal timer_changed(seconds_left: int)
+## After each disaster: every player and bot, best total score first.
+signal round_scored(board: Array)
+signal round_started
+
+## Round points: surviving, plus half the health left, plus a bonus for every
+## round survived in a row before this one, plus a team bonus for every other
+## survivor (teammates are worth keeping alive).
+const SURVIVE_POINTS := 100
+const STREAK_POINTS := 25
+const TEAM_POINTS := 10
 
 const DISASTERS := [
 	preload("res://scripts/disasters/earthquake.gd"),
@@ -16,7 +26,7 @@ enum State { INTERMISSION, WARNING, ACTIVE, RESULTS }
 
 var intermission_time := 15.0
 var warning_time := 5.0
-var results_time := 6.0
+var results_time := 8.0
 ## Debug: values below 1 shorten every timer (see debug_tools.gd).
 var time_scale := 1.0
 ## Debug: >= 0 always picks this disaster.
@@ -27,10 +37,51 @@ var _state := State.INTERMISSION
 var _time_left := 0.0
 var _current: Node
 var _last_index := -1
+## The first round of a session plays on the map already loaded (the menu's).
+var _keep_map := false
 
 
-func start() -> void:
+func _ready() -> void:
+	set_process(false)
+
+
+## Starts a session: scores back to zero, rounds begin.
+func start(keep_map := false) -> void:
+	for p in get_tree().get_nodes_in_group("player"):
+		p.score = 0
+		p.streak = 0
+		p.round_points = 0
+	_keep_map = keep_map
+	set_process(true)
 	_enter(State.INTERMISSION)
+
+
+## Ends the session (back to the menu): the disaster stops where it is.
+func stop() -> void:
+	set_process(false)
+	if _current:
+		if _current.is_inside_tree():
+			_current.end()
+		_current.queue_free()
+		_current = null
+	_state = State.INTERMISSION
+
+
+func running() -> bool:
+	return is_processing()
+
+
+## The disaster announced or under way (bots read it), or "" between them.
+func coming_kind() -> String:
+	if _current and (_state == State.WARNING or _state == State.ACTIVE):
+		return _current.kind
+	return ""
+
+
+func danger_center() -> Vector3:
+	if _current and _state == State.ACTIVE:
+		return _current.danger_center()
+	return Vector3.INF
 
 
 func _process(delta: float) -> void:
@@ -53,10 +104,13 @@ func _enter(state: State) -> void:
 	_state = state
 	match state:
 		State.INTERMISSION:
-			world.load_next_map()
+			if not _keep_map:
+				world.load_next_map()
+			_keep_map = false
 			world.set_mood("clear")
 			get_tree().call_group("player", "respawn", world.spawn_point)
 			_time_left = intermission_time * time_scale
+			round_started.emit()
 			status_changed.emit("Harita: %s - sonraki felakete hazırlan" % world.map_name)
 		State.WARNING:
 			_current = _pick_disaster()
@@ -75,6 +129,7 @@ func _enter(state: State) -> void:
 			_current = null
 			_time_left = results_time * time_scale
 			status_changed.emit(_results_text())
+			round_scored.emit(_score_round())
 
 
 func _pick_disaster() -> Node:
@@ -95,3 +150,19 @@ func _results_text() -> String:
 	if players.size() == 1:
 		return "Hayatta kaldın!" if alive == 1 else "Öldün!"
 	return "Hayatta kalanlar: %d / %d" % [alive, players.size()]
+
+
+func _score_round() -> Array:
+	var players := get_tree().get_nodes_in_group("player")
+	var survivors := players.filter(func(p: Node) -> bool: return p.alive).size()
+	for p in players:
+		var points := 0
+		if p.alive:
+			points = SURVIVE_POINTS + int(p.health * 0.5) + STREAK_POINTS * p.streak + TEAM_POINTS * (survivors - 1)
+			p.streak += 1
+		else:
+			p.streak = 0
+		p.round_points = points
+		p.score += points
+	players.sort_custom(func(a: Node, b: Node) -> bool: return a.score > b.score)
+	return players
