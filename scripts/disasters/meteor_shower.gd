@@ -3,7 +3,7 @@ extends "res://scripts/disasters/disaster.gd"
 
 const ProjectilePool := preload("res://scripts/disasters/projectile_pool.gd")
 
-const SPAWN_INTERVAL := 0.45
+const SPAWN_INTERVAL := 0.3
 const SPAWN_HEIGHT := 90.0
 
 var _pool: ProjectilePool
@@ -20,7 +20,10 @@ func _init() -> void:
 func begin() -> void:
 	_pool = ProjectilePool.new()
 	add_child(_pool)
-	_pool.setup(16, 0.8, Color(0.3, 0.15, 0.1), Color(1.0, 0.45, 0.1))
+	_pool.blast_radius = 6.5
+	_pool.blast_force = 22.0
+	_pool.blast_damage = 70.0
+	_pool.setup(24, 0.9, Color(0.3, 0.15, 0.1), Color(1.0, 0.45, 0.1))
 
 
 func _physics_process(delta: float) -> void:

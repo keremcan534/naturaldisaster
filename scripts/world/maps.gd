@@ -10,6 +10,10 @@ const Quality := preload("res://scripts/core/quality.gd")
 const COUNT := 5
 const PLAZA_COLOR := Color(0.72, 0.7, 0.66)
 const TRAMPOLINE_COLOR := Color(0.15, 0.45, 0.95)
+## Clutter: how weakly it holds (it should fly first), how much per meter of map.
+const CLUTTER_STRENGTH := 0.45
+const CLUTTER_PER_METER := 0.6
+const CLUTTER := ["crate", "crate", "barrel", "barrel", "bin", "bench", "mailbox", "table"]
 ## Launch speed (m/s) off a trampoline.
 const BOUNCE := 13.0
 const LEAF_COLOR := Color(0.22, 0.48, 0.2)
@@ -41,6 +45,8 @@ const CAR_COLORS := [Color(0.8, 0.15, 0.15), Color(0.15, 0.3, 0.75), Color(0.9, 
 static var _grass_areas: Array[Rect2] = []
 static var _bare: Array[Rect2] = []
 static var _shades: Array[Rect2] = []
+## Roads on this map: [center, length, along_x], for street lamps.
+static var _roads: Array[Array] = []
 
 
 ## Builds map `index` under root and returns {name, size, spawn}.
@@ -48,6 +54,7 @@ static func build(index: int, root: Node3D) -> Dictionary:
 	_grass_areas.clear()
 	_bare.clear()
 	_shades.clear()
+	_roads.clear()
 	var info: Dictionary
 	match index:
 		0:
@@ -60,6 +67,7 @@ static func build(index: int, root: Node3D) -> Dictionary:
 			info = _neighbourhood(root)
 		_:
 			info = _mall(root)
+	_clutter(root, info.size, info.spawn, index)
 	_scatter_grass(root, index)
 	Look.set_shades(_shades)
 	return info
@@ -70,7 +78,7 @@ static func _skyscraper(root: Node3D) -> Dictionary:
 	_ground(root, size, Color(0.55, 0.55, 0.52))
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_decal(root, Vector3(corner.x * 19, 0, corner.y * 19), Vector2(14, 14), GRASS_COLOR)
-	_building(root, Vector3(0, 0, -2), Vector2i(5, 5), 10, Color(0.7, 0.76, 0.82), 1.3, false, true, true)
+	_building(root, Vector3(0, 0, -2), Vector2i(5, 5), 10, Color(0.7, 0.76, 0.82), 2.6, false, true, true)
 	var props := _props()
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_tree(props, Vector3(corner.x * 19, 0, corner.y * 19))
@@ -102,7 +110,7 @@ static func _apartment(root: Node3D) -> Dictionary:
 	_ground(root, size, GRASS_COLOR)
 	_road(root, Vector3(0, 0, 14), size, true)
 	_decal(root, Vector3(0, 0, 5.5), Vector2(2, 7), PATH_COLOR)
-	_building(root, Vector3(0, 0, -3), Vector2i(7, 5), 6, Color(0.85, 0.62, 0.5), 1.1, true)
+	_building(root, Vector3(0, 0, -3), Vector2i(7, 5), 6, Color(0.85, 0.62, 0.5), 2.0, true)
 	var props := _props()
 	for i in 4:
 		_car(props, Vector3(-15 + i * 10, 0, 14), i % 2 == 0, CAR_COLORS[i])
@@ -123,7 +131,7 @@ static func _neighbourhood(root: Node3D) -> Dictionary:
 	var lots := [Vector3(-18, 0, -18), Vector3(18, 0, -18), Vector3(-18, 0, 18), Vector3(18, 0, 18)]
 	for k in lots.size():
 		var footprint := Vector2i(rng.randi_range(4, 6), rng.randi_range(4, 5))
-		_building(root, lots[k], footprint, rng.randi_range(2, 5), colors[k], rng.randf_range(0.7, 1.4), k % 2 == 0)
+		_building(root, lots[k], footprint, rng.randi_range(2, 5), colors[k], rng.randf_range(0.75, 1.15), k % 2 == 0)
 	var props := _props()
 	for pos: Vector3 in [Vector3(-30, 0, -6), Vector3(30, 0, 6), Vector3(-6, 0, 30), Vector3(6, 0, -30)]:
 		_tree(props, pos)
@@ -182,6 +190,7 @@ static func _road(root: Node3D, center: Vector3, length: float, along_x: bool) -
 	if along_x:
 		road.rotation.y = PI * 0.5
 	_bare.append(_rect(center, Vector2(length, 8) if along_x else Vector2(8, length)))
+	_roads.append([center, length, along_x])
 
 
 static func _pool(root: Node3D, center: Vector3, size: Vector2) -> void:
@@ -263,7 +272,7 @@ static func _mall(root: Node3D) -> Dictionary:
 	_decal(root, Vector3(0, 0, 10), Vector2(16, 18), PLAZA_COLOR)
 	var mall := Structure.new()
 	mall.position = Vector3(0, 0, -8)
-	mall.strength = 1.4
+	mall.strength = 2.4
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4242
 	Mall.build(mall, rng)
@@ -287,6 +296,79 @@ static func _mall(root: Node3D) -> Dictionary:
 		_car(props, Vector3(-24 + i * 14, 0, 27), true, CAR_COLORS[(i + 1) % CAR_COLORS.size()])
 	root.add_child(props)
 	return {"name": "AVM", "size": size, "spawn": Vector3(0, 0.5, 19)}
+
+
+## Loose odds and ends all over the map, and street lamps along the roads: one
+## weak structure, so disasters throw it all around. Kept off buildings, roads
+## (cones excepted) and the spawn point.
+static func _clutter(root: Node3D, size: float, spawn: Vector3, seed_value: int) -> void:
+	var s := Structure.new()
+	s.strength = CLUTTER_STRENGTH
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value * 31 + 5
+	for road: Array in _roads:
+		var center: Vector3 = road[0]
+		var length: float = road[1]
+		var along := Vector3.RIGHT if road[2] else Vector3.BACK
+		var across := along.cross(Vector3.UP)
+		var t := -length * 0.5 + 6.0
+		var side := 1.0
+		while t < length * 0.5 - 4.0:
+			var pos := center + along * t + across * 4.7 * side
+			if not _is_bare(Vector2(pos.x, pos.z), 0.4) and absf(pos.x) < size * 0.5 - 1.0 and absf(pos.z) < size * 0.5 - 1.0:
+				_lamp(s, Vector3(pos.x, 0, pos.z))
+			# A cone on the road now and then.
+			if rng.randf() < 0.35:
+				var cone := center + along * (t + 3.0) + across * rng.randf_range(-3.0, 3.0)
+				s.add_box(Vector3(cone.x, 0.35, cone.z), Vector3(0.5, 0.7, 0.5), Color(1.0, 0.45, 0.05), Basis.IDENTITY,
+						Look.cylinder(0.25, 0.03, 0.7, Color(1.0, 0.45, 0.05)))
+			t += 11.0
+			side = -side
+	var count := int(size * CLUTTER_PER_METER)
+	var tries := count * 6
+	while count > 0 and tries > 0:
+		tries -= 1
+		var half := size * 0.5 - 2.0
+		var p := Vector2(rng.randf_range(-half, half), rng.randf_range(-half, half))
+		if _is_bare(p, 0.8) or p.distance_to(Vector2(spawn.x, spawn.z)) < 4.0:
+			continue
+		_clutter_item(s, CLUTTER[rng.randi() % CLUTTER.size()], Vector3(p.x, 0, p.y), rng)
+		_bare.append(_rect(Vector3(p.x, 0, p.y), Vector2(1.6, 1.6)))
+		count -= 1
+	root.add_child(s)
+
+
+static func _clutter_item(s: Structure, kind: String, pos: Vector3, rng: RandomNumberGenerator) -> void:
+	var turn := Basis(Vector3.UP, rng.randf() * TAU)
+	match kind:
+		"crate":
+			var stack := rng.randi_range(1, 3)
+			for k in stack:
+				s.add_box(pos + Vector3(0, 0.45 + k * 0.9, 0), Vector3(0.9, 0.9, 0.9), Color(0.6, 0.45, 0.25),
+						turn.rotated(Vector3.UP, rng.randf_range(-0.3, 0.3)))
+		"barrel":
+			var color: Color = [Color(0.75, 0.15, 0.12), Color(0.15, 0.35, 0.7), Color(0.3, 0.5, 0.25)][rng.randi() % 3]
+			s.add_box(pos + Vector3(0, 0.45, 0), Vector3(0.64, 0.9, 0.64), color, turn, Look.cylinder(0.32, 0.32, 0.9, color))
+		"bin":
+			s.add_box(pos + Vector3(0, 0.5, 0), Vector3(0.6, 1.0, 0.6), Color(0.2, 0.35, 0.25), turn)
+		"bench":
+			s.add_box(pos + Vector3(0, 0.22, 0), Vector3(1.6, 0.44, 0.5), Color(0.5, 0.33, 0.2), turn)
+			s.add_box(pos + Vector3(0, 0.66, 0) + turn * Vector3(0, 0, -0.22), Vector3(1.6, 0.44, 0.06), Color(0.5, 0.33, 0.2), turn)
+		"mailbox":
+			var color: Color = [Color(0.15, 0.3, 0.75), Color(0.8, 0.15, 0.1)][rng.randi() % 2]
+			s.add_box(pos + Vector3(0, 0.55, 0), Vector3(0.5, 1.1, 0.45), color, turn)
+		"table":
+			s.add_box(pos + Vector3(0, 0.37, 0), Vector3(0.12, 0.74, 0.7), Color(0.45, 0.32, 0.2), turn)
+			s.add_box(pos + Vector3(0, 0.77, 0), Vector3(1.6, 0.06, 0.8), Color(0.55, 0.4, 0.25), turn)
+
+
+## A street lamp: pole and a glowing head on top.
+static func _lamp(s: Structure, pos: Vector3) -> void:
+	var height := 4.2
+	s.add_box(pos + Vector3(0, height * 0.5, 0), Vector3(0.16, height, 0.16), Color(0.3, 0.32, 0.35), Basis.IDENTITY,
+			Look.cylinder(0.08, 0.06, height, Color(0.3, 0.32, 0.35)))
+	var head := Vector3(0.5, 0.18, 0.5)
+	s.add_box(pos + Vector3(0, height + head.y * 0.5, 0), head, Color.WHITE, Basis.IDENTITY, Look.glow(head, Color(1.0, 0.9, 0.7), 1.6))
 
 
 ## Trees, fences and cars share one structure; it is added to the tree after filling.
@@ -420,9 +502,9 @@ static func _grass_point(rng: RandomNumberGenerator, area: float) -> Vector2:
 	return Vector2(NAN, NAN) if _is_bare(p) else p
 
 
-static func _is_bare(p: Vector2) -> bool:
+static func _is_bare(p: Vector2, margin := 0.2) -> bool:
 	for b in _bare:
-		if b.grow(0.2).has_point(p):
+		if b.grow(margin).has_point(p):
 			return true
 	return false
 

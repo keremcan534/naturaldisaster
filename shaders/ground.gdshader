@@ -94,7 +94,8 @@ void fragment() {
 		col *= mix(1.0, 0.62, wetness);
 		rough = mix(rough, 0.35, wetness);
 		float low = texture(noise, p * 0.07 + vec2(0.71, 0.19)).r;
-		float fill = 0.72 - wetness * 0.2 - puddles * 0.12;
+		// A few puddles on grass, more on roads.
+		float fill = 0.8 - wetness * 0.1 - puddles * 0.1;
 		float puddle = smoothstep(fill, fill + 0.04, low) * wetness;
 		if (puddle > 0.01) {
 			vec2 slope = rain_rings(p) * wetness;
@@ -103,7 +104,7 @@ void fragment() {
 			vec3 view_dir = normalize(world_pos - cam);
 			float fresnel = 0.05 + 0.95 * pow(1.0 - clamp(dot(-view_dir, n), 0.0, 1.0), 5.0);
 			vec3 sky = sky_reflection(reflect(view_dir, n), TIME);
-			col = mix(col, col * 0.3, puddle);
+			col = mix(col, col * 0.5, puddle);
 			EMISSION = sky * fresnel * puddle * 0.8;
 			NORMAL = normalize(mix(NORMAL, (VIEW_MATRIX * vec4(n, 0.0)).xyz, puddle));
 			rough = mix(rough, 0.03, puddle);

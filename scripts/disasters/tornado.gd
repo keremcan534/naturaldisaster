@@ -2,13 +2,13 @@ extends "res://scripts/disasters/disaster.gd"
 ## A funnel wanders across the map, tearing pieces off buildings and flinging
 ## them (and players) around. Being inside the core hurts; the drop hurts more.
 
-const RADIUS := 8.0
+const RADIUS := 12.0
 const CORE_RADIUS := 3.0
 const TOP_HEIGHT := 35.0
-const SWIRL := 35.0
-const PULL := 15.0
+const SWIRL := 50.0
+const PULL := 22.0
 ## Above gravity, so the core lifts things.
-const LIFT := 30.0
+const LIFT := 38.0
 const SPEED := 6.0
 const CORE_DAMAGE_PER_SEC := 15.0
 const FIELD_INTERVAL := 0.1

@@ -2,7 +2,8 @@ extends RefCounted
 ## Graphics quality levels. Rendering stays at full resolution on every level
 ## (no blurry upscaling); levels differ in what costs real GPU time: MSAA,
 ## shadows, glow, grass blades (only on high; the ground is painted grass below),
-## rain, the lens flare, and
+## rain, the lens flare, how many loose pieces may tumble at once ("chaos", see
+## Structure.awake), and
 ## a "quality" global the shaders use to skip expensive parts (cloud lighting,
 ## reflected clouds, ripple noise, contact shadows). In auto mode the game
 ## measures its frame rate and moves between levels. Saved with the other
@@ -13,15 +14,15 @@ const SETTINGS_PATH := "user://settings.cfg"
 const LEVELS := [
 	{
 		"name": "Düşük", "msaa": Viewport.MSAA_DISABLED, "shadows": 0, "glow": false, "flare": false,
-		"grass": 0, "grass_range": 24.0, "flowers": false, "shader": 0.0, "rain": 150,
+		"grass": 0, "grass_range": 24.0, "flowers": false, "shader": 0.0, "rain": 150, "chaos": 140,
 	},
 	{
 		"name": "Orta", "msaa": Viewport.MSAA_DISABLED, "shadows": 1, "glow": true, "flare": true,
-		"grass": 0, "grass_range": 32.0, "flowers": false, "shader": 1.0, "rain": 280,
+		"grass": 0, "grass_range": 32.0, "flowers": false, "shader": 1.0, "rain": 280, "chaos": 220,
 	},
 	{
 		"name": "Yüksek", "msaa": Viewport.MSAA_2X, "shadows": 2, "glow": true, "flare": true,
-		"grass": 12000, "grass_range": 42.0, "flowers": true, "shader": 2.0, "rain": 450,
+		"grass": 12000, "grass_range": 42.0, "flowers": true, "shader": 2.0, "rain": 450, "chaos": 320,
 	},
 ]
 ## Auto mode: below LOW_FPS over a measuring window, drop a level (and never go

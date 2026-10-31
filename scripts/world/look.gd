@@ -40,6 +40,7 @@ static var _tuft: ArrayMesh
 static var _flower: ArrayMesh
 static var _flowers: ShaderMaterial
 static var _ladders := {}
+static var _cylinders := {}
 static var _glows := {}
 
 
@@ -310,6 +311,22 @@ static func ladder(height: float) -> Mesh:
 		st.set_material(mat)
 		_ladders[height] = st.commit()
 	return _ladders[height]
+
+
+## A cylinder (barrels, cones, poles) with the panel look in this color;
+## top 0 makes a cone.
+static func cylinder(radius: float, top: float, height: float, color: Color) -> Mesh:
+	var key := [radius, top, height, color]
+	if not _cylinders.has(key):
+		var mesh := CylinderMesh.new()
+		mesh.bottom_radius = radius
+		mesh.top_radius = top
+		mesh.height = height
+		mesh.radial_segments = 12
+		mesh.rings = 1
+		mesh.material = surface(color)
+		_cylinders[key] = mesh
+	return _cylinders[key]
 
 
 ## A box that glows by itself (screens, signs, cinema screen).

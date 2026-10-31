@@ -88,8 +88,8 @@ func begin() -> void:
 	add_child(_lava)
 
 	_bombs = ProjectilePool.new()
-	_bombs.blast_radius = 4.0
-	_bombs.blast_force = 12.0
+	_bombs.blast_radius = 5.5
+	_bombs.blast_force = 18.0
 	_bombs.blast_damage = 60.0
 	add_child(_bombs)
 	_bombs.setup(14, 0.6, Color(0.25, 0.1, 0.05), Color(1.0, 0.35, 0.05))

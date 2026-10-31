@@ -15,6 +15,7 @@ extends Node3D
 
 const Look := preload("res://scripts/world/look.gd")
 const Interior := preload("res://scripts/world/interior.gd")
+const Quality := preload("res://scripts/core/quality.gd")
 
 const WALL_THICKNESS := 0.3
 const SLAB_THICKNESS := 0.3
@@ -37,7 +38,7 @@ const FACING_LEFT := Basis(Vector3.UP, -PI * 0.5)
 const MAX_SPAN := 2
 const DENSITY := 1.5
 const EPS := 0.01
-const QUAKE_PIECES_PER_TICK := 2.5
+const QUAKE_PIECES_PER_TICK := 6.0
 ## Acceleration (m/s²) an intact piece withstands at strength 1.
 const HOLD_FORCE := 25.0
 ## Break chance per second when the force is double the hold.
@@ -51,6 +52,11 @@ const IMPACT_DV := 8.0
 const IMPACT_HOLD := 60.0
 ## Explosions shatter pieces within this fraction of their radius.
 const SHATTER_RADIUS := 0.55
+
+## Loose pieces still moving, across all structures. Past the quality level's
+## "chaos" budget, pieces that break off crumble to dust instead of tumbling, so
+## a whole town coming down can't drown the physics on a phone.
+static var awake := 0
 
 static var _meshes := {}
 static var _shapes := {}
@@ -378,8 +384,9 @@ func quake(intensity: float) -> void:
 	for i in _pieces.size():
 		if _loose[i] and not _gone[i]:
 			var rb := _pieces[i]
-			var push := Vector3(randf_range(-1, 1), randf_range(0, 0.3), randf_range(-1, 1))
-			rb.apply_central_impulse(push * rb.mass * intensity * 1.5)
+			# Loose things hop and slide around while the ground heaves.
+			var push := Vector3(randf_range(-1, 1), randf_range(0.1, 0.6), randf_range(-1, 1))
+			rb.apply_central_impulse(push * rb.mass * intensity * 3.0)
 
 
 func damage_sphere(center: Vector3, radius: float, force: float) -> void:
@@ -466,6 +473,7 @@ func _physics_process(delta: float) -> void:
 		var rb := _pieces[i]
 		if _gone[i] or rb.sleeping:
 			_moving.remove_at(k)
+			awake -= 1
 			continue
 		k += 1
 		var speed := rb.linear_velocity.length()
@@ -476,6 +484,7 @@ func _physics_process(delta: float) -> void:
 		var pos := rb.global_position
 		get_tree().call_group("effects", "dust", pos)
 		get_tree().call_group("structures", "impact", pos, lost * rb.mass)
+		get_tree().call_group("player", "rumble", pos, lost * rb.mass)
 		if randf() < clampf((lost - IMPACT_DV) / 10.0, 0.15, 0.7):
 			_shatter(i, pos + Vector3.DOWN, lost * 0.3)
 
@@ -487,6 +496,9 @@ func _release(i: int) -> void:
 	if _solid[i] and _colors[i] == WINDOW_COLOR:
 		_shatter(i, _pieces[i].global_position - _pieces[i].global_basis.z, 2.5)
 		return
+	if awake >= Quality.current().chaos:
+		_crumble(i)
+		return
 	_dust(_pieces[i].global_position)
 	_unbatch(i)
 	_visuals[i].visible = true
@@ -495,6 +507,20 @@ func _release(i: int) -> void:
 	_pieces[i].sleeping = false
 	_last_speed[i] = 0.0
 	_moving.append(i)
+	awake += 1
+
+
+## Over the chaos budget: the piece turns to dust where it stands.
+func _crumble(i: int) -> void:
+	var rb := _pieces[i]
+	get_tree().call_group("effects", "dust", rb.global_position)
+	_unbatch(i)
+	_loose[i] = 1
+	_gone[i] = 1
+	rb.freeze = true
+	rb.visible = false
+	rb.collision_layer = 0
+	rb.collision_mask = 0
 
 
 ## Replaces a piece with debris chunks flying away from `from` at up to `power` m/s.

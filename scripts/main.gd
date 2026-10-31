@@ -12,6 +12,7 @@ const TouchControls := preload("res://scripts/ui/touch_controls.gd")
 const Weather := preload("res://scripts/world/weather.gd")
 const Effects := preload("res://scripts/world/effects.gd")
 const Debris := preload("res://scripts/world/debris.gd")
+const Structure := preload("res://scripts/world/structure.gd")
 
 ## Set by the loaded map; disasters read these.
 var map_name := ""
@@ -81,6 +82,7 @@ func load_next_map() -> void:
 	if _map_root:
 		_map_root.free()
 	get_tree().call_group("debris", "clear")
+	Structure.awake = 0
 	if forced_map >= 0:
 		_map_index = forced_map
 	else:

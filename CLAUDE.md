@@ -56,7 +56,14 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   wetness, wind, wave height, island size, player position for grass).
 - `scripts/world/debris.gd`: pooled chunks that pieces shatter into (explosions, very
   strong winds, hard landings; glass always). Falling pieces that hit hard call
-  `impact()` on structures, so collapses spread.
+  `impact()` on structures, so collapses spread, and `rumble()` the player's view.
+- Chaos: disasters are tuned to bring weak houses down (tsunami rips out ground floors,
+  quakes collapse them); building `strength` decides who survives (skyscraper 2.6,
+  mall 2.4, apartment 2.0 stand; houses ~1 fall). Every map also gets weak clutter
+  (crates, barrels, bins, benches, lamps along roads, cones) that flies first.
+  `Structure.awake` counts moving loose pieces; past the quality level's `chaos` budget
+  new breaks crumble to dust instead, and the debris pool is sized from it too. Jolt is
+  set to fewer solver steps and earlier sleep (project.godot) to keep this cheap.
 - `scripts/world/weather.gd`: sky, sun, fog and the sea. Each round picks a time of day
   (`TIMES`: morning, day, golden, night; `--time=` forces one) and each disaster sets a
   `mood` (clear, dust, dusk, overcast, storm, ash) that the weather blends into from the

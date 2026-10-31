@@ -5,9 +5,11 @@ extends Node3D
 ## Reached through call_group("debris", ...).
 
 const Look := preload("res://scripts/world/look.gd")
+const Quality := preload("res://scripts/core/quality.gd")
 
-const POOL_SIZE := 180
-const LIFETIME := 12.0
+## Chunks per chaos budget point (see quality.gd): fewer on slow phones.
+const POOL_PER_CHAOS := 0.5
+const LIFETIME := 9.0
 const SHRINK_TIME := 1.0
 const MAX_CHUNKS := 8
 ## Target chunk edge (m) for walls and slabs, and for glass.
@@ -33,7 +35,7 @@ func _ready() -> void:
 	var material := PhysicsMaterial.new()
 	material.friction = 0.8
 	material.bounce = 0.1
-	for i in POOL_SIZE:
+	for i in int(Quality.current().chaos * POOL_PER_CHAOS):
 		var body := RigidBody3D.new()
 		body.collision_layer = 2
 		# Chunks hit the world, pieces and each other, and the player (layer 3).

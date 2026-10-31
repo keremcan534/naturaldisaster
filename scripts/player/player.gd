@@ -264,6 +264,13 @@ func _process(delta: float) -> void:
 	_underwater_tint.visible = _camera.global_position.y < surface
 
 
+## Something heavy crashed down at pos (energy: mass times speed lost): the
+## closer, the harder the view shakes.
+func rumble(pos: Vector3, energy: float) -> void:
+	var near := 1.0 - clampf(global_position.distance_to(pos) / 30.0, 0.0, 1.0)
+	add_shake(clampf(energy / 300.0, 0.0, 0.6) * near * near)
+
+
 ## Called every frame by shaking disasters; amount is 0..1.
 func add_shake(amount: float) -> void:
 	_shake = maxf(_shake, amount)

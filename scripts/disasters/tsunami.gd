@@ -1,17 +1,22 @@
 extends "res://scripts/disasters/disaster.gd"
-## A wave crosses the map from one side, smashing the lower floors of whatever it
-## hits and leaving deep water full of floating debris that drains at the end.
-## Upper floors and roofs are the safe spots.
+## A wave crosses the map from one side, ripping out the lower floors of whatever
+## it hits (weak houses collapse) and leaving deep, churning water full of floating
+## debris that drains at the end. High floors of strong buildings are the safe spots.
 
 const FIELD_INTERVAL := 0.1
-const CREST_HEIGHT := 6.0
-const CREST_DEPTH := 6.0
-const WATER_LEVEL := 3.0
-const CREST_FORCE := 38.0
-const CURRENT_FORCE := 5.0
-## Just under gravity, so debris drifts and slowly sinks.
-const BUOYANCY := 8.5
-const CREST_PLAYER_DAMAGE := 30.0
+const CREST_HEIGHT := 8.0
+const CREST_DEPTH := 7.0
+const WATER_LEVEL := 4.5
+## Far beyond what ordinary walls hold: the ground floors of houses go, and the
+## rest of the house comes down with them. Strong towers lose only some walls.
+const CREST_FORCE := 75.0
+const CURRENT_FORCE := 9.0
+## Sideways churn in the flood, so debris tumbles instead of gliding.
+const CHURN := 4.0
+## Lift on submerged debris, past gravity once a piece is under: things float
+## up and bob along the surface.
+const BUOYANCY := 13.0
+const CREST_PLAYER_DAMAGE := 35.0
 ## Fractions of the duration: the wave crossing, and draining at the end.
 const TRAVEL_PART := 0.45
 const DRAIN_PART := 0.25
@@ -78,10 +83,13 @@ func _force_at(p: Vector3) -> Vector3:
 	var s := p.dot(_dir)
 	if s > _front:
 		return Vector3.ZERO
-	if s > _front - CREST_DEPTH and p.y < CREST_HEIGHT:
-		return _dir * CREST_FORCE * (1.0 - p.y / CREST_HEIGHT) + Vector3.UP * 6.0
+	if s > _front - CREST_DEPTH and p.y < CREST_HEIGHT + 1.0:
+		return _dir * CREST_FORCE * (1.0 - 0.6 * clampf(p.y / CREST_HEIGHT, 0.0, 1.0)) + Vector3.UP * 8.0
 	if p.y < _level:
-		return _dir * CURRENT_FORCE + Vector3.UP * BUOYANCY
+		var side := _dir.cross(Vector3.UP)
+		var churn := side * sin(_elapsed * 1.7 + s * 0.35) * CHURN
+		var depth := clampf((_level - p.y) / 1.2, 0.0, 1.0)
+		return _dir * CURRENT_FORCE + churn + Vector3.UP * BUOYANCY * depth
 	return Vector3.ZERO
 
 
@@ -96,7 +104,7 @@ func _affect_players() -> void:
 			if not _hit_players.has(p):
 				_hit_players[p] = true
 				p.take_damage(CREST_PLAYER_DAMAGE)
-				p.push(_dir * 14.0 + Vector3.UP * 4.0)
+				p.push(_dir * 18.0 + Vector3.UP * 5.0)
 			p.set_water(CREST_HEIGHT, _dir * 20.0)
 		elif _level > 0.0:
 			p.set_water(_level, _dir * CURRENT_FORCE)

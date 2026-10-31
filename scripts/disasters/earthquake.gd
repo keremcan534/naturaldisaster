@@ -1,7 +1,7 @@
 extends "res://scripts/disasters/disaster.gd"
 ## Ground shaking that ramps up, cracks buildings and throws loose debris around.
 
-const DAMAGE_INTERVAL := 0.4
+const DAMAGE_INTERVAL := 0.3
 
 var _elapsed := 0.0
 var _damage_timer := 0.0
