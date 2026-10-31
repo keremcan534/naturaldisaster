@@ -17,6 +17,8 @@ global uniform float night;
 global uniform float stars;
 global uniform float aurora;
 global uniform float rainbow;
+// 0 low, 1 medium, 2 high (see quality.gd): skips the costly parts on slow phones.
+global uniform float quality;
 
 float sky_hash(vec3 p) {
 	p = fract(p * vec3(443.897, 441.423, 437.195));
@@ -130,12 +132,13 @@ vec3 sky_color(vec3 d, float time, bool sun_disk) {
 
 	// A flat cloud layer: the projection squeezes clouds toward the horizon.
 	vec2 uv = d.xz / (h + 0.1) + vec2(time * 0.006, time * 0.002);
-	float n = sky_cloud_noise(uv);
+	// Low quality: one noise lookup instead of three (softer cloud edges).
+	float n = quality > 0.5 ? sky_cloud_noise(uv) : texture(noise, uv * 0.11).r * 0.85 + 0.075;
 	float cover = smoothstep(1.0 - cloud_cover, 1.0 - cloud_cover + 0.28, n) * smoothstep(0.0, 0.12, h);
 	if (cover > 0.001) {
 		// Light through the cloud: denser toward the sun means more shadow on this side.
 		vec2 to_sun = normalize(sun_dir.xz + vec2(0.0001)) * 0.9;
-		float lit = clamp(0.6 + (n - sky_cloud_noise(uv + to_sun)) * 4.0, 0.0, 1.0);
+		float lit = quality > 1.5 ? clamp(0.6 + (n - sky_cloud_noise(uv + to_sun)) * 4.0, 0.0, 1.0) : 0.75 - n * 0.3;
 		float thick = smoothstep(0.45, 0.95, n);
 		vec3 cc = mix(cloud_dark.rgb, cloud_light.rgb, lit * (1.0 - thick * cloud_cover * 0.6));
 		// Silver lining on thin cloud edges near the sun.
@@ -144,6 +147,26 @@ vec3 sky_color(vec3 d, float time, bool sun_disk) {
 	}
 	if (rainbow > 0.01) {
 		col += sky_rainbow(d) * rainbow * (1.0 - cover * 0.7);
+	}
+	return col;
+}
+
+// What reflective surfaces see: the full sky on high quality, cheaper skies below
+// (one cloud lookup on medium, just the gradient and the sun's glow on low).
+vec3 sky_reflection(vec3 d, float time) {
+	if (quality > 1.5) {
+		return sky_color(d, time, false);
+	}
+	if (d.y <= 0.0) {
+		return mix(sky_horizon.rgb, sea_haze.rgb, smoothstep(0.0, 0.2, -d.y));
+	}
+	vec3 col = mix(sky_horizon.rgb, sky_top.rgb, pow(d.y, 0.45));
+	col += sun_color.rgb * pow(max(dot(d, sun_dir), 0.0), 5.0) * 0.15 * (1.0 - night * 0.8);
+	if (quality > 0.5) {
+		vec2 uv = d.xz / (d.y + 0.1) + vec2(time * 0.006, time * 0.002);
+		float n = texture(noise, uv * 0.11).r;
+		float cover = smoothstep(1.0 - cloud_cover, 1.0 - cloud_cover + 0.3, n) * smoothstep(0.0, 0.12, d.y);
+		col = mix(col, mix(cloud_dark.rgb, cloud_light.rgb, 0.7), cover);
 	}
 	return col;
 }

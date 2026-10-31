@@ -10,6 +10,7 @@ global uniform float wetness;
 global uniform vec3 player_pos;
 global uniform vec3 sun_dir;
 global uniform vec4 sun_color;
+global uniform float quality;
 
 uniform sampler2D noise : filter_linear_mipmap, repeat_enable;
 uniform vec3 root_color : source_color = vec3(0.16, 0.28, 0.1);
@@ -28,7 +29,9 @@ void vertex() {
 	vec3 cam = INV_VIEW_MATRIX[3].xyz;
 	float bend = tip * tip;
 
-	float gust = texture(noise, VERTEX.xz * 0.025 - vec2(TIME * 0.09, TIME * 0.04)).r;
+	// Rolling gusts from the noise texture; on low quality a cheap wave instead.
+	float gust = quality > 0.5 ? texture(noise, VERTEX.xz * 0.025 - vec2(TIME * 0.09, TIME * 0.04)).r
+			: 0.5 + 0.35 * sin(dot(VERTEX.xz, vec2(0.11, 0.05)) - TIME * 1.3);
 	vec2 dir = normalize(vec2(1.0, 0.4));
 	float sway = (gust * 1.6 - 0.5) * wind + sin(TIME * 2.3 + VERTEX.x * 0.7 + VERTEX.z * 0.4) * 0.08;
 	VERTEX.xz += dir * sway * bend * 0.45;

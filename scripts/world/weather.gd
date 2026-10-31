@@ -138,6 +138,7 @@ var _next_flash := 0.0
 var _flare_visible := 0.0
 var _flare_check := 0.0
 var _sun_clear := true
+var _flare_enabled := true
 
 
 func _ready() -> void:
@@ -222,6 +223,18 @@ func _ready() -> void:
 	add_child(flare_layer)
 
 	new_day()
+
+
+## Shadows, glow and rain density for a quality level (see quality.gd).
+func apply_quality(q: Dictionary) -> void:
+	_sun.shadow_enabled = q.shadows > 0
+	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if q.shadows > 1 \
+			else DirectionalLight3D.SHADOW_ORTHOGONAL
+	_sun.directional_shadow_max_distance = 90.0 if q.shadows > 1 else 45.0
+	_env.glow_enabled = q.glow
+	_flare_enabled = q.flare
+	_rain.amount = q.rain
+	_splashes.amount = int(q.rain * 0.2)
 
 
 ## Picks this round's time of day and snaps the sky to it (a new map is loading).
@@ -421,7 +434,7 @@ func _update_flare(camera: Camera3D, delta: float) -> void:
 	var sun_dir := _sun.global_basis.z
 	var target := 0.0
 	var day: float = 1.0 - _now.night
-	if sun_dir.y > 0.0 and day > 0.0 and not camera.is_position_behind(camera.global_position + sun_dir):
+	if _flare_enabled and sun_dir.y > 0.0 and day > 0.0 and not camera.is_position_behind(camera.global_position + sun_dir):
 		_flare_check -= delta
 		if _flare_check <= 0.0:
 			_flare_check = 0.15

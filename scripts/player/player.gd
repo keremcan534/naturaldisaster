@@ -36,7 +36,9 @@ const LADDER_GRACE := 0.2
 const JUMP_BUFFER := 0.15
 const COYOTE_TIME := 0.12
 const FOV := 80.0
-const SPRINT_FOV := 87.0
+const SPRINT_FOV := 84.0
+## Camera offset (m) at full shake.
+const SHAKE_AMOUNT := 0.15
 ## Gentle head bob while walking (meters, steps per meter).
 const BOB_HEIGHT := 0.035
 const BOB_RATE := 0.9
@@ -202,8 +204,9 @@ func _physics_process(delta: float) -> void:
 	var speed := SPRINT_SPEED if Input.is_action_pressed("sprint") else SPEED
 	if in_water:
 		speed *= SWIM_SPEED_FACTOR
-	# Strong shaking makes footing unreliable.
-	var wobble := Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * _shake * 2.0
+	# Strong shaking makes footing unreliable (a smooth sway, not jitter).
+	var sway_t := _shake_time * 3.0
+	var wobble := Vector3(sin(sway_t), 0, cos(sway_t * 1.3)) * _shake * 1.2
 	_walk = _walk.move_toward(dir * speed + wobble, speed * 10.0 * delta)
 	_push = _push.lerp(Vector3.ZERO, minf(drag * delta, 1.0))
 	velocity.x = _walk.x + _push.x
@@ -238,12 +241,14 @@ func _process(delta: float) -> void:
 	# Smooth wobble rather than a new random offset every frame, which reads as jitter.
 	_shake_time += delta
 	var t := _shake_time * 22.0
-	_camera.h_offset = (sin(t) + sin(t * 2.3 + 1.7)) * 0.5 * _shake * 0.25
+	_camera.h_offset = (sin(t) + sin(t * 2.3 + 1.7)) * 0.5 * _shake * SHAKE_AMOUNT
 	# Head bob follows distance walked, so it matches the stride at any speed.
+	# Not on touch screens: there it only makes aiming harder.
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() and alive else 0.0
 	_bob_phase += ground_speed * BOB_RATE * delta * TAU * 0.5
-	_bob = lerpf(_bob, BOB_HEIGHT * clampf(ground_speed / SPEED, 0.0, 1.3), minf(delta * 8.0, 1.0))
-	_camera.v_offset = (sin(t * 1.3 + 0.5) + sin(t * 2.9 + 2.1)) * 0.5 * _shake * 0.25 + sin(_bob_phase * 2.0) * _bob
+	var bob := BOB_HEIGHT * clampf(ground_speed / SPEED, 0.0, 1.3) if use_mouse else 0.0
+	_bob = lerpf(_bob, bob, minf(delta * 8.0, 1.0))
+	_camera.v_offset = (sin(t * 1.3 + 0.5) + sin(t * 2.9 + 2.1)) * 0.5 * _shake * SHAKE_AMOUNT + sin(_bob_phase * 2.0) * _bob
 	var sprinting := Input.is_action_pressed("sprint") and ground_speed > SPEED
 	_camera.fov = lerpf(_camera.fov, SPRINT_FOV if sprinting else FOV, minf(delta * 6.0, 1.0))
 	_shake = move_toward(_shake, 0.0, delta * 2.0)

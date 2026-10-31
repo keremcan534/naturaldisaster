@@ -68,10 +68,12 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
 - `scripts/player/player.gd`: first-person controller; world effects go through
   `push()`, `set_water()`, `explode_at()`, `take_damage()`, `add_shake()`.
-- `scripts/ui/`: HUD and touch controls (shown on phones and with `-- --touch`): floating
-  analog stick (auto-sprint at full forward), drag-to-look that ignores impossible jumps
-  (browsers renumber fingers), jump/sprint buttons, a settings panel (sensitivity,
-  invert; saved in `user://settings.cfg`). Touches also reach GUI as emulated mouse.
+- `scripts/ui/`: HUD (with an FPS / quality readout) and touch controls (shown on phones
+  and with `-- --touch`): floating analog stick in the lower left (auto-sprint at full
+  forward), drag-to-look everywhere else, routed by finger position when browsers
+  renumber fingers (never drop fast swipes: on slow frames one event carries a big
+  step), a big jump button, a menu button (sensitivity, invert, graphics quality; saved
+  in `user://settings.cfg`). Touches also reach GUI as emulated mouse.
   Touch can be tested under `xvfb-run` by feeding `InputEventScreenTouch/Drag` through
   `Input.parse_input_event()` + `Input.flush_buffered_events()` (not in `--headless`).
 - Everything is built in code; `scenes/main.tscn` only holds the root script.
@@ -82,6 +84,14 @@ Mobile and web are the targets, so: nothing is instanced during a round (pool it
 intact geometry stays frozen, disasters touch physics on a fixed 0.1 s tick, and
 shared meshes/materials/shapes come from caches. Web builds use the Compatibility
 (OpenGL) renderer; check visuals there too (`--rendering-method gl_compatibility`).
+
+`scripts/core/quality.gd` has three levels (Düşük/Orta/Yüksek) plus auto mode, which
+measures FPS and moves between them; phones start on Düşük. Levels change MSAA,
+shadows, glow, grass count and draw distance (grass is chunked so far chunks are not
+drawn), rain, the lens flare, and the `quality` shader global that shaders check to
+skip expensive parts. Never lower the render resolution: the user does not want a
+pixelated picture. New expensive shader work needs a cheap path under `quality`.
+Software rendering under xvfb is slow but its FPS (`--perf`) still compares costs.
 
 ## Checking changes
 
@@ -95,6 +105,6 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 ```
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
-(`--fast`, `--log`, `--perf`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
+(`--fast`, `--log`, `--perf`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
 `--yaw=`, `--pitch=`, `--touch`). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

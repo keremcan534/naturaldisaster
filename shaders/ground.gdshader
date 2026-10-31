@@ -68,7 +68,7 @@ void fragment() {
 		float bare = smoothstep(0.73, 0.8, broad + fine * 0.15);
 		col = mix(col, vec3(0.32, 0.24, 0.16) * (0.8 + fine * 0.4), bare * 0.6);
 		// Specks: tiny flowers, seeds and pebbles.
-		float speck = texture(noise, p * 1.7).r;
+		float speck = quality > 0.5 ? texture(noise, p * 1.7).r : 0.5;
 		col = mix(col, vec3(0.9, 0.85, 0.5), smoothstep(0.83, 0.86, speck) * 0.6);
 		col *= mix(1.0, 0.7, smoothstep(0.15, 0.1, speck));
 	}
@@ -81,7 +81,7 @@ void fragment() {
 		col = mix(col, vec3(0.86, 0.85, 0.8), paint);
 		rough = mix(rough, 0.6, paint);
 	}
-	if (!vertical) {
+	if (!vertical && quality > 0.5) {
 		for (int i = 0; i < shade_count; i++) {
 			vec4 r = shade_rects[i];
 			vec2 q = abs(world_pos.xz - r.xy) - r.zw;
@@ -102,7 +102,7 @@ void fragment() {
 			vec3 cam = (INV_VIEW_MATRIX * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
 			vec3 view_dir = normalize(world_pos - cam);
 			float fresnel = 0.05 + 0.95 * pow(1.0 - clamp(dot(-view_dir, n), 0.0, 1.0), 5.0);
-			vec3 sky = sky_color(reflect(view_dir, n), TIME, false);
+			vec3 sky = sky_reflection(reflect(view_dir, n), TIME);
 			col = mix(col, col * 0.3, puddle);
 			EMISSION = sky * fresnel * puddle * 0.8;
 			NORMAL = normalize(mix(NORMAL, (VIEW_MATRIX * vec4(n, 0.0)).xyz, puddle));

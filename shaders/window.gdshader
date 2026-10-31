@@ -33,7 +33,7 @@ void fragment() {
 		vec3 view_world = normalize((INV_VIEW_MATRIX * vec4(-VIEW, 0.0)).xyz);
 		vec3 n_world = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
 		float fresnel = 0.04 + 0.96 * pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 5.0);
-		vec3 reflected = sky_color(reflect(view_world, n_world), TIME, false);
+		vec3 reflected = sky_reflection(reflect(view_world, n_world), TIME);
 		// Seen from outside the glass mirrors more (rooms are darker than the sky).
 		float mirror = local_normal.z > 0.0 ? mix(0.25, 1.0, fresnel) : fresnel * 0.4;
 		ALBEDO = glass_tint;

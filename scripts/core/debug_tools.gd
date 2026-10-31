@@ -8,6 +8,7 @@ extends Node
 ##   --log               prints round status changes
 ##   --perf              prints frame costs every second (process, physics, draws)
 ##   --map=<i>           always loads map i (see maps.gd)
+##   --quality=<0-2>     fixed graphics quality (0 low, 2 high), auto off
 ##   --time=<name>       always uses this time of day (morning, day, golden, night)
 ##   --disaster=<i>      always picks disaster i (see disaster_manager.gd)
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
@@ -42,6 +43,8 @@ func _ready() -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		elif arg.begins_with("--map="):
 			manager.world.forced_map = arg.get_slice("=", 1).to_int()
+		elif arg.begins_with("--quality="):
+			manager.world.set_quality(arg.get_slice("=", 1).to_int(), false)
 		elif arg.begins_with("--time="):
 			manager.world.forced_time = arg.get_slice("=", 1)
 		elif arg.begins_with("--disaster="):
@@ -72,7 +75,8 @@ func _process(delta: float) -> void:
 		_perf_timer -= delta
 		if _perf_timer <= 0.0:
 			_perf_timer = 1.0
-			print("[%.1fs] process %.2f ms, physics %.2f ms, draw calls %d, primitives %d" % [_elapsed,
+			print("[%.1fs] fps %d, process %.2f ms, physics %.2f ms, draw calls %d, primitives %d" % [_elapsed,
+					Engine.get_frames_per_second(),
 					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),

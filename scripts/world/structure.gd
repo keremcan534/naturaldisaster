@@ -100,6 +100,8 @@ func _ready() -> void:
 ## it with a "bounce" or "ladder" meta the player reacts to.
 func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis := Basis.IDENTITY, visual: Mesh = null,
 		material: Material = null) -> RigidBody3D:
+	# Pieces are linked and batched in _ready(); later ones would be left out.
+	assert(not is_inside_tree(), "Add pieces before adding the structure to the tree.")
 	var rb := RigidBody3D.new()
 	rb.collision_layer = 2
 	rb.collision_mask = 1 | 2 | 4

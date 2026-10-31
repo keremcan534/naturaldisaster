@@ -2,6 +2,7 @@ extends Node3D
 ## Prototype world: owns the current map, spawns the player and starts the disaster loop.
 
 const InputSetup := preload("res://scripts/core/input_setup.gd")
+const Quality := preload("res://scripts/core/quality.gd")
 const DebugTools := preload("res://scripts/core/debug_tools.gd")
 const Player := preload("res://scripts/player/player.gd")
 const Maps := preload("res://scripts/world/maps.gd")
@@ -24,22 +25,31 @@ var forced_time := "":
 		forced_time = value
 		_weather.forced_time = value
 
+## Auto quality: frames counted over a window, after a pause following map loads.
+const FPS_WINDOW := 4.0
+const FPS_SETTLE := 2.5
+
 var _map_root: Node3D
 var _map_index := -1
 var _weather: Weather
+var _fps_time := 0.0
+var _fps_frames := 0
+var _fps_settle := FPS_SETTLE
 
 
 func _ready() -> void:
 	InputSetup.register()
-	_weather = Weather.new()
-	add_child(_weather)
-	add_child(Effects.new())
-	add_child(Debris.new())
-
 	# Tablets can report a desktop OS in the browser; a touchscreen settles it.
 	var touch := OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") \
 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available()) \
 			or "--touch" in OS.get_cmdline_user_args()
+	Quality.load_settings(touch)
+
+	_weather = Weather.new()
+	add_child(_weather)
+	add_child(Effects.new())
+	add_child(Debris.new())
+	_apply_quality()
 
 	var player := Player.new()
 	player.use_mouse = not touch
@@ -84,6 +94,40 @@ func load_next_map() -> void:
 	spawn_point = info.spawn
 	_weather.set_island(map_size * 0.5)
 	_weather.new_day()
+	_fps_settle = FPS_SETTLE
+
+
+## Picks a quality level (see quality.gd); auto keeps adjusting it to the frame
+## rate. Grass counts change with the next map.
+func set_quality(level: int, auto: bool) -> void:
+	Quality.level = clampi(level, 0, Quality.LEVELS.size() - 1)
+	Quality.auto = auto
+	Quality.save_settings()
+	_apply_quality()
+
+
+func _apply_quality() -> void:
+	Quality.apply_viewport(get_viewport())
+	_weather.apply_quality(Quality.current())
+
+
+func _process(delta: float) -> void:
+	if not Quality.auto:
+		return
+	if _fps_settle > 0.0:
+		_fps_settle -= delta
+		return
+	_fps_time += delta
+	_fps_frames += 1
+	if _fps_time < FPS_WINDOW:
+		return
+	var fps := _fps_frames / _fps_time
+	_fps_time = 0.0
+	_fps_frames = 0
+	var next := Quality.auto_level(fps)
+	if next != Quality.level:
+		set_quality(next, true)
+		_fps_settle = FPS_SETTLE
 
 
 ## Blends sky, light and fog toward one of Weather.MOODS.

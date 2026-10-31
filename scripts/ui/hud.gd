@@ -2,6 +2,7 @@ extends CanvasLayer
 ## Round status, countdown, health bar and death message.
 
 const BuildInfo := preload("res://scripts/core/build_info.gd")
+const Quality := preload("res://scripts/core/quality.gd")
 
 ## Set before adding to the tree; hides the keyboard hint.
 var touch_mode := false
@@ -11,6 +12,8 @@ var _timer: Label
 var _center: Label
 var _health: ProgressBar
 var _health_fill: StyleBoxFlat
+var _fps: Label
+var _fps_timer := 0.0
 
 
 func _ready() -> void:
@@ -84,6 +87,12 @@ func _ready() -> void:
 	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	version.text = "v " + BuildInfo.VERSION
 
+	_fps = _label(12)
+	_fps.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_fps.offset_left = 22
+	_fps.offset_top = 64
+	_fps.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+
 	var hint := _label(14)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	hint.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -93,6 +102,14 @@ func _ready() -> void:
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	hint.text = "WASD: yürü  Shift: koş  Space: zıpla  Fare: bak  Esc: imleci bırak  F12: ekran görüntüsü"
 	hint.visible = not touch_mode
+
+
+func _process(delta: float) -> void:
+	_fps_timer -= delta
+	if _fps_timer <= 0.0:
+		_fps_timer = 0.5
+		var mode := " (oto)" if Quality.auto else ""
+		_fps.text = "%d FPS · %s%s" % [Engine.get_frames_per_second(), Quality.current().name, mode]
 
 
 func bind(manager: Node, player: Node) -> void:

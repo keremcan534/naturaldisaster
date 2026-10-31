@@ -103,7 +103,7 @@ func _physics_process(delta: float) -> void:
 	var rise_t := clampf(_elapsed / _rise, 0.0, 1.0)
 	var sink_t := clampf((_elapsed - sink_start) / _sink, 0.0, 1.0)
 	_mountain.position.y = _center.y - HEIGHT * (1.0 - ease(rise_t, -2.0)) - HEIGHT * sink_t
-	get_tree().call_group("player", "add_shake", 0.5 if _elapsed < _rise else 0.15)
+	get_tree().call_group("player", "add_shake", 0.4 if _elapsed < _rise else 0.06)
 
 	if erupting:
 		_bomb_timer -= delta

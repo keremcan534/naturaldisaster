@@ -5,6 +5,7 @@ extends RefCounted
 const Structure := preload("res://scripts/world/structure.gd")
 const Look := preload("res://scripts/world/look.gd")
 const Mall := preload("res://scripts/world/mall.gd")
+const Quality := preload("res://scripts/core/quality.gd")
 
 const COUNT := 5
 const PLAZA_COLOR := Color(0.72, 0.7, 0.66)
@@ -23,9 +24,10 @@ const WHEEL_COLOR := Color(0.08, 0.08, 0.09)
 const CLIFF_DEPTH := 14.0
 const PATH_COLOR := Color(0.7, 0.66, 0.6)
 const EPS_FENCE := 0.01
-## Grass tufts per square meter, and a cap so big maps stay cheap.
+## Grass tufts per square meter; the cap and draw distance come from the quality
+## level. Grass is split into square chunks so only nearby ones are drawn.
 const GRASS_DENSITY := 3.0
-const MAX_TUFTS := 12000
+const GRASS_CHUNK := 16.0
 ## Flowers grow in clumps: clumps per square meter, flowers per clump.
 const FLOWER_CLUMPS := 0.05
 const FLOWERS_PER_CLUMP := 9
@@ -68,8 +70,7 @@ static func _skyscraper(root: Node3D) -> Dictionary:
 	_ground(root, size, Color(0.55, 0.55, 0.52))
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_decal(root, Vector3(corner.x * 19, 0, corner.y * 19), Vector2(14, 14), GRASS_COLOR)
-	var tower := _building(root, Vector3(0, 0, -2), Vector2i(5, 5), 10, Color(0.7, 0.76, 0.82), 1.3, false, true)
-	_helipad(tower, Vector3(1.0, 10 * Structure.FLOOR_HEIGHT + Structure.SLAB_THICKNESS, 1.0))
+	_building(root, Vector3(0, 0, -2), Vector2i(5, 5), 10, Color(0.7, 0.76, 0.82), 1.3, false, true, true)
 	var props := _props()
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_tree(props, Vector3(corner.x * 19, 0, corner.y * 19))
@@ -202,8 +203,9 @@ static func _flat(root: Node3D, center: Vector3, size: Vector2, material: Materi
 
 
 ## ladder: a ladder up the right side to the roof. office: lobby and desks inside.
+## helipad: an H painted on the roof.
 static func _building(root: Node3D, pos: Vector3, footprint: Vector2i, floors: int, color: Color, strength: float,
-		ladder := false, office := false) -> Structure:
+		ladder := false, office := false, helipad := false) -> Structure:
 	var building := Structure.new()
 	building.position = pos
 	building.strength = strength
@@ -215,6 +217,8 @@ static func _building(root: Node3D, pos: Vector3, footprint: Vector2i, floors: i
 		var rung := building.add_box(Vector3(x, height * 0.5, z), Vector3(0.6, height, 0.12), Color(0.75, 0.62, 0.2),
 				Basis(Vector3.UP, PI * 0.5), Look.ladder(height))
 		rung.set_meta("ladder", true)
+	if helipad:
+		_helipad(building, Vector3(1.0, floors * Structure.FLOOR_HEIGHT + Structure.SLAB_THICKNESS, 1.0))
 	root.add_child(building)
 	var rect := _rect(pos, Vector2(footprint) * Structure.CELL)
 	_bare.append(rect)
@@ -369,7 +373,7 @@ static func _scatter_grass(root: Node3D, seed_value: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 7919 + 13
 	var transforms: Array[Transform3D] = []
-	var wanted := mini(int(area * GRASS_DENSITY), MAX_TUFTS)
+	var wanted := mini(int(area * GRASS_DENSITY), Quality.current().grass)
 	var attempts := wanted * 2
 	while transforms.size() < wanted and attempts > 0:
 		attempts -= 1
@@ -378,13 +382,16 @@ static func _scatter_grass(root: Node3D, seed_value: int) -> void:
 			continue
 		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3.ONE * rng.randf_range(0.7, 1.25))
 		transforms.append(Transform3D(basis, Vector3(p.x, 0, p.y)))
-	var grass := _multimesh(Look.grass_tuft(), transforms, [])
-	grass.material_override = Look.grass_material(GRASS_COLOR)
-	root.add_child(grass)
+	var reach: float = Quality.current().grass_range
+	var grass_material := Look.grass_material(GRASS_COLOR)
+	grass_material.set_shader_parameter("fade_start", reach - 12.0)
+	grass_material.set_shader_parameter("fade_end", reach)
+	_add_chunked(root, Look.grass_tuft(), transforms, [], grass_material, reach)
 
 	var flowers: Array[Transform3D] = []
 	var colors: Array[Color] = []
-	for clump in int(area * FLOWER_CLUMPS):
+	var clumps := int(area * FLOWER_CLUMPS) if Quality.current().flowers else 0
+	for clump in clumps:
 		var center := _grass_point(rng, area)
 		if is_nan(center.x):
 			continue
@@ -397,9 +404,7 @@ static func _scatter_grass(root: Node3D, seed_value: int) -> void:
 			flowers.append(Transform3D(basis, Vector3(p.x, 0, p.y)))
 			colors.append(color * rng.randf_range(0.85, 1.05))
 	if not flowers.is_empty():
-		var bed := _multimesh(Look.flower(), flowers, colors)
-		bed.material_override = Look.flowers_material()
-		root.add_child(bed)
+		_add_chunked(root, Look.flower(), flowers, colors, Look.flowers_material(), reach - 6.0)
 
 
 ## A random point on grass (weighted by area), or NAN if it fell on bare ground.
@@ -420,6 +425,32 @@ static func _is_bare(p: Vector2) -> bool:
 		if b.grow(0.2).has_point(p):
 			return true
 	return false
+
+
+## Splits instances into GRASS_CHUNK squares, each its own MultiMesh centered on
+## its square and hidden beyond `reach` (plus the square's half diagonal), so
+## distant and off-screen grass costs nothing.
+static func _add_chunked(root: Node3D, mesh: Mesh, transforms: Array[Transform3D], colors: Array[Color],
+		material: Material, reach: float) -> void:
+	var chunks := {}
+	for i in transforms.size():
+		var cell := Vector2i(floori(transforms[i].origin.x / GRASS_CHUNK), floori(transforms[i].origin.z / GRASS_CHUNK))
+		if not chunks.has(cell):
+			chunks[cell] = []
+		chunks[cell].append(i)
+	for cell: Vector2i in chunks:
+		var center := Vector3((cell.x + 0.5) * GRASS_CHUNK, 0, (cell.y + 0.5) * GRASS_CHUNK)
+		var local: Array[Transform3D] = []
+		var tints: Array[Color] = []
+		for i: int in chunks[cell]:
+			local.append(transforms[i].translated(-center))
+			if not colors.is_empty():
+				tints.append(colors[i])
+		var chunk := _multimesh(mesh, local, tints)
+		chunk.position = center
+		chunk.material_override = material
+		chunk.visibility_range_end = reach + GRASS_CHUNK * 0.71
+		root.add_child(chunk)
 
 
 static func _multimesh(mesh: Mesh, transforms: Array[Transform3D], colors: Array[Color]) -> MultiMeshInstance3D:

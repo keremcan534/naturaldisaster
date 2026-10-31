@@ -116,11 +116,14 @@ vec2 ripple_slope(vec2 p) {
 		float phase = k * dot(dirs[i], q) - sqrt(9.8 * k) * TIME;
 		slope += dirs[i] * cos(phase) * k * 0.012;
 	}
-	float e = 0.25;
-	float n0 = texture(noise, q * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
-	float nx = texture(noise, (q + vec2(e, 0.0)) * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
-	float nz = texture(noise, (q + vec2(0.0, e)) * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
-	slope += vec2(nx - n0, nz - n0) / e * 0.6;
+	// Noise breaks the sines up; skipped on low quality.
+	if (quality > 0.5) {
+		float e = 0.25;
+		float n0 = texture(noise, q * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
+		float nx = texture(noise, (q + vec2(e, 0.0)) * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
+		float nz = texture(noise, (q + vec2(0.0, e)) * 0.05 + vec2(TIME * 0.01, TIME * 0.006)).r;
+		slope += vec2(nx - n0, nz - n0) / e * 0.6;
+	}
 	return slope;
 }
 
@@ -143,7 +146,7 @@ void fragment() {
 	r.y = abs(r.y);
 	float cos_v = clamp(dot(-view_dir, n), 0.0, 1.0);
 	float fresnel = 0.02 + 0.98 * pow(1.0 - cos_v, 5.0);
-	vec3 sky = sky_color(r, TIME, false);
+	vec3 sky = sky_reflection(r, TIME);
 
 	// Sun glint: a tight hot core and a softer sheen around it.
 	float sun_dot = max(dot(r, sun_dir), 0.0);
