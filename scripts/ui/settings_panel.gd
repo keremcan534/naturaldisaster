@@ -34,6 +34,8 @@ func _ready() -> void:
 	box.add_child(_slider_row("Ses", 0.0, 1.0, Settings.volume, func(v: float) -> void:
 		Settings.volume = v
 		Settings.apply_volume()))
+	box.add_child(_slider_row("Müzik", 0.0, 1.0, Settings.music, func(v: float) -> void:
+		Settings.music = v))
 	if controls:
 		box.add_child(_slider_row("Tuş boyutu", 0.8, 1.4, Settings.button_size, func(v: float) -> void:
 			Settings.button_size = v

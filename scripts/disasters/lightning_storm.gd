@@ -116,3 +116,13 @@ func _strike(at: Vector3) -> void:
 	if randf() < FIRE_CHANCE:
 		get_tree().call_group("structures", "ignite", at, 1.6)
 
+
+
+## The nearest marked strike.
+func danger_point(from: Vector3) -> Vector3:
+	var best := Vector3.INF
+	for strike: Array in _pending:
+		var at: Vector3 = strike[0]
+		if best == Vector3.INF or at.distance_to(from) < best.distance_to(from):
+			best = at
+	return best

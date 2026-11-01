@@ -20,6 +20,7 @@ const Sound := preload("res://scripts/core/sound.gd")
 const Structure := preload("res://scripts/world/structure.gd")
 const Settings := preload("res://scripts/core/settings.gd")
 const Profile := preload("res://scripts/core/profile.gd")
+const Progress := preload("res://scripts/core/progress.gd")
 const Bot := preload("res://scripts/player/bot.gd")
 const Menu := preload("res://scripts/ui/menu.gd")
 
@@ -74,6 +75,7 @@ func _ready() -> void:
 	Quality.load_settings(_touch)
 	Settings.load_settings()
 	Profile.load_profile()
+	Progress.load_progress()
 
 	add_child(Sound.new())
 	Settings.apply_volume()
@@ -107,7 +109,9 @@ func _ready() -> void:
 	_hud.bind(_manager, _player)
 	_manager.round_scored.connect(_on_round_scored)
 	_manager.disaster_warned.connect(func(_title: String, _hint: String) -> void:
-		get_tree().call_group("sound", "play", "siren"))
+		get_tree().call_group("sound", "play", "siren")
+		get_tree().call_group("sound", "music", "tense"))
+	_manager.round_started.connect(func() -> void: get_tree().call_group("sound", "music", "calm"))
 
 	for i in BOT_COUNT:
 		var bot := Bot.new()
@@ -124,6 +128,11 @@ func _ready() -> void:
 	_menu.play_pressed.connect(play)
 	_menu.resume_pressed.connect(_resume)
 	_menu.main_menu_pressed.connect(show_menu)
+	_menu.tutorial_closed.connect(func() -> void:
+		Progress.tutorial_done = true
+		Progress.save_progress()
+		_manager.set_process(true)
+		_set_controls(true))
 
 	var debug := DebugTools.new()
 	debug.manager = _manager
@@ -132,13 +141,14 @@ func _ready() -> void:
 	load_next_map()
 	get_tree().call_group("bots", "respawn", spawn_point)
 	if "--play" in args or "--fast" in args:
-		play()
+		play(false)
 	else:
 		show_menu()
 
 
 ## OYNA: a session of rounds on the island behind the menu, scores from zero.
-func play() -> void:
+## from_menu: a person pressed OYNA (debug runs that skip the menu skip the tutorial too).
+func play(from_menu := true) -> void:
 	_playing = true
 	_menu.hide_all()
 	_player.process_mode = Node.PROCESS_MODE_INHERIT
@@ -149,6 +159,11 @@ func play() -> void:
 	_set_controls(true)
 	_hud.visible = true
 	_manager.start(true)
+	# The first time: how to play, with the round clock held until it is read.
+	if not Progress.tutorial_done and from_menu:
+		_manager.set_process(false)
+		_set_controls(false)
+		_menu.show_tutorial(_touch)
 
 
 ## Back to the main menu: the disaster stops, a fresh island loads behind it.
@@ -165,6 +180,7 @@ func show_menu() -> void:
 		load_next_map()
 		get_tree().call_group("bots", "respawn", spawn_point)
 	set_mood("clear")
+	get_tree().call_group("sound", "music", "calm")
 	_menu.show_main(spawn_point)
 
 
@@ -193,9 +209,19 @@ func _set_controls(on: bool) -> void:
 
 func _on_round_scored(board: Array) -> void:
 	var earned := 0
+	var toasts: Array = []
 	if _player.is_in_group("player"):
 		earned = Profile.add_round(_player.round_points, _player.alive, _player.score)
+		var everyone := board.all(func(p: Node) -> bool: return p.alive)
+		var info := {"survived": _player.alive, "points": _player.round_points, "streak": _player.streak,
+				"height": _player.max_height, "flawless": _player.alive and _player.damage_taken < 0.5,
+				"team": everyone, "kinds": _manager.last_round.get("kinds", []),
+				"mega": _manager.last_round.get("mega", false), "double": _manager.last_round.get("double", false)}
+		toasts = Progress.record_round(info)
 	_hud.show_board(board, earned)
+	get_tree().call_group("sound", "music", "calm")
+	for toast: Array in toasts:
+		_hud.toast(toast[0], toast[1])
 
 
 ## Frees the current map and builds a different one.

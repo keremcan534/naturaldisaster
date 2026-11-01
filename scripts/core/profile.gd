@@ -60,6 +60,8 @@ static func load_profile() -> void:
 
 static func save_profile() -> void:
 	var config := ConfigFile.new()
+	# Keep the other sections (progress.gd's).
+	config.load(PATH)
 	config.set_value("profile", "name", player_name)
 	config.set_value("profile", "coins", coins)
 	config.set_value("profile", "best_score", best_score)

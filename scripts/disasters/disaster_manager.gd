@@ -54,6 +54,8 @@ var _current: Node
 var _extra: Node
 var _last_index := -1
 var _rounds := 0
+## What the last finished round was, for missions: {kinds, mega, double}.
+var last_round := {}
 ## The first round of a session plays on the map already loaded (the menu's).
 var _keep_map := false
 
@@ -96,6 +98,18 @@ func coming_kind() -> String:
 	if _current and (_state == State.WARNING or _state == State.ACTIVE):
 		return _current.kind
 	return ""
+
+
+## The nearest danger to `from` and the disaster's name, for the HUD's arrow
+## ([Vector3.INF, ""] when there is nothing to point at).
+func danger_for(from: Vector3) -> Array:
+	if _current and _state == State.ACTIVE:
+		for d: Node in [_current, _extra]:
+			if d:
+				var at: Vector3 = d.danger_point(from)
+				if at != Vector3.INF:
+					return [at, d.display_name]
+	return [Vector3.INF, ""]
 
 
 ## For floods: how high bots should climb (0 otherwise).
@@ -165,8 +179,11 @@ func _enter(state: State) -> void:
 				title += " + " + _extra.display_name.to_upper()
 			status_changed.emit(title)
 		State.RESULTS:
+			last_round = {"kinds": [], "double": _extra != null,
+					"mega": _current.get_script().resource_path.ends_with("mega_tsunami.gd")}
 			for d: Node in [_current, _extra]:
 				if d:
+					last_round.kinds.append(d.kind)
 					d.end()
 					d.queue_free()
 			_current = null

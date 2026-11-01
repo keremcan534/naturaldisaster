@@ -14,8 +14,9 @@ static var stick_home := STICK_HOME
 static var jump_home := JUMP_HOME
 ## Walking into something knee-high hops over it (touch screens).
 static var auto_jump := true
-## Master volume 0..1.
+## Master volume and music volume, 0..1.
 static var volume := 0.8
+static var music := 0.6
 
 
 static func load_settings() -> void:
@@ -29,6 +30,7 @@ static func load_settings() -> void:
 	jump_home = config.get_value("touch", "jump_home", JUMP_HOME)
 	auto_jump = config.get_value("touch", "auto_jump", true)
 	volume = config.get_value("touch", "volume", 0.8)
+	music = config.get_value("touch", "music", 0.6)
 
 
 static func save_settings() -> void:
@@ -41,6 +43,7 @@ static func save_settings() -> void:
 	config.set_value("touch", "jump_home", jump_home)
 	config.set_value("touch", "auto_jump", auto_jump)
 	config.set_value("touch", "volume", volume)
+	config.set_value("touch", "music", music)
 	config.save(PATH)
 
 

@@ -38,3 +38,8 @@ func end() -> void:
 ## Where the danger is (bots run from it), or Vector3.INF when it is everywhere.
 func danger_center() -> Vector3:
 	return Vector3.INF
+
+
+## The nearest danger to `from`, for the HUD's arrow (Vector3.INF: none to show).
+func danger_point(_from: Vector3) -> Vector3:
+	return danger_center()

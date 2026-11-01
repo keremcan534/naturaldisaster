@@ -83,6 +83,9 @@ var is_bot := false
 var score := 0
 var round_points := 0
 var streak := 0
+## This round: the highest the feet got (m) and the damage taken (missions).
+var max_height := 0.0
+var damage_taken := 0.0
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _body: Avatar
@@ -301,6 +304,7 @@ func _physics_process(delta: float) -> void:
 	velocity.z = _walk.z + _push.z
 	move_and_slide()
 	_touch_pieces()
+	max_height = maxf(max_height, global_position.y)
 	# Grass and flowers bend away from the player's legs.
 	RenderingServer.global_shader_parameter_set("player_pos", global_position)
 
@@ -458,6 +462,7 @@ func _update_breath(delta: float) -> void:
 func take_damage(amount: float) -> void:
 	if not alive or amount <= 0.0:
 		return
+	damage_taken += minf(amount, health)
 	health = maxf(health - amount, 0.0)
 	health_changed.emit(health, max_health)
 	if health <= 0.0:
@@ -480,6 +485,8 @@ func respawn(pos: Vector3) -> void:
 	_fall_speed = 0.0
 	_underwater_time = 0.0
 	health = max_health
+	max_height = 0.0
+	damage_taken = 0.0
 	alive = true
 	_body.visible = true
 	health_changed.emit(health, max_health)

@@ -31,6 +31,11 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   items (perks the player reads at respawn, outfits), daily gift, in `user://profile.cfg`.
 - Scoring (`disaster_manager.gd`): survivors get 100 + half their health + streak and team
   bonuses; `round_scored` shows the scoreboard; the player's points / 5 become coins.
+  `scripts/core/progress.gd`: XP and levels, three daily missions (same for everyone each
+  day), achievements; `record_round()` gets what happened (kinds survived, height,
+  flawless, team) and returns toasts for the HUD. Saved in the "progress" section of
+  `user://profile.cfg` (both modules load the file before saving, keep it that way).
+  First play shows a tutorial (menu.gd) while the round clock waits.
 - `scripts/player/bot.gd`: AI teammates in the "player" group (disasters treat them like
   the player; anything called on "player" must exist on bots too). They react a moment
   after the warning: tsunami → up a building (`Maps.refuges`: `Structure.climb_path`
@@ -102,6 +107,7 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   per frame in the menu. `call_group("sound", "play", name, pos)` for one-shots (siren,
   boom, crash, splash, click, coin) and `"loop", name, level, pitch` every frame/tick to
   keep a loop (rumble, wind, fire, surf, rain) going; it fades when the calls stop.
+  `"music", "calm"/"tense"` crossfades the generated music (built a slice per frame).
 - `scripts/world/effects.gd`: pooled particle bursts (explosions, dust from breaking
   pieces), reached through `call_group("effects", ...)`.
 - `scripts/world/maps.gd`: the maps (skyscraper with offices and a helipad, garden house
@@ -130,7 +136,8 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   so move it with `teleport()`/`set_view()`, not by setting transforms. Dead players
   watch a bot. Touch screens get auto-jump over knee-high things.
 - `scripts/ui/`: HUD (FPS / quality readout, warning card on `disaster_warned`, who-fell
-  feed, red flash when hurt) and touch controls (shown on phones
+  feed, red flash when hurt, toasts, an arrow toward `DisasterManager.danger_for()`,
+  i.e. each disaster's `danger_point()`) and touch controls (shown on phones
   and with `-- --touch`), laid out like PUBG Mobile: floating analog stick in the lower
   left (full forward sprints; dragged up onto the lock and released, it auto-runs),
   drag-to-look everywhere else (every finger tracked by index from press to release; the

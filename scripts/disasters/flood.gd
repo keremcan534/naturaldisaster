@@ -42,3 +42,8 @@ func _physics_process(delta: float) -> void:
 		var half := _half + 5.0
 		var region := AABB(Vector3(-half, -1.0, -half), Vector3(half * 2.0, _level + 1.5, half * 2.0))
 		get_tree().call_group("structures", "apply_field", region, _force_at, FIELD_INTERVAL)
+
+
+## Rising everywhere: no direction to point at.
+func danger_point(_from: Vector3) -> Vector3:
+	return Vector3.INF

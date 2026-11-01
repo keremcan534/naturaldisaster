@@ -179,3 +179,10 @@ func _make_spray() -> CPUParticles3D:
 	p.color_ramp = Look.ramp([Color(0.95, 0.97, 1.0, 0.0), Color(0.92, 0.95, 0.97, 0.7), Color(0.9, 0.93, 0.95, 0)])
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
+
+
+## The nearest point of the wave front while it crosses.
+func danger_point(from: Vector3) -> Vector3:
+	if _front >= _half + EDGE_MARGIN or _level <= 0.0:
+		return Vector3.INF
+	return from - _dir * (from.dot(_dir) - _front)

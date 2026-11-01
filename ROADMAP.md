@@ -77,9 +77,9 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Merdiven, trambolin, kaydırak
 - ✅ Yüzme, nefes tutma, düşme hasarı
 - ✅ Ölünce botu izleme
-- 💡 ⭐ Günlük görevler: "3 tsunamiden sağ çık", "bir botu kurtar" → coin
-- 💡 ⭐ Seviye / XP sistemi, seviye atlayınca ödül
-- 💡 ⭐ Başarımlar (rozetler): "Gemi kaptanı", "Ateşten kaçan", "Hortumda uçtu ve yaşadı"…
+- ✅ ⭐ Günlük görevler: her gün 3 yeni görev → coin
+- ✅ ⭐ Seviye / XP sistemi, seviye atlayınca ödül
+- ✅ ⭐ Başarımlar: Kaptan, İtfaiyeci, Fırtına Avcısı, Durdurulamaz… (12 tane)
 - 💡 ⭐ Kullanılabilir eşyalar: paraşüt (yüksekten atla), ilk yardım çantası, kask, can yeleği, kanca (grappling hook)
 - 💡 Çömelme / sürünme (masa altına saklanma depremde güvenli)
 - 💡 Tırmanılabilir duvarlar, çıkıntıdan tutunma
@@ -125,7 +125,8 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 
 ## 6. Ses ve müzik
 - ✅ Siren, patlama, gök gürültüsü, çökme, deprem, rüzgâr, dalga, yağmur, ateş, arayüz sesleri
-- 💡 ⭐ Müzik: menüde sakin tema, felakette gerilimli tema, sonuçta zafer müziği (kodla üretilebilir)
+- ✅ ⭐ Müzik: menüde sakin tema, felakette gerilimli tema (kodla üretildi)
+- 💡 Sonuçta zafer müziği, ölünce hüzünlü kısa melodi
 - 💡 Ayak sesleri (zemine göre: ahşap, beton, çimen, su)
 - 💡 Ortam sesleri: martılar, dalga, kuşlar, şehir uğultusu
 - 💡 Botların sesleri (çığlık, "yardım!")
@@ -135,13 +136,13 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 ## 7. Arayüz
 - ✅ Ana menü, mağaza, ayarlar, duraklatma
 - ✅ Uyarı kartı, elenenler listesi, hasar flaşı, skor tablosu
-- 💡 ⭐ Tehlike yön oku ve mesafe (hortum, lav, dalga nereden geliyor)
-- 💡 ⭐ İlk açılışta kısa öğretici (nasıl oynanır)
+- ✅ ⭐ Tehlike yön oku ve mesafe (hortum, volkan, dalga, yıldırım, yangın)
+- ✅ ⭐ İlk açılışta kısa öğretici (nasıl oynanır)
 - 💡 Mini harita / pusula
 - 💡 Oyuncu adı girme
 - 💡 İstatistik ekranı (toplam tur, en uzun seri, felaket başına hayatta kalma)
 - 💡 Tur sonunda "MVP" ve öne çıkan an
-- 💡 Bildirim: "Günlük görev tamamlandı!"
+- ✅ Bildirim: "Görev tamam!", "Seviye atladın!", "Başarım!"
 - 💡 Renk körü modu, yazı boyutu ayarı
 - 💡 İngilizce dil desteği (daha çok oyuncu)
 

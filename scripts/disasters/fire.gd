@@ -59,3 +59,13 @@ func _physics_process(delta: float) -> void:
 
 func end() -> void:
 	get_tree().call_group("structures", "extinguish")
+
+
+## The nearest fire (from the last ember tick's list).
+func danger_point(from: Vector3) -> Vector3:
+	var best := Vector3.INF
+	for p: Vector4 in _points:
+		var at := Vector3(p.x, p.y, p.z)
+		if best == Vector3.INF or at.distance_squared_to(from) < best.distance_squared_to(from):
+			best = at
+	return best

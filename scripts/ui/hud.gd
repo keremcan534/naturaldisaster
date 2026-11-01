@@ -36,6 +36,16 @@ var _hurt_amount := 0.0
 var _last_health := 100.0
 var _low_health := false
 var _time := 0.0
+## Mission / level / achievement notes, shown one after another.
+var _toast: PanelContainer
+var _toast_text: Label
+var _toast_coins: Ui.CoinLabel
+var _toast_queue: Array = []
+var _toast_time := 0.0
+## An arrow at the edge of a circle around the crosshair, pointing at the danger.
+var _danger: Control
+var _danger_label: Label
+var _danger_angle := 0.0
 
 
 func _ready() -> void:
@@ -151,6 +161,17 @@ func _ready() -> void:
 
 	_card = _build_card()
 	add_child(_card)
+	_toast = _build_toast()
+	add_child(_toast)
+	_danger = Control.new()
+	_danger.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_danger.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_danger.draw.connect(_draw_danger)
+	add_child(_danger)
+	_danger_label = Ui.text("", 18, Color(1.0, 0.75, 0.3))
+	_danger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_danger_label.custom_minimum_size = Vector2(220, 0)
+	_danger.add_child(_danger_label)
 	_feed = VBoxContainer.new()
 	_feed.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	_feed.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -189,6 +210,8 @@ func _process(delta: float) -> void:
 		if _board_time <= 0.0:
 			_board.visible = false
 	_time += delta
+	_update_toast(delta)
+	_update_danger()
 	_hurt_amount = move_toward(_hurt_amount, 0.0, delta * 0.8)
 	var pulse := (0.18 + 0.12 * sin(_time * 5.0)) if _low_health else 0.0
 	_hurt.modulate.a = maxf(_hurt_amount, pulse)
@@ -276,6 +299,86 @@ func _build_board() -> PanelContainer:
 	box.add_child(_board_rows)
 	panel.visible = false
 	return panel
+
+
+## Queues a note like "Görev tamam: ..." with the coins it gave.
+func toast(text: String, coins: int) -> void:
+	_toast_queue.append([text, coins])
+
+
+func _update_toast(delta: float) -> void:
+	_toast_time -= delta
+	if _toast_time > 0.0:
+		_toast.modulate.a = minf(1.0, minf(_toast_time, 2.6 - _toast_time) * 4.0)
+		return
+	_toast.visible = false
+	if _toast_queue.is_empty():
+		return
+	var next: Array = _toast_queue.pop_front()
+	_toast_text.text = next[0]
+	_toast_coins.set_amount(next[1])
+	_toast_coins.visible = next[1] > 0
+	_toast.visible = true
+	_toast_time = 2.6
+	get_tree().call_group("sound", "play", "coin")
+
+
+func _build_toast() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	panel.offset_bottom = -40
+	var style := Ui.panel_style(0.9)
+	style.border_color = Ui.ACCENT
+	style.set_border_width_all(3)
+	style.set_content_margin_all(14)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(row)
+	_toast_text = Ui.text("", 22, Ui.ACCENT)
+	row.add_child(_toast_text)
+	_toast_coins = Ui.CoinLabel.new(22)
+	row.add_child(_toast_coins)
+	panel.visible = false
+	return panel
+
+
+## Where the current danger is, relative to where the camera looks.
+func _update_danger() -> void:
+	var camera := get_viewport().get_camera_3d()
+	var show := false
+	if _manager and _player and _player.alive and camera:
+		var found: Array = _manager.danger_for(_player.global_position)
+		var at: Vector3 = found[0]
+		if at != Vector3.INF:
+			var local := camera.global_transform.affine_inverse() * at
+			_danger_angle = atan2(local.x, -local.z)
+			var dist := Vector2(at.x - _player.global_position.x, at.z - _player.global_position.z).length()
+			_danger_label.text = "%s  %d m" % [found[1].to_upper(), int(dist)]
+			show = dist > 2.0
+	_danger.visible = show
+	if show:
+		var size := _danger.size
+		var radius := size.y * 0.3
+		var tip := size * 0.5 + Vector2(sin(_danger_angle), -cos(_danger_angle)) * (radius + 46.0)
+		_danger_label.position = tip - Vector2(110, -6) + Vector2(sin(_danger_angle), -cos(_danger_angle)) * 22.0
+		_danger.queue_redraw()
+
+
+func _draw_danger() -> void:
+	var size := _danger.size
+	var radius := size.y * 0.3
+	var dir := Vector2(sin(_danger_angle), -cos(_danger_angle))
+	var side := Vector2(-dir.y, dir.x)
+	var base := size * 0.5 + dir * radius
+	var pulse := 0.75 + 0.25 * sin(_time * 8.0)
+	var points := PackedVector2Array([base + dir * 34.0, base + side * 16.0, base - side * 16.0])
+	_danger.draw_colored_polygon(points, Color(1.0, 0.35, 0.15, 0.85 * pulse))
+	_danger.draw_polyline(PackedVector2Array([points[0], points[1], points[2], points[0]]), Color(0, 0, 0, 0.6), 2.0, true)
 
 
 ## Bots' deaths go into the feed too.

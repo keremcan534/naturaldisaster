@@ -17,6 +17,16 @@ const CRASH_GAP := 0.09
 const HEARING := 45.0
 const LOOPS := {"rumble": 2.0, "wind": 2.5, "fire": 2.0, "surf": 2.5, "rain": 2.0}
 const SHOTS := {"siren": 3.0, "boom": 1.4, "crash": 0.5, "splash": 0.8, "click": 0.05, "coin": 0.4}
+## Music loops: a calm one for the menu and between disasters, a tense one while
+## a disaster is coming or under way.
+const MUSIC := {"calm": 8.0, "tense": 4.0}
+const MUSIC_FADE := 1.2
+## Music is built a slice at a time (samples per frame) at a lower rate, so the
+## menu never stalls while it is made.
+const MUSIC_RATE := 8000
+const MUSIC_SLICE := 2000
+
+const Settings := preload("res://scripts/core/settings.gd")
 
 var _streams := {}
 var _pending: Array = []
@@ -28,12 +38,19 @@ var _next_flat := 0
 var _loops := {}
 var _time := 0.0
 var _last_crash := -1.0
+var _music: AudioStreamPlayer
+var _music_mode := ""
+var _music_level := 0.0
+var _building := false
 
 
 func _ready() -> void:
 	add_to_group("sound")
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_pending = ["click", "siren", "boom", "crash", "rumble", "wind", "fire", "surf", "rain", "splash", "coin"]
+	_pending = ["click", "calm", "siren", "boom", "crash", "rumble", "wind", "fire", "surf", "rain", "splash", "coin", "tense"]
+	_music = AudioStreamPlayer.new()
+	_music.volume_db = -80.0
+	add_child(_music)
 	for i in ONE_SHOT_PLAYERS:
 		var p := AudioStreamPlayer3D.new()
 		p.unit_size = 8.0
@@ -54,11 +71,15 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	if not _pending.is_empty():
+	if not _pending.is_empty() and not _building:
 		var name: String = _pending.pop_front()
-		_streams[name] = _make(name)
-		if _loops.has(name):
-			_loops[name][0].stream = _streams[name]
+		if MUSIC.has(name):
+			_build_music(name)
+		else:
+			_streams[name] = _make(name)
+			if _loops.has(name):
+				_loops[name][0].stream = _streams[name]
+	_update_music(delta)
 	for name: String in _loops:
 		var entry: Array = _loops[name]
 		var player: AudioStreamPlayer = entry[0]
@@ -71,6 +92,27 @@ func _process(delta: float) -> void:
 			player.volume_db = linear_to_db(entry[1])
 		elif player.playing:
 			player.stop()
+
+
+## "calm", "tense" or "" (silence): fades out what plays and into the new one.
+func music(mode: String) -> void:
+	_music_mode = mode
+
+
+func _update_music(delta: float) -> void:
+	var want: AudioStream = _streams.get(_music_mode)
+	if _music.stream != want:
+		_music_level = move_toward(_music_level, 0.0, delta / MUSIC_FADE)
+		if _music_level <= 0.0:
+			_music.stream = want
+			if want:
+				_music.play()
+	elif want:
+		_music_level = move_toward(_music_level, 1.0, delta / MUSIC_FADE)
+		if not _music.playing:
+			_music.play()
+	var volume := _music_level * Settings.music * 0.55
+	_music.volume_db = linear_to_db(maxf(volume, 0.0001))
 
 
 func play(name: String, pos: Variant = null, volume_db := 0.0, pitch := 1.0) -> void:
@@ -141,6 +183,71 @@ func _make(name: String) -> AudioStreamWAV:
 		wav.loop_begin = 0
 		wav.loop_end = n
 	return wav
+
+
+## The music loops: chords, an arpeggio and bass (calm); drums, a pulsing bass
+## and trembling strings (tense). Every part repeats exactly at the loop length.
+func _build_music(name: String) -> void:
+	_building = true
+	var rate := MUSIC_RATE
+	var n := int(MUSIC[name] * rate)
+	var x := PackedFloat32Array()
+	x.resize(n)
+	var dt := 1.0 / rate
+	if name == "calm":
+		# Am - F - C - G, two seconds each.
+		var chords := [[220.0, 261.63, 329.63], [174.61, 220.0, 261.63], [196.0, 261.63, 329.63], [196.0, 246.94, 293.66]]
+		var bass := [110.0, 87.31, 130.81, 98.0]
+		for i in n:
+			var t := i * dt
+			var c := int(t / 2.0) % 4
+			var tc := fmod(t, 2.0)
+			var env := minf(tc / 0.5, 1.0) * minf((2.0 - tc) / 0.35, 1.0)
+			var chord: Array = chords[c]
+			var pad := 0.0
+			for f: float in chord:
+				var ph := TAU * f * t
+				pad += sin(ph) + 0.2 * sin(ph * 2.0)
+			var step := int(t / 0.25)
+			var tp := t - step * 0.25
+			var note: float = chord[step % 3] * 2.0
+			var pluck := sin(TAU * note * tp) * exp(-tp * 7.0)
+			var tb := fmod(t, 1.0)
+			var low := sin(TAU * bass[c] * t) * exp(-tb * 2.0)
+			x[i] = pad * 0.09 * env + pluck * 0.22 + low * 0.25 * env
+			if i % MUSIC_SLICE == 0:
+				await get_tree().process_frame
+	else:
+		# D - D - Bb - A, eighth notes at 120 bpm, kick on the beat, hats between.
+		var roots := [73.42, 73.42, 58.27, 55.0]
+		var noise := 0.0
+		for i in n:
+			var t := i * dt
+			var root: float = roots[int(t) % 4]
+			var t8 := fmod(t, 0.25)
+			var ph := TAU * root * t
+			var bass := (sin(ph) + 0.5 * sin(ph * 2.0) + 0.3 * sin(ph * 3.0)) * exp(-t8 * 9.0)
+			var tb := fmod(t, 0.5)
+			var kick := sin(TAU * (48.0 * tb + 3.0 * (1.0 - exp(-tb * 30.0)))) * exp(-tb * 9.0)
+			var th := fmod(t + 0.25, 0.5)
+			noise = randf() * 2.0 - 1.0
+			var hat := noise * exp(-th * 70.0)
+			var strings := (sin(TAU * 587.33 * t) + sin(TAU * 880.0 * t)) * (0.6 + 0.4 * sin(TAU * 8.0 * t))
+			x[i] = bass * 0.3 + kick * 0.55 + hat * 0.12 + strings * 0.05
+			if i % MUSIC_SLICE == 0:
+				await get_tree().process_frame
+	var peak := 0.0001
+	for v in x:
+		peak = maxf(peak, absf(v))
+	var gain := 0.8 / peak
+	for i in n:
+		x[i] *= gain
+	var wav := AudioStreamWAV.load_from_buffer(_wav_header(n, rate) + x.to_byte_array())
+	wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	wav.loop_begin = 0
+	wav.loop_end = n
+	_streams[name] = wav
+	_building = false
 
 
 ## A WAV file header for n mono 32-bit float samples.
