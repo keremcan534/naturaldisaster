@@ -24,7 +24,17 @@ const DISASTERS := [
 	preload("res://scripts/disasters/volcano.gd"),
 	preload("res://scripts/disasters/mega_tsunami.gd"),
 	preload("res://scripts/disasters/fire.gd"),
+	preload("res://scripts/disasters/lightning_storm.gd"),
+	preload("res://scripts/disasters/hail.gd"),
+	preload("res://scripts/disasters/sandstorm.gd"),
+	preload("res://scripts/disasters/flood.gd"),
+	preload("res://scripts/disasters/acid_rain.gd"),
 ]
+## Double disasters: after the first round of a session, sometimes a second one
+## from this list joins the main one (never two floods, never the same kind).
+const COMBO_CHANCE := 0.22
+const COMBO_PARTNERS := [0, 6, 7, 8, 3]
+const WATER_KINDS := ["tsunami"]
 
 enum State { INTERMISSION, WARNING, ACTIVE, RESULTS }
 
@@ -40,7 +50,10 @@ var world: Node3D
 var _state := State.INTERMISSION
 var _time_left := 0.0
 var _current: Node
+## The second disaster of a double, or null.
+var _extra: Node
 var _last_index := -1
+var _rounds := 0
 ## The first round of a session plays on the map already loaded (the menu's).
 var _keep_map := false
 
@@ -56,6 +69,7 @@ func start(keep_map := false) -> void:
 		p.streak = 0
 		p.round_points = 0
 	_keep_map = keep_map
+	_rounds = 0
 	set_process(true)
 	_enter(State.INTERMISSION)
 
@@ -63,11 +77,13 @@ func start(keep_map := false) -> void:
 ## Ends the session (back to the menu): the disaster stops where it is.
 func stop() -> void:
 	set_process(false)
-	if _current:
-		if _current.is_inside_tree():
-			_current.end()
-		_current.queue_free()
-		_current = null
+	for d: Node in [_current, _extra]:
+		if d:
+			if d.is_inside_tree():
+				d.end()
+			d.queue_free()
+	_current = null
+	_extra = null
 	_state = State.INTERMISSION
 
 
@@ -125,21 +141,36 @@ func _enter(state: State) -> void:
 			status_changed.emit("Harita: %s - sonraki felakete hazırlan" % world.map_name)
 		State.WARNING:
 			_current = _pick_disaster()
+			_extra = _pick_partner() if _rounds > 0 and randf() < COMBO_CHANCE else null
+			_rounds += 1
 			world.set_mood(_current.mood)
 			_time_left = maxf(warning_time, _current.warning_time) * time_scale
 			# The HUD's card shows what to do; the status line stays short.
-			status_changed.emit("UYARI: %s geliyor!" % _current.display_name)
-			disaster_warned.emit(_current.display_name, _current.warning)
+			if _extra:
+				status_changed.emit("UYARI: ÇİFTE FELAKET! %s + %s" % [_current.display_name, _extra.display_name])
+				disaster_warned.emit("%s + %s" % [_current.display_name, _extra.display_name], "Çifte felaket! " + _current.warning)
+			else:
+				status_changed.emit("UYARI: %s geliyor!" % _current.display_name)
+				disaster_warned.emit(_current.display_name, _current.warning)
 		State.ACTIVE:
 			_current.duration *= time_scale
 			_time_left = _current.duration
 			add_child(_current)
 			_current.begin()
-			status_changed.emit(_current.display_name.to_upper())
+			var title: String = _current.display_name.to_upper()
+			if _extra:
+				_extra.duration = minf(_extra.duration * time_scale, _current.duration)
+				add_child(_extra)
+				_extra.begin()
+				title += " + " + _extra.display_name.to_upper()
+			status_changed.emit(title)
 		State.RESULTS:
-			_current.end()
-			_current.queue_free()
+			for d: Node in [_current, _extra]:
+				if d:
+					d.end()
+					d.queue_free()
 			_current = null
+			_extra = null
 			_time_left = results_time * time_scale
 			status_changed.emit(_results_text())
 			round_scored.emit(_score_round())
@@ -163,6 +194,25 @@ func _results_text() -> String:
 	if players.size() == 1:
 		return "Hayatta kaldın!" if alive == 1 else "Öldün!"
 	return "Hayatta kalanlar: %d / %d" % [alive, players.size()]
+
+
+## A second disaster to go with the current one: a different kind, and never
+## water on water.
+func _pick_partner() -> Node:
+	var options: Array = []
+	for index: int in COMBO_PARTNERS:
+		if index == _last_index or index >= DISASTERS.size():
+			continue
+		options.append(index)
+	options.shuffle()
+	for index: int in options:
+		var partner: Node = DISASTERS[index].new()
+		if partner.kind == _current.kind or (partner.kind in WATER_KINDS and _current.kind in WATER_KINDS):
+			partner.free()
+			continue
+		partner.world = world
+		return partner
+	return null
 
 
 func _score_round() -> Array:

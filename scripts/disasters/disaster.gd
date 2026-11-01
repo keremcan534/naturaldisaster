@@ -23,6 +23,14 @@ func begin() -> void:
 	pass
 
 
+## Open to the sky above p (nothing solid within `height` meters straight up):
+## hail, acid rain, sand and lightning reach it.
+func exposed(p: Vector3, height := 40.0) -> bool:
+	var from := p + Vector3.UP * 1.7
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.UP * height, 1 | 2)
+	return get_viewport().get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+
 func end() -> void:
 	pass
 

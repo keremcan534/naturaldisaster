@@ -93,6 +93,29 @@ const MOODS := {
 		"top": Color(0.13, 0.15, 0.18), "horizon": Color(0.36, 0.38, 0.4), "haze": Color(0.18, 0.21, 0.23),
 		"sun": Color(0.8, 0.85, 0.9), "energy": 0.3, "ambient": 0.65, "fog": 0.011, "rain": true, "lightning": true,
 	},
+	"sandstorm": {
+		"wind": 2.2,
+		"clouds": 0.9, "cloud_light": Color(0.85, 0.66, 0.42), "cloud_dark": Color(0.5, 0.36, 0.22), "waves": 1.0, "rooms": 0.6,
+		"saturation": 0.9,
+		"top": Color(0.62, 0.48, 0.32), "horizon": Color(0.8, 0.62, 0.4), "haze": Color(0.6, 0.46, 0.3),
+		"sun": Color(1.0, 0.75, 0.5), "energy": 0.55, "ambient": 0.9, "fog": 0.045, "rain": false, "lightning": false,
+	},
+	"acid": {
+		"wind": 0.9,
+		"clouds": 0.92, "cloud_light": Color(0.62, 0.7, 0.45), "cloud_dark": Color(0.25, 0.3, 0.16), "waves": 1.0, "rooms": 0.6,
+		"saturation": 0.8,
+		"top": Color(0.28, 0.34, 0.2), "horizon": Color(0.6, 0.66, 0.42), "haze": Color(0.3, 0.36, 0.22),
+		"sun": Color(0.85, 1.0, 0.7), "energy": 0.45, "ambient": 0.8, "fog": 0.009, "rain": true, "lightning": false,
+		"rain_color": Color(0.55, 1.0, 0.25, 0.5),
+	},
+	"hail": {
+		"wind": 1.2,
+		"clouds": 0.95, "cloud_light": Color(0.62, 0.65, 0.7), "cloud_dark": Color(0.2, 0.22, 0.26), "waves": 1.1, "rooms": 0.7,
+		"saturation": 0.75,
+		"top": Color(0.2, 0.23, 0.28), "horizon": Color(0.48, 0.52, 0.57), "haze": Color(0.24, 0.27, 0.3),
+		"sun": Color(0.85, 0.9, 0.95), "energy": 0.4, "ambient": 0.75, "fog": 0.008, "rain": true, "lightning": false,
+		"rain_color": Color(0.95, 0.97, 1.0, 0.85),
+	},
 	"ash": {
 		"wind": 0.6,
 		"clouds": 0.8, "cloud_light": Color(0.55, 0.32, 0.22), "cloud_dark": Color(0.18, 0.12, 0.1), "waves": 0.7, "rooms": 0.7,
@@ -142,6 +165,7 @@ var _flare_enabled := true
 
 
 func _ready() -> void:
+	add_to_group("weather")
 	_sky = ShaderMaterial.new()
 	_sky.shader = SKY_SHADER
 	_sky.set_shader_parameter("noise", Look.noise_texture())
@@ -389,7 +413,7 @@ func _apply(v: Dictionary) -> void:
 	_env.ambient_light_color = neutral.lerp((v.top as Color).lerp(v.horizon, 0.6), 0.4)
 	_env.adjustment_saturation = v.saturation
 	_env.tonemap_exposure = _exposure_base * v.exposure
-	_rain_material.albedo_color = Color(0.75, 0.8, 0.85, 0.35).lerp(Color(0.4, 0.45, 0.55, 0.25), v.night)
+	_rain_material.albedo_color = MOODS[_mood].get("rain_color", Color(0.75, 0.8, 0.85, 0.35).lerp(Color(0.4, 0.45, 0.55, 0.25), v.night))
 
 
 ## A jagged bolt from the clouds to somewhere around the camera, with a branch.
@@ -402,6 +426,19 @@ func _strike() -> void:
 	var angle := atan2(forward.z, forward.x) + randf_range(-0.9, 0.9)
 	var ground := camera.global_position + Vector3(cos(angle), 0, sin(angle)) * randf_range(50.0, 140.0)
 	ground.y = 0.0
+	_draw_bolt(ground)
+
+
+## A bolt down to a given spot, with the sky flash (the lightning storm aims these).
+func strike_at(ground: Vector3) -> void:
+	_flash = 1.0
+	_draw_bolt(ground)
+
+
+func _draw_bolt(ground: Vector3) -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
 	var top := ground + Vector3(randf_range(-20, 20), 110.0, randf_range(-20, 20))
 	_bolt_mesh.clear_surfaces()
 	var main := _bolt_path(top, ground, 30, 0.55)

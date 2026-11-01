@@ -11,6 +11,21 @@ signal died
 const Avatar := preload("res://scripts/player/avatar.gd")
 const Maps := preload("res://scripts/world/maps.gd")
 
+## What bots shout when they react to a disaster.
+const SHOUTS := {
+	"tsunami": ["Çatıya çıkın!", "Su geliyor!", "Yukarı, yukarı!"],
+	"earthquake": ["Binalardan uzaklaşın!", "Açık alana!", "Yer sallanıyor!"],
+	"meteor": ["İçeri girin!", "Gökyüzüne bakın!", "Saklanın!"],
+	"tornado": ["Kaçııın!", "Hortum geliyor!", "Uzaklaşın!"],
+	"volcano": ["Lavdan uzak durun!", "Dağ patlıyor!"],
+	"fire": ["Yangın var!", "Dumandan uzak durun!", "Dışarı çıkın!"],
+	"lightning": ["Çatıdan inin!", "Açıkta durmayın!", "İçeri!"],
+	"hail": ["Çatının altına!", "Başınızı koruyun!"],
+	"acid": ["Islanmayın!", "Kapalı yere!"],
+	"sandstorm": ["Hiçbir şey görmüyorum!", "İçeri girin!"],
+	"default": ["Dikkat!", "Koşun!"],
+}
+
 const NAMES := ["Mert_06", "ZeynoTR", "KasırgaAvcısı", "Elif.exe", "BurakPro", "Deniz35", "Ayşegül", "CanBey",
 		"KralKaan", "Ecem", "Yiğit", "SelinX"]
 const SHIRTS := [Color(0.9, 0.3, 0.25), Color(0.25, 0.7, 0.35), Color(0.95, 0.6, 0.1), Color(0.6, 0.35, 0.85),
@@ -59,6 +74,8 @@ var world: Node3D
 
 var _avatar: Avatar
 var _label: Label3D
+var _bubble: Label3D
+var _bubble_time := 0.0
 var _rng := RandomNumberGenerator.new()
 ## 0..1: how quickly and how sensibly it reacts.
 var _skill := 1.0
@@ -151,8 +168,26 @@ func _ready() -> void:
 	_label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_label)
 
+	_bubble = Label3D.new()
+	_bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_bubble.fixed_size = true
+	_bubble.font_size = 40
+	_bubble.outline_size = 14
+	_bubble.pixel_size = 0.001
+	_bubble.position.y = 2.55
+	_bubble.modulate = Color(1.0, 0.95, 0.6)
+	_bubble.outline_modulate = Color(0.1, 0.08, 0.05)
+	_bubble.visibility_range_end = 40.0
+	_bubble.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_bubble.visible = false
+	add_child(_bubble)
+
 
 func _physics_process(delta: float) -> void:
+	if _bubble_time > 0.0:
+		_bubble_time -= delta
+		if _bubble_time <= 0.0:
+			_bubble.visible = false
 	if not alive:
 		_dead_time += delta
 		_avatar.rotation.x = move_toward(_avatar.rotation.x, -PI * 0.5, delta * 6.0)
@@ -296,9 +331,22 @@ func _make_plan(coming: String) -> void:
 			_go_far_side()
 		"fire":
 			_go_open()
+		"lightning", "hail", "acid", "sandstorm":
+			_panic = 1.0 if coming == "lightning" else 0.0
+			_go_inside()
 		_:
 			_plan = "wander"
 			_hurry = false
+	if coming != "" and _rng.randf() < 0.65:
+		var lines: Array = SHOUTS.get(coming, SHOUTS.default)
+		_say(lines[_rng.randi() % lines.size()])
+
+
+## A speech bubble over the head for a few seconds.
+func _say(text: String, seconds := 2.8) -> void:
+	_bubble.text = text
+	_bubble.visible = true
+	_bubble_time = seconds
 
 
 ## Re-aims plans that follow a moving danger, and keeps wandering going.
@@ -508,6 +556,7 @@ func take_damage(amount: float) -> void:
 		alive = false
 		_dead_time = 0.0
 		_label.visible = false
+		_bubble.visible = false
 		velocity = Vector3.ZERO
 		_path.clear()
 		died.emit()

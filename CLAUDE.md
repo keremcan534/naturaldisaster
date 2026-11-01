@@ -35,7 +35,8 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   the player; anything called on "player" must exist on bots too). They react a moment
   after the warning: tsunami → up a building (`Maps.refuges`: `Structure.climb_path`
   through the door and up the ramps, or a ladder), quake → open ground (`Maps.buildings`),
-  meteors → inside, tornado → away from `danger_center()`, volcano → the +Z side.
+  meteors → inside, tornado → away from `danger_center()`, volcano → the +Z side, fire →
+  open ground, lightning/hail/acid/sand → inside. They shout lines (`SHOUTS`) in a bubble.
   `--botlog` prints what they do. `avatar.gd` + `shaders/avatar.gdshader`: blocky
   character in one draw call (limbs swing in the shader); also the player's shadow.
 - `scripts/world/structure.gd`: breakable structures. Intact pieces are frozen
@@ -114,6 +115,13 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   through weak houses, stops at the first strong building, runs aground and stays
   (`world.keep_on_map`). The tornado is shader layers on lathe meshes
   (`shaders/tornado*.gdshader`: core and sheath, wall cloud, dust moved in the shader).
+  `sky_hazard.gd` is the base for hail, acid rain and sandstorm: `exposed()` (nothing
+  overhead, a ray straight up) decides who gets hurt. `lightning_storm.gd` marks each
+  strike with a glowing ring first and calls `weather.strike_at()`; `flood.gd` is a
+  tsunami with no wave whose water just rises. The manager sometimes runs a second
+  disaster from `COMBO_PARTNERS` alongside the main one (double disaster).
+- `ROADMAP.md`: the backlog of everything planned or imagined, in Turkish, with what is
+  done; keep it up to date when adding features.
 - `scripts/player/player.gd`: first-person controller at human scale (1.75 m, 0.3 m
   radius, 4.5/7 m/s, ~1.3 m jump, horizontal 90° FOV); world effects go through
   `push()`, `set_water()`, `explode_at()`, `take_damage()`, `add_shake()` (ground shaking:
