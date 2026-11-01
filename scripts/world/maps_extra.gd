@@ -224,6 +224,10 @@ static func _stadium(M: GDScript, root: Node3D) -> Dictionary:
 		root.add_child(stand)
 		M._bare.append(Rect2(-21, (18.0 if side > 0 else -25.8), 42, 7.8))
 		M._shades.append(Rect2(-20, (18.0 if side > 0 else -25.0), 40, 7.0))
+	# A clubhouse with locker rooms behind one goal and a ticket office: the
+	# only roofs to hide under from hail, acid and lightning.
+	M._building(root, Vector3(32, 0, 0), Vector2i(4, 5), 2, Color(0.75, 0.2, 0.18), 1.4)
+	M._building(root, Vector3(-30, 0, 12), Vector2i(4, 3), 1, Color(0.85, 0.82, 0.75), 1.0)
 	# Floodlights at the corners (ladders up), goals, a scoreboard.
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_tower(M, root, Vector3(corner.x * 30, 0, corner.y * 27), 1.2, 21.0, [STEEL], 2.0)

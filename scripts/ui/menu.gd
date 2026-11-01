@@ -140,6 +140,7 @@ func _build_main() -> Control:
 	var root := _screen()
 	var heading := VBoxContainer.new()
 	heading.position = Vector2(40, 26)
+	heading.add_theme_constant_override("separation", 6)
 	heading.add_child(Ui.text("DOĞAL AFET", 68, Ui.ACCENT))
 	heading.add_child(Ui.text("Felaketlerden sağ çık, puanları topla!", 22))
 	_level = Ui.text("", 20, Color(0.8, 0.95, 1.0))
@@ -299,7 +300,7 @@ func _refresh_goals() -> void:
 	# The month's free reward track.
 	var tier := Season.tier()
 	var top := Season.REWARDS.size()
-	_goals_list.add_child(Ui.text("%s  ·  %s %d / %d" % [Season.name(), Lang.t("kademe"), tier, top], 22, Ui.ACCENT))
+	_goals_list.add_child(Ui.text("%s  ·  %s %d / %d" % [Season.title(), Lang.t("kademe"), tier, top], 22, Ui.ACCENT))
 	var next := "Sezon kıyafeti kazanıldı!" if tier >= top else \
 			Lang.t("Sonraki kademe: %d / %d XP  →  +%d coin%s") % [Season.xp % Season.XP_PER_TIER, Season.XP_PER_TIER,
 			Season.REWARDS[tier], Lang.t(" ve Sezon kıyafeti") if tier == top - 1 else ""]

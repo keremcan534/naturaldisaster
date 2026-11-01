@@ -22,7 +22,7 @@ static func _current_id() -> int:
 	return int(date.year) * 12 + int(date.month) - 1
 
 
-static func name() -> String:
+static func title() -> String:
 	return "%s Sezonu" % MONTHS[_current_id() % 12]
 
 
