@@ -310,7 +310,12 @@ func _follow_plan() -> void:
 				_wait -= THINK_INTERVAL
 				if _wait <= 0.0:
 					_wait = _rng.randf_range(0.5, 4.0)
-					_path = [_island_point(global_position, 12.0)]
+					var target := _island_point(global_position, 12.0)
+					# In the main menu the camera stands just behind the spawn
+					# point: stay out in front of it, not in its face.
+					if manager and not manager.running():
+						target.z = minf(target.z, world.spawn_point.z - 3.0)
+					_path = [target]
 					if _rng.randf() < 0.15 and is_on_floor():
 						velocity.y = JUMP_VELOCITY
 		"flee":
