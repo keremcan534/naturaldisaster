@@ -87,6 +87,7 @@ func stop() -> void:
 	_current = null
 	_extra = null
 	_state = State.INTERMISSION
+	get_tree().call_group("weather", "drain_sea", 0.0)
 
 
 func running() -> bool:
@@ -158,6 +159,7 @@ func _enter(state: State) -> void:
 			_extra = _pick_partner() if _rounds > 0 and randf() < COMBO_CHANCE else null
 			_rounds += 1
 			world.set_mood(_current.mood)
+			_omens(true)
 			_time_left = maxf(warning_time, _current.warning_time) * time_scale
 			# The HUD's card shows what to do; the status line stays short.
 			if _extra:
@@ -167,6 +169,7 @@ func _enter(state: State) -> void:
 				status_changed.emit("UYARI: %s geliyor!" % _current.display_name)
 				disaster_warned.emit(_current.display_name, _current.warning)
 		State.ACTIVE:
+			_omens(false)
 			_current.duration *= time_scale
 			_time_left = _current.duration
 			add_child(_current)
@@ -211,6 +214,16 @@ func _results_text() -> String:
 	if players.size() == 1:
 		return "Hayatta kaldın!" if alive == 1 else "Öldün!"
 	return "Hayatta kalanlar: %d / %d" % [alive, players.size()]
+
+
+## Signs before it hits: the sea draws back before a tsunami (and returns with
+## the wave), the gulls flee before a quake or an eruption.
+func _omens(warning: bool) -> void:
+	var tsunami: bool = _current.kind == "tsunami" and _current.safe_height > 5.0
+	if tsunami:
+		get_tree().call_group("weather", "drain_sea", 3.5 if warning else 0.0)
+	if warning and _current.kind in ["earthquake", "volcano"]:
+		get_tree().call_group("ambience", "scatter")
 
 
 ## A second disaster to go with the current one: a different kind, and never

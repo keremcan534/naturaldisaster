@@ -5,9 +5,10 @@ extends RefCounted
 const Structure := preload("res://scripts/world/structure.gd")
 const Look := preload("res://scripts/world/look.gd")
 const Mall := preload("res://scripts/world/mall.gd")
+const Ship := preload("res://scripts/world/ship.gd")
 const Quality := preload("res://scripts/core/quality.gd")
 
-const COUNT := 5
+const COUNT := 6
 const PLAZA_COLOR := Color(0.72, 0.7, 0.66)
 const TRAMPOLINE_COLOR := Color(0.15, 0.45, 0.95)
 ## Clutter: how weakly it holds (it should fly first), how much per meter of map.
@@ -72,8 +73,10 @@ static func build(index: int, root: Node3D) -> Dictionary:
 			info = _apartment(root)
 		3:
 			info = _neighbourhood(root)
-		_:
+		4:
 			info = _mall(root)
+		_:
+			info = _port(root)
 	_clutter(root, info.size, info.spawn, index)
 	_scatter_grass(root, index)
 	Look.set_shades(_shades)
@@ -270,6 +273,119 @@ static func _building(root: Node3D, pos: Vector3, footprint: Vector2i, floors: i
 	_bare.append(rect)
 	_shades.append(rect)
 	return building
+
+
+## A harbour: a concrete quay with stacks of containers (light enough to fly in a
+## flood), two gantry cranes with ladders up a leg, a warehouse, a port office,
+## a lighthouse on the far corner, and a cargo ship moored alongside with a
+## gangway onto its bow deck.
+static func _port(root: Node3D) -> Dictionary:
+	var size := 64.0
+	var half := size * 0.5
+	_ground(root, size, Color(0.5, 0.5, 0.48))
+	_decal(root, Vector3(-20, 0, 24), Vector2(18, 10), GRASS_COLOR)
+	_road(root, Vector3(-6, 0, 0), size, false)
+	_building(root, Vector3(-20, 0, -12), Vector2i(6, 4), 2, Color(0.52, 0.58, 0.64), 1.1)
+	_building(root, Vector3(-21, 0, 10), Vector2i(4, 4), 5, Color(0.86, 0.84, 0.78), 2.2, true)
+
+	var yard := Structure.new()
+	yard.strength = 0.9
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2024
+	for x: float in [5.0, 12.5]:
+		for k in 9:
+			var z := -24.0 + k * 2.6
+			for level in rng.randi_range(1, 3):
+				var c: Color = Ship.CONTAINERS[rng.randi() % Ship.CONTAINERS.size()]
+				yard.add_box(Vector3(x, 1.3 + level * 2.6, z), Vector3(6.0, 2.6, 2.4), c)
+	root.add_child(yard)
+	_bare.append(Rect2(1.5, -25.5, 14.5, 25.0))
+	_shades.append(Rect2(2.0, -25.0, 13.5, 24.0))
+
+	for z: float in [-14.0, 12.0]:
+		_crane(root, Vector3(24, 0, z))
+	_lighthouse(root, Vector3(-26, 0, -26))
+	_moored_ship(root, Vector3(half + 4.6, 0, -2.0))
+
+	var props := _props()
+	# The gangway from the quay onto the ship's bow deck, and bollards along the edge.
+	props.add_box(Vector3(half + 0.5, 0.06, 10.0), Vector3(2.4, 0.12, 1.4), Color(0.45, 0.35, 0.25))
+	for k in 7:
+		props.add_box(Vector3(half - 0.6, 0.3, -26.0 + k * 8.5), Vector3(0.45, 0.6, 0.45), Color(0.15, 0.15, 0.17))
+	_car(props, Vector3(-2, 0, 20), false, CAR_COLORS[1])
+	_car(props, Vector3(-10, 0, -24), false, CAR_COLORS[3])
+	_tree(props, Vector3(-24, 0, 26))
+	_tree(props, Vector3(-15, 0, 23))
+	root.add_child(props)
+	return {"name": "Liman", "size": size, "spawn": Vector3(0, 0.5, 26)}
+
+
+## A gantry crane: four legs, two beams, a long boom out over the water and a
+## cabin on top; a ladder up one leg leads to the beams (20 m up).
+static func _crane(root: Node3D, pos: Vector3) -> void:
+	var crane := Structure.new()
+	crane.position = pos
+	crane.strength = 2.2
+	var yellow := Color(0.95, 0.72, 0.12)
+	for x: float in [-3.0, 3.0]:
+		for z: float in [-2.5, 2.5]:
+			crane.add_box(Vector3(x, 10.0, z), Vector3(0.7, 20.0, 0.7), yellow)
+		crane.add_box(Vector3(x, 20.4, 0), Vector3(0.9, 0.8, 5.8), yellow)
+	crane.add_box(Vector3(6.0, 21.3, 0), Vector3(26.0, 1.0, 1.4), yellow)
+	crane.add_box(Vector3(-1.0, 22.9, 0), Vector3(2.4, 2.2, 2.4), Color(0.9, 0.9, 0.88))
+	var height := 21.8
+	var rung := crane.add_box(Vector3(-3.0, height * 0.5, -2.5 - 0.41), Vector3(0.6, height, 0.12), Color(0.75, 0.62, 0.2),
+			Basis(Vector3.UP, PI), Look.ladder(height))
+	rung.set_meta("ladder", true)
+	root.add_child(crane)
+	_add_ladder_refuge(crane, rung, 20.8)
+	var rect := _rect(pos, Vector2(7.4, 6.4))
+	_bare.append(rect)
+	_shades.append(rect)
+
+
+## A striped tower with a gallery and a glowing lamp room; a ladder up its side.
+static func _lighthouse(root: Node3D, pos: Vector3) -> void:
+	var tower := Structure.new()
+	tower.position = pos
+	tower.strength = 2.4
+	for k in 6:
+		var c := Color(0.95, 0.95, 0.93) if k % 2 == 0 else Color(0.8, 0.15, 0.12)
+		tower.add_box(Vector3(0, 1.5 + k * 3.0, 0), Vector3(3.0, 3.0, 3.0), c)
+	tower.add_box(Vector3(0, 18.15, 0), Vector3(5.0, 0.3, 5.0), Color(0.2, 0.2, 0.22))
+	var lamp := Vector3(1.6, 1.8, 1.6)
+	tower.add_box(Vector3(0, 18.3 + lamp.y * 0.5, 0), lamp, Color(1.0, 0.9, 0.6), Basis.IDENTITY,
+			Look.glow(lamp, Color(1.0, 0.85, 0.45), 3.0))
+	tower.add_box(Vector3(0, 18.3 + lamp.y + 0.2, 0), Vector3(2.2, 0.4, 2.2), Color(0.8, 0.15, 0.12))
+	var height := 19.3
+	var rung := tower.add_box(Vector3(1.5 + 0.08, height * 0.5, 0), Vector3(0.6, height, 0.12), Color(0.75, 0.62, 0.2),
+			Basis(Vector3.UP, PI * 0.5), Look.ladder(height))
+	rung.set_meta("ladder", true)
+	root.add_child(tower)
+	_add_ladder_refuge(tower, rung, 18.3)
+	var rect := _rect(pos, Vector2(5.0, 5.0))
+	_bare.append(rect)
+	_shades.append(_rect(pos, Vector2(3.0, 3.0)))
+
+
+## The cargo ship tied up along the quay, bow toward +Z, its deck level with the quay.
+static func _moored_ship(root: Node3D, pos: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.collision_layer = 1
+	body.collision_mask = 0
+	body.position = Vector3(pos.x, -2.5 - Ship.DRAFT + 0.1, pos.z)
+	body.rotation.y = -PI * 0.5
+	for box: Array in Ship.collision_boxes():
+		var shape := CollisionShape3D.new()
+		var b := BoxShape3D.new()
+		b.size = box[1]
+		shape.shape = b
+		shape.position = box[0]
+		body.add_child(shape)
+	var hull := MeshInstance3D.new()
+	hull.mesh = Ship.mesh()
+	body.add_child(hull)
+	root.add_child(body)
 
 
 ## A big bouncy pad on a dark frame; landing on it throws you up.

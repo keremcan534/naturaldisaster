@@ -110,9 +110,12 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   `"music", "calm"/"tense"` crossfades the generated music (built a slice per frame).
 - `scripts/world/effects.gd`: pooled particle bursts (explosions, dust from breaking
   pieces), reached through `call_group("effects", ...)`.
-- `scripts/world/maps.gd`: the maps (skyscraper with offices and a helipad, garden house
-  with a playground, apartment, neighbourhood, mall); trampolines, slides and ladders up
-  some buildings.
+- `scripts/world/maps.gd`: the maps (skyscraper with offices, a helipad and a cafe, garden
+  house with a playground, apartment with a corner shop, neighbourhood, mall, port with
+  gantry cranes, container stacks, a lighthouse and a moored ship); trampolines, slides
+  and ladders up some buildings. Ladders become bot refuges through `_add_ladder_refuge`.
+- Omens (`DisasterManager._omens`): the sea draws back before a tsunami
+  (`weather.drain_sea`), the gulls flee before a quake or an eruption (`ambience.scatter`).
 - `scripts/disasters/`: `disaster.gd` base + one file per disaster, registered in
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
   A disaster can set `safe_height` (how high bots climb), a longer `warning_time` and

@@ -162,6 +162,7 @@ var _flare_visible := 0.0
 var _flare_check := 0.0
 var _sun_clear := true
 var _flare_enabled := true
+var _sea: MeshInstance3D
 
 
 func _ready() -> void:
@@ -211,6 +212,7 @@ func _ready() -> void:
 		_exposure_base = 0.8
 
 	var sea := MeshInstance3D.new()
+	_sea = sea
 	var mat := ShaderMaterial.new()
 	mat.shader = SEA_SHADER
 	mat.set_shader_parameter("noise", Look.noise_texture())
@@ -427,6 +429,12 @@ func _strike() -> void:
 	var ground := camera.global_position + Vector3(cos(angle), 0, sin(angle)) * randf_range(50.0, 140.0)
 	ground.y = 0.0
 	_draw_bolt(ground)
+
+
+## Before a tsunami the sea draws back from the shore (drop in meters); 0 brings it back.
+func drain_sea(drop: float) -> void:
+	var tween := create_tween()
+	tween.tween_property(_sea, "position:y", SEA_LEVEL - drop, 4.0 if drop > 0.0 else 1.5).set_trans(Tween.TRANS_SINE)
 
 
 ## A bolt down to a given spot, with the sky flash (the lightning storm aims these).

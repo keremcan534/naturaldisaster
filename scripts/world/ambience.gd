@@ -17,6 +17,7 @@ var _time := 0.0
 
 
 func _ready() -> void:
+	add_to_group("ambience")
 	for i in SHIPS:
 		var ship := MeshInstance3D.new()
 		ship.mesh = Ship.mesh()
@@ -41,6 +42,19 @@ func set_island(half: float) -> void:
 
 func set_night(night: bool) -> void:
 	_birds.visible = not night
+	_flee(0.0, 0.1)
+
+
+## The gulls fly off before an earthquake or an eruption (they come back next map).
+func scatter() -> void:
+	_flee(1.0, 7.0)
+
+
+func _flee(to: float, seconds: float) -> void:
+	var mat: ShaderMaterial = _birds.multimesh.mesh.surface_get_material(0)
+	var tween := create_tween()
+	var from: Variant = mat.get_shader_parameter("flee")
+	tween.tween_method(func(v: float) -> void: mat.set_shader_parameter("flee", v), from if from != null else 0.0, to, seconds)
 
 
 func _process(delta: float) -> void:

@@ -7,6 +7,8 @@ render_mode cull_disabled;
 
 uniform vec3 color : source_color = vec3(0.92, 0.92, 0.9);
 uniform vec3 tips : source_color = vec3(0.25, 0.25, 0.27);
+// 0..1: the flock scatters out to sea and up (animals sense a quake coming).
+uniform float flee = 0.0;
 
 varying float wing;
 
@@ -21,6 +23,8 @@ void vertex() {
 	v.y += wing * mix(flap * 0.6, 0.15, gliding);
 	// Fly along the circle (counter-clockwise when speed > 0): forward is -Z.
 	vec3 pos = vec3(cos(angle) * c.y, c.z + sin(TIME * 0.3 + c.x) * 2.0, sin(angle) * c.y);
+	pos.xz += normalize(pos.xz + vec2(0.001)) * flee * 140.0;
+	pos.y += flee * 45.0;
 	vec3 forward = normalize(vec3(-sin(angle), 0.0, cos(angle)) * sign(c.w));
 	vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
 	vec3 up = cross(right, forward) + right * 0.25;

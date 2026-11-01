@@ -42,7 +42,8 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - 💡 Elektrik direklerinin devrilmesi, kopan kablolar çarpar
 - 💡 Benzinlik / gaz tankı patlaması: zincirleme patlama
 - 💡 Felaket şiddeti seviyeleri (hafif / şiddetli / felaket), tur ilerledikçe artar
-- 💡 Felaket öncesi gerçekçi işaretler: deprem öncesi kuşlar kaçar, tsunami öncesi deniz çekilir, volkan öncesi duman
+- ✅ Felaket öncesi işaretler: tsunami öncesi deniz çekilir, deprem/volkan öncesi martılar kaçar
+- 💡 Volkan öncesi duman, deprem öncesi hayvan sesleri
 
 ## 2. Haritalar
 - ✅ Gökdelen (ofisler, helikopter pisti, kafe)
@@ -50,7 +51,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Apartman (köşe büfesi, oyun parkı)
 - ✅ Mahalle (4 ev, yollar)
 - ✅ AVM (atrium, yürüyen merdiven, sinema, çatı otoparkı)
-- 💡 ⭐ Liman: vinçler, konteynerler, iskele, demirli gemiler (tsunami ve gemi için mükemmel)
+- ✅ ⭐ Liman: tırmanılabilir vinçler, uçan konteynerler, deniz feneri, yanaşmış gemi (iskele ile güverteye çıkılır)
 - 💡 ⭐ Okul: sınıflar, spor salonu, bahçe, bayrak direği
 - 💡 ⭐ Hastane: çok katlı, asansör boşluğu, çatıda helikopter
 - 💡 Stadyum: tribünler, saha, skor tabelası
@@ -110,7 +111,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Kırılma, toz, enkaz, alevler, duman
 - ✅ Gemiler, martılar
 - 💡 ⭐ Ekranda yağmur damlaları / su efekti (dalgaya yakalanınca)
-- 💡 ⭐ Felaket öncesi ve sonrası ipuçları (kuşlar kaçar, deniz çekilir)
+- ✅ ⭐ Felaket öncesi ipuçları (kuşlar kaçar, deniz çekilir)
 - 💡 Yıkıntının üstünde toz bulutu kalır, yavaşça yatışır
 - 💡 Islak zeminde yansıma, ıslak duvarlar
 - 💡 Gece sokak lambaları ve ev ışıkları felakette sönüp yanıp söner
