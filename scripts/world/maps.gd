@@ -6,9 +6,11 @@ const Structure := preload("res://scripts/world/structure.gd")
 const Look := preload("res://scripts/world/look.gd")
 const Mall := preload("res://scripts/world/mall.gd")
 const Ship := preload("res://scripts/world/ship.gd")
+const MapsExtra := preload("res://scripts/world/maps_extra.gd")
 const Quality := preload("res://scripts/core/quality.gd")
 
-const COUNT := 6
+const BASE_COUNT := 6
+const COUNT := BASE_COUNT + MapsExtra.COUNT
 const PLAZA_COLOR := Color(0.72, 0.7, 0.66)
 const TRAMPOLINE_COLOR := Color(0.15, 0.45, 0.95)
 ## Clutter: how weakly it holds (it should fly first), how much per meter of map.
@@ -75,8 +77,10 @@ static func build(index: int, root: Node3D) -> Dictionary:
 			info = _neighbourhood(root)
 		4:
 			info = _mall(root)
-		_:
+		5:
 			info = _port(root)
+		_:
+			info = MapsExtra.build(load("res://scripts/world/maps.gd"), index - BASE_COUNT, root)
 	_clutter(root, info.size, info.spawn, index)
 	_scatter_grass(root, index)
 	Look.set_shades(_shades)

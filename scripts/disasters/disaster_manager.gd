@@ -248,6 +248,9 @@ func _omens(warning: bool) -> void:
 		get_tree().call_group("ambience", "scatter")
 	if warning and _current.kind == "earthquake":
 		get_tree().call_group("ambience", "barks")
+	# Shaking and gales jam the lifts wherever they are.
+	if not warning and _current.kind in ["earthquake", "hurricane", "tornado"]:
+		get_tree().call_group("elevators", "jam")
 	if _current.kind == "volcano":
 		get_tree().call_group("ambience", "volcano_smoke", Vector3(0, 0, -world.map_size * 0.5 - 6.0), warning)
 

@@ -77,6 +77,9 @@ const _HIDDEN_SCALE := Basis(Vector3(0.0001, 0, 0), Vector3(0, 0.0001, 0), Vecto
 
 ## Higher survives more shaking.
 @export var strength := 1.0
+## How many sideways links a piece can hang from (frames like a big wheel or a
+## rollercoaster need more than walls and slabs).
+var span_limit := MAX_SPAN
 ## Fire (see ignite()): each burning piece's progress 0..1, the burning pieces,
 ## and who rests on what in reverse (fire spreads down too, slowly).
 var _heat := PackedFloat32Array()
@@ -816,7 +819,7 @@ func _settle() -> void:
 	var n := _pieces.size()
 	var span := PackedInt32Array()
 	span.resize(n)
-	span.fill(MAX_SPAN + 1)
+	span.fill(span_limit + 1)
 	var queue: Array[int] = []
 	for i in n:
 		if _grounded[i] and not _loose[i]:
@@ -830,7 +833,7 @@ func _settle() -> void:
 			if not _loose[j] and span[j] > 0:
 				span[j] = 0
 				queue.append(j)
-		if span[i] < MAX_SPAN:
+		if span[i] < span_limit:
 			for j: int in _side[i]:
 				if not _loose[j] and span[j] > span[i] + 1:
 					span[j] = span[i] + 1
@@ -838,7 +841,7 @@ func _settle() -> void:
 	var dropped := 0
 	var where := Vector3.ZERO
 	for i in n:
-		if not _loose[i] and span[i] > MAX_SPAN:
+		if not _loose[i] and span[i] > span_limit:
 			_release(i)
 			dropped += 1
 			where += _pieces[i].global_position

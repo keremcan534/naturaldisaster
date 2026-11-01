@@ -52,23 +52,23 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Mahalle (4 ev, yollar)
 - ✅ AVM (atrium, yürüyen merdiven, sinema, çatı otoparkı)
 - ✅ ⭐ Liman: tırmanılabilir vinçler, uçan konteynerler, deniz feneri, yanaşmış gemi (iskele ile güverteye çıkılır)
-- 💡 ⭐ Okul: sınıflar, spor salonu, bahçe, bayrak direği
-- 💡 ⭐ Hastane: çok katlı, asansör boşluğu, çatıda helikopter
-- 💡 Stadyum: tribünler, saha, skor tabelası
-- 💡 Köprü + nehir: asma köprü sallanır, kopar
-- 💡 Lunapark: dönme dolap (döner, kopar), hız treni rayları, çarpışan arabalar
-- 💡 Benzinlik + market: patlayabilen tanklar
-- 💡 Deniz feneri ve kayalık
-- 💡 Köy: ahşap evler, çiftlik, ahır, saman balyaları (yangın için)
-- 💡 Kayak merkezi (karlı): teleferik, kulübeler
-- 💡 Çöl kasabası: kerpiç evler, su kulesi
-- 💡 Şehir merkezi: 3-4 gökdelen, metro girişi, trafik ışıkları
-- 💡 Kale / tarihi yapı
-- 💡 Havalimanı: uçak, hangar, kule
-- 💡 Petrol platformu (denizin ortasında)
-- 💡 Kamp alanı: çadırlar, karavan, göl
-- 💡 Haritada gizli yerler / sığınaklar (bodrum, sığınak kapısı)
-- 💡 Asansörler (çalışan, felakette arızalanan)
+- ✅ ⭐ Okul: sıralı sınıflar, spor salonu, basket sahası, bayrak direği, oyun parkı
+- ✅ ⭐ Hastane: 7 katlı, dış cam asansör, çatıda helikopter pisti, ambulanslar
+- ✅ Stadyum: tribünler, saha, kaleler, tırmanılabilir ışık kuleleri, skor tabelası
+- ✅ Nehir + köprü: yüzülebilen nehir, kırılabilen köprü
+- ✅ Lunapark: dönme dolap, hız treni, çarpışan arabalar, atlıkarınca
+- ✅ Benzinlik + market: patlayan pompalar ve tanklar (şehir haritasında)
+- ✅ Deniz feneri (liman haritasında)
+- ✅ Köy: ahşap evler, kırmızı ahır, saman balyaları, kuyu, değirmen kulesi
+- ✅ Kayak merkezi: karlı zemin, telesiyej, dağ evi, kulübeler, kardan adam
+- ✅ Çöl kasabası: kerpiç evler, tırmanılabilir su kulesi, kaktüsler
+- ✅ Şehir merkezi: gökdelenler, dış asansör, trafik ışıkları, otobüs durağı, metro girişi
+- ✅ Kale: surlar, mazgallar, köşe kuleleri, iç kale, sur yürüyüşü
+- ✅ Havalimanı: pist, kırılabilen yolcu uçağı, hangar, terminal, kontrol kulesi
+- ✅ Petrol platformu: ayaklar üstünde güverte, rampa, sondaj kulesi, patlayan tanklar
+- ✅ Kamp alanı: çadırlar, karavanlar, göl, kamp ateşi, kano
+- ✅ Beton sığınaklar (şehir, havalimanı): gökten düşenlere karşı güvenli
+- ✅ Asansörler: dış cam asansör çalışır, deprem/kasırgada kilitlenir
 - 💡 Açılıp kapanan kapılar, kırılabilen camlar her yerde
 - 💡 Harita oylaması (tur arasında oyuncular sonraki haritayı seçer)
 

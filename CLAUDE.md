@@ -128,6 +128,12 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   house with a playground, apartment with a corner shop, neighbourhood, mall, port with
   gantry cranes, container stacks, a lighthouse and a moored ship); trampolines, slides
   and ladders up some buildings. Ladders become bot refuges through `_add_ladder_refuge`.
+- `scripts/world/maps_extra.gd`: 13 more maps (school, hospital, stadium, village, camp,
+  castle, city with a gas station, airport, funfair, river with a bridge and swimmable
+  water via `water_zone.gd`, desert town, ski resort, oil rig) built with maps.gd's
+  helpers passed in as `M`; towers with ladders (`_tower`) and concrete bunkers become
+  bot refuges; `elevator.gd` lifts jam in quakes. Frames like the big wheel raise
+  their structure's `span_limit`.
 - Omens (`DisasterManager._omens`): the sea draws back before a tsunami
   (`weather.drain_sea`), the gulls flee before a quake or an eruption (`ambience.scatter`).
 - Severity: every disaster rolls Şiddetli / Felaket / Kıyamet (`power` 1.15 / 1.4 / 1.7,
