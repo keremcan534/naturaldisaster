@@ -17,6 +17,8 @@ static var auto_jump := true
 ## Master volume and music volume, 0..1.
 static var volume := 0.8
 static var music := 0.6
+## Frame times, draw calls and physics load under the FPS readout.
+static var perf_overlay := false
 
 
 static func load_settings() -> void:
@@ -31,6 +33,7 @@ static func load_settings() -> void:
 	auto_jump = config.get_value("touch", "auto_jump", true)
 	volume = config.get_value("touch", "volume", 0.8)
 	music = config.get_value("touch", "music", 0.6)
+	perf_overlay = config.get_value("touch", "perf_overlay", false)
 
 
 static func save_settings() -> void:
@@ -44,6 +47,7 @@ static func save_settings() -> void:
 	config.set_value("touch", "auto_jump", auto_jump)
 	config.set_value("touch", "volume", volume)
 	config.set_value("touch", "music", music)
+	config.set_value("touch", "perf_overlay", perf_overlay)
 	config.save(PATH)
 
 

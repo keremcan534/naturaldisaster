@@ -78,6 +78,8 @@ func begin() -> void:
 	# middle would sweep through everything there on its first step.
 	_place_ship()
 	_root.add_child(_ship)
+	_ship.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
+	_ship.reset_physics_interpolation()
 
 
 func _physics_process(delta: float) -> void:

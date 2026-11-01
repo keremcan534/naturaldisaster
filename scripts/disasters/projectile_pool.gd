@@ -21,6 +21,7 @@ var _next_flash := 0
 
 
 func setup(count: int, radius: float, color: Color, glow: Color) -> void:
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	var mesh := SphereMesh.new()
 	mesh.radius = radius
 	mesh.height = radius * 2.0
@@ -77,6 +78,7 @@ func launch(pos: Vector3, velocity: Vector3) -> void:
 		if body.visible:
 			continue
 		body.global_position = pos
+		body.reset_physics_interpolation()
 		body.freeze = false
 		body.linear_velocity = velocity
 		body.visible = true
@@ -98,6 +100,7 @@ func _park(body: RigidBody3D) -> void:
 	body.freeze = true
 	body.linear_velocity = Vector3.ZERO
 	body.global_position = Vector3(0, -500, 0)
+	body.reset_physics_interpolation()
 
 
 func _on_hit(_other: Node, body: RigidBody3D) -> void:

@@ -38,7 +38,7 @@ const FACING_LEFT := Basis(Vector3.UP, -PI * 0.5)
 const MAX_SPAN := 2
 const DENSITY := 1.5
 const EPS := 0.01
-const QUAKE_PIECES_PER_TICK := 6.0
+const QUAKE_PIECES_PER_TICK := 9.0
 ## Acceleration (m/s²) an intact piece withstands at strength 1.
 const HOLD_FORCE := 25.0
 ## Break chance per second when the force is double the hold.
@@ -56,10 +56,10 @@ const SHATTER_RADIUS := 0.55
 ## chance per tick that a burning piece lights what rests on it, its sides and
 ## what holds it up, and the color pieces char toward.
 const FIRE_TICK := 0.5
-const BURN_TIME := 14.0
-const SPREAD_UP := 0.3
-const SPREAD_SIDE := 0.13
-const SPREAD_DOWN := 0.05
+const BURN_TIME := 11.0
+const SPREAD_UP := 0.4
+const SPREAD_SIDE := 0.2
+const SPREAD_DOWN := 0.07
 const CHAR_COLOR := Color(0.07, 0.06, 0.05)
 
 ## Loose pieces still moving, across all structures. Past the quality level's
@@ -96,7 +96,12 @@ var _sizes: Array[Vector3] = []
 var _colors: Array[Color] = []
 var _solid: Array[bool] = []
 ## Per piece: its own mesh (hidden while it is batched), its batch and slot there.
-var _visuals: Array[MeshInstance3D] = []
+## Windows don't cast shadows (their batch doesn't).
+var _shadowless := PackedByteArray()
+## Loose pieces still drawn by their batch, and whether each moved since the
+## last frame they were drawn (so resting ones aren't updated every frame).
+var _loose_list: Array[int] = []
+var _was_awake := PackedByteArray()
 var _batch_of := PackedInt32Array()
 var _slot_of := PackedInt32Array()
 var _batches: Array[MultiMesh] = []
@@ -120,6 +125,7 @@ var _last_dust_ms := -DUST_INTERVAL_MS
 
 func _ready() -> void:
 	add_to_group("structures")
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	_link_pieces()
 	_build_batches()
 
@@ -255,23 +261,15 @@ func add_box(center: Vector3, box_size: Vector3, color: Color, rotation_basis :=
 	var shape := CollisionShape3D.new()
 	shape.shape = _box_shape(box_size)
 	rb.add_child(shape)
-	var mesh := MeshInstance3D.new()
-	if visual:
-		mesh.mesh = visual
-	else:
-		mesh.mesh = _box_mesh(box_size)
-		mesh.material_override = material if material else Look.surface(color)
-	mesh.visible = false
-	if color == WINDOW_COLOR:
-		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	rb.add_child(mesh)
+	# No mesh per piece: intact or loose, every piece is drawn by its batch.
 	add_child(rb)
-	_visuals.append(mesh)
+	_shadowless.append(1 if color == WINDOW_COLOR else 0)
+	_was_awake.append(0)
 	if visual:
 		_batch_keys.append([visual, null])
 		_tints.append(Color.WHITE)
 	elif material or Look.is_special(color):
-		_batch_keys.append([_unit_box(), mesh.material_override])
+		_batch_keys.append([_unit_box(), material if material else Look.surface(color)])
 		_tints.append(Color.WHITE)
 	else:
 		_batch_keys.append([_unit_box(), Look.tinted()])
@@ -478,7 +476,10 @@ func _build_batches() -> void:
 		var batch := MultiMeshInstance3D.new()
 		batch.multimesh = multimesh
 		batch.material_override = key[1]
-		batch.cast_shadow = _visuals[members[0]].cast_shadow
+		batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if _shadowless[members[0]] \
+				else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		# Loose pieces fly far from where they were built and are still drawn here.
+		batch.custom_aabb = _bounds.grow(60.0)
 		add_child(batch)
 		_batches.append(multimesh)
 
@@ -549,7 +550,11 @@ func quake(intensity: float) -> void:
 		var i := _pick_low_intact()
 		if i < 0:
 			break
-		_release(i)
+		# Walls crack and crumble as often as they fall out whole.
+		if randf() < _shatter_odds(i, 0.45):
+			_shatter(i, _pieces[i].global_position + Vector3(randf_range(-1, 1), -0.5, randf_range(-1, 1)), 3.0)
+		else:
+			_release(i)
 		broke = true
 	if broke:
 		_settle()
@@ -604,9 +609,10 @@ func apply_field(region: AABB, force_at: Callable, delta: float) -> void:
 			if over <= 0.0 or randf() > minf(over, 1.0) * BREAK_RATE * delta:
 				continue
 			broke = true
-			# Far beyond what it can hold: it doesn't come off whole.
-			if over > 1.0 and randf() < 0.5:
-				_shatter(i, pos - force.normalized(), force.length() * 0.12)
+			# Torn off by a force: most of it breaks up rather than coming off
+			# whole (floor slabs tend to hold together and fall).
+			if randf() < _shatter_odds(i, 0.45 + 0.4 * minf(over, 1.0)):
+				_shatter(i, pos - force.normalized(), clampf(force.length() * 0.12, 3.0, 14.0))
 				continue
 			_release(i)
 		rb.apply_central_impulse(force * rb.mass * delta)
@@ -630,6 +636,29 @@ func impact(pos: Vector3, energy: float) -> void:
 			broke = true
 	if broke:
 		_settle()
+
+
+## Loose pieces stay in their batch: its instance follows the body (only while
+## it moves, plus once when it comes to rest).
+func _process(_delta: float) -> void:
+	if _loose_list.is_empty():
+		return
+	var k := 0
+	while k < _loose_list.size():
+		var i := _loose_list[k]
+		if _gone[i]:
+			_loose_list.remove_at(k)
+			continue
+		k += 1
+		var rb := _pieces[i]
+		var moving := not rb.sleeping
+		if moving or _was_awake[i]:
+			# Where the body is between physics steps, so falling pieces glide.
+			var t := global_transform.affine_inverse() * rb.get_global_transform_interpolated()
+			if _batch_keys[i][0] == _unit_box():
+				t = Transform3D(t.basis * Basis.from_scale(_sizes[i]), t.origin)
+			_batches[_batch_of[i]].set_instance_transform(_slot_of[i], t)
+			_was_awake[i] = 1 if moving else 0
 
 
 func _physics_process(delta: float) -> void:
@@ -669,8 +698,9 @@ func _physics_process(delta: float) -> void:
 		get_tree().call_group("effects", "dust", pos)
 		get_tree().call_group("structures", "impact", pos, lost * rb.mass)
 		get_tree().call_group("player", "rumble", pos, lost * rb.mass)
-		if randf() < clampf((lost - IMPACT_DV) / 10.0, 0.15, 0.7):
-			_shatter(i, pos + Vector3.DOWN, lost * 0.3)
+		# Landing hard, it breaks apart (walls crumble, slabs crack up).
+		if randf() < clampf((lost - IMPACT_DV) / 6.0, 0.55, 0.95):
+			_shatter(i, pos + Vector3.DOWN, clampf(lost * 0.35, 2.0, 9.0))
 
 
 func _release(i: int) -> void:
@@ -685,9 +715,9 @@ func _release(i: int) -> void:
 		_crumble(i)
 		return
 	_dust(_pieces[i].global_position)
-	_unbatch(i)
-	_visuals[i].visible = true
 	_loose[i] = 1
+	_loose_list.append(i)
+	_was_awake[i] = 1
 	_pieces[i].freeze = false
 	_pieces[i].sleeping = false
 	_last_speed[i] = 0.0
@@ -805,9 +835,69 @@ func _settle() -> void:
 				if not _loose[j] and span[j] > span[i] + 1:
 					span[j] = span[i] + 1
 					queue.append(j)
+	var dropped := 0
+	var where := Vector3.ZERO
 	for i in n:
 		if not _loose[i] and span[i] > MAX_SPAN:
 			_release(i)
+			dropped += 1
+			where += _pieces[i].global_position
+	# A big part of the building came down: a rolling cloud of dust.
+	if dropped >= 6:
+		var at := where / dropped
+		get_tree().call_group("effects", "cloud", Vector3(at.x, maxf(at.y * 0.4, 1.0), at.z), sqrt(float(dropped)) * 1.5)
+
+
+## How likely a piece is to break up instead of coming off whole: slabs (wide
+## and thin) mostly fall in one piece, everything else mostly crumbles.
+func _shatter_odds(i: int, base: float) -> float:
+	if not _solid[i]:
+		return 0.0
+	var s := _sizes[i]
+	if s.y < 0.6 and maxf(s.x, s.z) > 1.5:
+		return base * 0.4
+	return base
+
+
+## A wave slicing through: every piece within half_width of the plane (through
+## origin, facing normal) is torn out and thrown with push; the building is
+## left in two halves, and what they can't hold comes down.
+func cleave(origin: Vector3, normal: Vector3, half_width: float, push: Vector3) -> void:
+	if _pieces.is_empty():
+		return
+	var broke := false
+	for i in _pieces.size():
+		if _loose[i] or _gone[i]:
+			continue
+		var p := _pieces[i].global_position
+		if absf((p - origin).dot(normal)) > half_width:
+			continue
+		broke = true
+		if randf() < _shatter_odds(i, 0.7):
+			_shatter(i, p - push.normalized(), clampf(push.length(), 4.0, 14.0))
+		else:
+			_release(i)
+			_pieces[i].apply_central_impulse(push * _pieces[i].mass)
+	if broke:
+		_settle()
+
+
+## Acid: pieces within radius of center dissolve to dust (holes eaten through
+## roofs, then walls); what loses its support falls.
+func dissolve(center: Vector3, radius: float) -> void:
+	if _pieces.is_empty() or not world_bounds().grow(radius).has_point(center):
+		return
+	var r2 := radius * radius
+	var any := false
+	for i in _pieces.size():
+		if _loose[i] or _gone[i]:
+			continue
+		if _pieces[i].global_position.distance_squared_to(center) < r2:
+			_detonate(i)
+			_crumble(i)
+			any = true
+	if any:
+		_settle()
 
 
 ## Random intact piece, biased toward lower floors so buildings fail from the bottom.

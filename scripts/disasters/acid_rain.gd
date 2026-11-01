@@ -2,7 +2,7 @@ extends "res://scripts/disasters/sky_hazard.gd"
 ## Green rain that burns: out in the open you lose health, and things left out
 ## in it (clutter, cars, roof edges) eat away and fall apart. Stay under a roof.
 
-const MELTS_PER_TICK := 3
+const MELTS_PER_TICK := 9
 
 
 func _init() -> void:
@@ -11,7 +11,7 @@ func _init() -> void:
 	warning = "Asit yağmuru! Kapalı bir yere sığın!"
 	duration = 30.0
 	mood = "acid"
-	exposed_dps = 7.0
+	exposed_dps = 10.0
 
 
 func _hazard_frame(_delta: float) -> void:
@@ -24,5 +24,5 @@ func _hazard_frame(_delta: float) -> void:
 func _hazard_tick(k: float) -> void:
 	for i in int(MELTS_PER_TICK * k + randf()):
 		var at := random_top()
-		get_tree().call_group("structures", "damage_sphere", at, 1.0, 0.6)
+		get_tree().call_group("structures", "dissolve", at, 1.4)
 		get_tree().call_group("effects", "dust", at)

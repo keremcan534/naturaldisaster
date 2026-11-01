@@ -5,7 +5,7 @@ extends "res://scripts/disasters/sky_hazard.gd"
 
 ## Push on players (m/s per second) and pieces (acceleration) at full strength.
 const PLAYER_PUSH := 7.0
-const PIECE_FORCE := 15.0
+const PIECE_FORCE := 19.0
 const FIELD_INTERVAL := 0.1
 
 var _wind := Vector3.RIGHT
@@ -18,7 +18,7 @@ func _init() -> void:
 	warning = "Kum fırtınası! İçeri gir, açıkta kalma!"
 	duration = 35.0
 	mood = "sandstorm"
-	exposed_dps = 4.0
+	exposed_dps = 6.0
 
 
 func begin() -> void:

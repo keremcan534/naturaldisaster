@@ -36,6 +36,7 @@ pointing/emulate_mouse_from_touch=true
 
 [physics]
 
+common/physics_interpolation=true
 3d/physics_engine="Jolt Physics"
 jolt_physics_3d/simulation/velocity_steps=6
 jolt_physics_3d/simulation/position_steps=1
@@ -43,7 +44,7 @@ jolt_physics_3d/simulation/use_enhanced_internal_edge_removal=false
 jolt_physics_3d/simulation/sleep_velocity_threshold=0.08
 jolt_physics_3d/simulation/sleep_time_threshold=0.3
 common/physics_ticks_per_second=60
-common/max_physics_steps_per_frame=3
+common/max_physics_steps_per_frame=2
 
 [rendering]
 

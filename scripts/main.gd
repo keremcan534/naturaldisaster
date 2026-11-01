@@ -17,6 +17,7 @@ const Debris := preload("res://scripts/world/debris.gd")
 const Flames := preload("res://scripts/world/flames.gd")
 const Ambience := preload("res://scripts/world/ambience.gd")
 const Hazards := preload("res://scripts/world/hazards.gd")
+const Warmup := preload("res://scripts/core/warmup.gd")
 const Sound := preload("res://scripts/core/sound.gd")
 const Structure := preload("res://scripts/world/structure.gd")
 const Settings := preload("res://scripts/core/settings.gd")
@@ -62,11 +63,17 @@ var _menu: Menu
 var _touch := false
 var _playing := false
 var _capture_grace := 0.0
+var _warmed := false
 ## Debug runs (screenshots) leave the mouse alone.
 var auto_pause := true
 
 
 func _ready() -> void:
+	# Physics interpolation is on in the project, but only for what moves in
+	# physics steps (debris, bots, projectiles, structures' pieces, disaster
+	# bodies): those nodes switch it back on. Everything moved in _process, and
+	# the player's own camera (interpolated by hand), stays as drawn.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	InputSetup.register()
 	var args := OS.get_cmdline_user_args()
 	# Tablets can report a desktop OS in the browser; a touchscreen settles it.
@@ -184,6 +191,12 @@ func show_menu() -> void:
 	set_mood("clear")
 	get_tree().call_group("sound", "music", "calm")
 	_menu.show_main(spawn_point)
+	# Compile every effect's shader now, behind the menu, not mid-disaster.
+	if not _warmed:
+		_warmed = true
+		var warmup := Warmup.new()
+		add_child(warmup)
+		warmup.run(get_viewport().get_camera_3d())
 
 
 func _pause() -> void:

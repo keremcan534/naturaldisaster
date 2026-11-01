@@ -85,9 +85,23 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   lava, flowers. Weather values shared by shaders are global uniforms declared in
   `project.godot` `[shader_globals]` (sky/sun/cloud colors, night/stars/aurora/rainbow,
   wetness, wind, wave height, island size, player position for grass).
-- `scripts/world/debris.gd`: pooled chunks that pieces shatter into (explosions, very
-  strong winds, hard landings; glass always). Falling pieces that hit hard call
-  `impact()` on structures, so collapses spread, and `rumble()` the player's view.
+- `scripts/world/debris.gd`: pooled chunks that pieces shatter into (most breaks: forces,
+  quakes, hard landings; glass always), drawn as two MultiMeshes (solid, glass) whose
+  instances follow the bodies, and on their own physics layer (5) so they don't collide
+  with each other. Loose structure pieces have no mesh of their own either: they stay in
+  their batch and `Structure._process` moves the instance while the body moves. Falling
+  pieces that hit hard call `impact()` on structures, so collapses spread, and
+  `rumble()` the player's view; big drops roll out a dust cloud (`effects.cloud`).
+  Tsunamis may split buildings in two (`Structure.cleave`), acid eats them
+  (`dissolve`), sinkholes drop them (`sink`), ash crushes roofs (`overload`).
+  Pieces tagged "explosive" (red barrels) blow up and "power" poles spark
+  (`scripts/world/hazards.gd`).
+- Physics interpolation is on in the project but off from the world root down; it is
+  switched back on for things moved in physics steps (structures, debris, bots,
+  projectiles, the tornado, the ship), which draw with `get_global_transform_interpolated()`
+  and call `reset_physics_interpolation()` after teleports. Nodes moved in `_process`
+  stay off. `scripts/core/warmup.gd` draws every effect's material once behind the menu
+  so web shader compiles don't freeze a round. Settings has a performance readout.
 - Chaos: disasters are tuned to bring weak houses down (tsunami rips out ground floors,
   quakes collapse them); building `strength` decides who survives (skyscraper 2.6,
   mall 2.4, apartment 2.0 stand; houses ~1 fall). Every map also gets weak clutter
@@ -116,6 +130,8 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   and ladders up some buildings. Ladders become bot refuges through `_add_ladder_refuge`.
 - Omens (`DisasterManager._omens`): the sea draws back before a tsunami
   (`weather.drain_sea`), the gulls flee before a quake or an eruption (`ambience.scatter`).
+- Severity: every disaster rolls Şiddetli / Felaket / Kıyamet (`power` 1.15 / 1.4 / 1.7,
+  catastrophic ones commoner as a session goes on); there are no easy rounds.
 - `scripts/disasters/`: `disaster.gd` base + one file per disaster, registered in
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
   A disaster can set `safe_height` (how high bots climb), a longer `warning_time` and

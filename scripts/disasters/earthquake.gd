@@ -11,7 +11,7 @@ func _init() -> void:
 	display_name = "Deprem"
 	kind = "earthquake"
 	warning = "Binalardan uzak dur!"
-	duration = 25.0
+	duration = 30.0
 	mood = "dust"
 
 

@@ -127,6 +127,7 @@ func setup(index: int, seed_value: int) -> void:
 func _ready() -> void:
 	add_to_group("player")
 	add_to_group("bots")
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	collision_layer = 4
 	collision_mask = 1 | 2
 	floor_max_angle = deg_to_rad(48.0)
@@ -142,7 +143,7 @@ func _ready() -> void:
 
 	var hitbox := Area3D.new()
 	hitbox.collision_layer = 0
-	hitbox.collision_mask = 2
+	hitbox.collision_mask = 2 | 16
 	hitbox.monitorable = false
 	var hit_shape := CollisionShape3D.new()
 	var hit_capsule := CapsuleShape3D.new()
@@ -578,6 +579,7 @@ func take_damage(amount: float) -> void:
 
 func respawn(pos: Vector3) -> void:
 	global_position = pos + Vector3(_rng.randf_range(-3.5, 3.5), 0, _rng.randf_range(-3.5, 3.5))
+	reset_physics_interpolation()
 	rotation.y = _rng.randf() * TAU
 	velocity = Vector3.ZERO
 	_walk = Vector3.ZERO

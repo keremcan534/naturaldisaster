@@ -3,7 +3,7 @@ extends "res://scripts/disasters/sky_hazard.gd"
 ## builds), stones bounce off the ground, and they knock loose light things on
 ## roofs and break skylights. Get under a roof.
 
-const HITS_PER_TICK := 4
+const HITS_PER_TICK := 12
 
 
 func _init() -> void:
@@ -12,7 +12,7 @@ func _init() -> void:
 	warning = "Dolu geliyor! Bir çatının altına gir!"
 	duration = 30.0
 	mood = "hail"
-	exposed_dps = 9.0
+	exposed_dps = 12.0
 
 
 func begin() -> void:
@@ -43,4 +43,4 @@ func _hazard_frame(_delta: float) -> void:
 
 func _hazard_tick(k: float) -> void:
 	for i in int(HITS_PER_TICK * k):
-		get_tree().call_group("structures", "damage_sphere", random_top(), 1.2, 1.5)
+		get_tree().call_group("structures", "damage_sphere", random_top(), 1.8, 4.0)

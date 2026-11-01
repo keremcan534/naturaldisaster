@@ -5,6 +5,8 @@ extends CanvasLayer
 const BuildInfo := preload("res://scripts/core/build_info.gd")
 const Quality := preload("res://scripts/core/quality.gd")
 const Profile := preload("res://scripts/core/profile.gd")
+const Settings := preload("res://scripts/core/settings.gd")
+const Structure := preload("res://scripts/world/structure.gd")
 const Ui := preload("res://scripts/ui/ui.gd")
 
 ## Set before adding to the tree; hides the keyboard hint.
@@ -17,6 +19,11 @@ var _health: ProgressBar
 var _health_fill: StyleBoxFlat
 var _fps: Label
 var _fps_timer := 0.0
+var _perf: Label
+## Longest frame (ms) since the last readout, and their average.
+var _worst := 0.0
+var _frame_sum := 0.0
+var _frames := 0
 var _alive: Label
 var _score: Label
 var _coins: Ui.CoinLabel
@@ -125,6 +132,13 @@ func _ready() -> void:
 	_fps.offset_top = 64
 	_fps.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 
+	_perf = _label(13)
+	_perf.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_perf.offset_left = 22
+	_perf.offset_top = 150
+	_perf.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_perf.add_theme_color_override("font_color", Color(0.75, 1.0, 0.75))
+
 	# Top right: coins and this session's score.
 	var corner := VBoxContainer.new()
 	corner.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
@@ -193,9 +207,13 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_worst = maxf(_worst, delta * 1000.0)
+	_frame_sum += delta * 1000.0
+	_frames += 1
 	_fps_timer -= delta
 	if _fps_timer <= 0.0:
 		_fps_timer = 0.25
+		_update_perf()
 		var mode := " (oto)" if Quality.auto else ""
 		_fps.text = "%d FPS · %s%s" % [Engine.get_frames_per_second(), Quality.current().name, mode]
 		_coins.set_amount(Profile.coins)
@@ -299,6 +317,27 @@ func _build_board() -> PanelContainer:
 	box.add_child(_board_rows)
 	panel.visible = false
 	return panel
+
+
+## The optional performance readout (settings): enough to tell from a
+## screenshot whether the phone is slowed by drawing, physics or scripts.
+func _update_perf() -> void:
+	_perf.visible = Settings.perf_overlay
+	if not _perf.visible or _frames == 0:
+		_worst = 0.0
+		_frame_sum = 0.0
+		_frames = 0
+		return
+	_perf.text = "kare: ort %.1f ms, en kötü %.1f ms\nscript %.1f ms, fizik %.1f ms\nçizim %d, üçgen %dk\nhareketli parça %d, yanan %d" % [
+			_frame_sum / _frames, _worst,
+			Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+			Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+			Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME) / 1000,
+			Structure.awake, Structure.fires]
+	_worst = 0.0
+	_frame_sum = 0.0
+	_frames = 0
 
 
 ## Queues a note like "Görev tamam: ..." with the coins it gave.

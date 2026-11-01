@@ -7,7 +7,7 @@ extends "res://scripts/disasters/disaster.gd"
 ## wall cloud turning overhead, dust spiralling up around the foot (moved by
 ## the shader, nothing per frame) and chunks of debris orbiting.
 
-const RADIUS := 12.0
+const RADIUS := 14.0
 const CORE_RADIUS := 3.0
 const TOP_HEIGHT := 35.0
 const SWIRL := 50.0
@@ -65,6 +65,8 @@ func begin() -> void:
 	_root = Node3D.new()
 	_root.position = _pos
 	add_child(_root)
+	_root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
+	_root.reset_physics_interpolation()
 
 	_last_pos = _pos
 	var texture := Look.noise_texture()

@@ -147,7 +147,7 @@ func _ready() -> void:
 	# Slightly larger than the capsule so falling debris registers before it rests on us.
 	var hitbox := Area3D.new()
 	hitbox.collision_layer = 0
-	hitbox.collision_mask = 2
+	hitbox.collision_mask = 2 | 16
 	hitbox.monitorable = false
 	var hit_shape := CollisionShape3D.new()
 	var hit_capsule := CapsuleShape3D.new()

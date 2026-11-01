@@ -38,11 +38,12 @@ const DISASTERS := [
 	preload("res://scripts/disasters/wave_series.gd"),
 	preload("res://scripts/disasters/ashfall.gd"),
 ]
-const SEVERITY_NAMES := ["Hafif", "Şiddetli", "Felaket"]
-const SEVERITY_POWER := [0.8, 1.0, 1.3]
+## No easy rounds: every disaster is at least severe.
+const SEVERITY_NAMES := ["Şiddetli", "Felaket", "Kıyamet"]
+const SEVERITY_POWER := [1.15, 1.4, 1.7]
 ## Double disasters: after the first round of a session, sometimes a second one
 ## from this list joins the main one (never two floods, never the same kind).
-const COMBO_CHANCE := 0.22
+const COMBO_CHANCE := 0.35
 const COMBO_PARTNERS := [0, 6, 7, 8, 3]
 const WATER_KINDS := ["tsunami"]
 
@@ -217,8 +218,8 @@ func _pick_disaster() -> Node:
 	disaster.world = world
 	# Mild ones get rarer and catastrophic ones commoner as the session goes on.
 	var roll := randf()
-	var high := minf(0.05 + 0.05 * _rounds, 0.35)
-	var low := maxf(0.45 - 0.07 * _rounds, 0.12)
+	var high := minf(0.12 + 0.05 * _rounds, 0.45)
+	var low := maxf(0.5 - 0.06 * _rounds, 0.15)
 	disaster.severity = 3 if roll < high else (1 if roll > 1.0 - low else 2)
 	disaster.power = SEVERITY_POWER[disaster.severity - 1]
 	return disaster

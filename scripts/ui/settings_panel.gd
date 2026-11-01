@@ -56,6 +56,8 @@ func _ready() -> void:
 			controls.start_editing())
 		box.add_child(place)
 
+	box.add_child(_toggle("Performans bilgisi göster (takılma olursa ekran görüntüsü at)", Settings.perf_overlay, func(on: bool) -> void:
+		Settings.perf_overlay = on))
 	box.add_child(Ui.text("Grafik kalitesi (takılıyorsa düşür)", 20))
 	var choices := HBoxContainer.new()
 	choices.add_theme_constant_override("separation", 8)

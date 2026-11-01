@@ -25,25 +25,25 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ ⭐ Sel: su yavaş yavaş yükselir (dalga yok), ilk kat su altında kalır, eşyalar yüzer
 - ✅ Asit yağmuru: yeşil yağmur, açıkta hasar
 - ✅ ⭐ Çifte felaket: arada bir iki felaket aynı anda (deprem + yangın, hortum + yıldırım…)
-- 💡 ⭐ Kasırga (hurricane): tek yönden çok güçlü rüzgâr + fırtına dalgası + dönen bulut gözü
-- 💡 ⭐ Obruk: zemin çöker, büyüyen bir delik binaları yutar
+- ✅ ⭐ Kasırga: deniz kabarması + sert rüzgâr, göz geçince rüzgâr ters döner
+- ✅ ⭐ Obruk: zemin çöker, büyüyen delik binaları yutar
 - 💡 Heyelan / çamur akıntısı: tepeden aşağı akan çamur, evleri iter
 - 💡 Çığ (karlı harita ile): yamaçtan kar dalgası
 - 💡 Kar fırtınası / buz fırtınası: görüş düşer, zemin kayar, donma hasarı, su donar
-- 💡 Isı dalgası: açıkta ve güneşte can kaybı, gölgede güvenli, asfalt dalgalanır
-- 💡 Zehirli gaz bulutu: yere çöken yeşil bulut, yükseğe çık
-- 💡 Tek dev meteor: gökyüzünde günlerce büyür gibi gelir, çarpınca krater ve şok dalgası
-- 💡 Güneş patlaması: ekran aydınlanır, elektrik gider, lambalar söner
+- ✅ Isı dalgası: açıkta can kaybı, gölge güvenli, hava titrer, kendiliğinden yangınlar
+- ✅ Zehirli gaz bulutu: yere çöken yeşil bulut, yükseğe çık
+- ✅ Tek dev meteor: gökyüzünde büyüyerek gelir, kırmızı halka, krater ve şok dalgası
+- ✅ Güneş patlaması: elektrik gider, gündüz aurora, ışınım dalgaları
 - 💡 Kara delik (eğlence modu): her şeyi kendine çeker
 - 💡 UFO istilası (eğlence modu): ışınla insan ve eşya kaçırır
-- 💡 Dev dalga serisi: art arda 3 küçük dalga
-- 💡 Volkanik kül yağmuru: kül birikir, çatılar ağırlıktan çöker
+- ✅ Dalga serisi: art arda büyüyen 3 dalga
+- ✅ Volkanik kül yağmuru: ada griye döner, zayıf çatılar çöker
 - 💡 Barajın yıkılması (barajlı haritada)
-- 💡 Elektrik direklerinin devrilmesi, kopan kablolar çarpar
-- 💡 Benzinlik / gaz tankı patlaması: zincirleme patlama
-- 💡 Felaket şiddeti seviyeleri (hafif / şiddetli / felaket), tur ilerledikçe artar
+- ✅ Elektrik direkleri: devrilince kablolar kopar, yerde kıvılcım çarpar
+- ✅ Patlayan kırmızı variller: zincirleme patlama (benzinlik haritası sırada)
+- ✅ Şiddet seviyeleri: Şiddetli / Felaket / Kıyamet (kolay tur yok), tur ilerledikçe artar
 - ✅ Felaket öncesi işaretler: tsunami öncesi deniz çekilir, deprem/volkan öncesi martılar kaçar
-- 💡 Volkan öncesi duman, deprem öncesi hayvan sesleri
+- ✅ Volkan öncesi duman, deprem öncesi köpek havlamaları
 
 ## 2. Haritalar
 - ✅ Gökdelen (ofisler, helikopter pisti, kafe)
@@ -112,7 +112,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Gemiler, martılar
 - 💡 ⭐ Ekranda yağmur damlaları / su efekti (dalgaya yakalanınca)
 - ✅ ⭐ Felaket öncesi ipuçları (kuşlar kaçar, deniz çekilir)
-- 💡 Yıkıntının üstünde toz bulutu kalır, yavaşça yatışır
+- ✅ Çöken binadan yuvarlanan toz bulutu, parçalar un gibi ufalanır
 - 💡 Islak zeminde yansıma, ıslak duvarlar
 - 💡 Gece sokak lambaları ve ev ışıkları felakette sönüp yanıp söner
 - 💡 Rüzgârda sallanan ağaçlar, savrulan yapraklar
@@ -178,5 +178,5 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - 💡 ⭐ Android sürümü (Google Play)
 - 💡 iOS sürümü
 - 💡 Daha hızlı yükleme (sıkıştırma, ilk açılışta küçük yükleme)
-- 💡 Fizik için LOD: uzaktaki enkazı daha seyrek hesapla
+- ✅ Enkaz tek çizimde, parçacıklar birbirine çarpmaz, fizik interpolasyonu (akıcılık), shader ısınması
 - 💡 Otomatik test botu (her felaket her haritada hatasız mı)

@@ -6,7 +6,7 @@ extends "res://scripts/disasters/disaster.gd"
 
 const Look := preload("res://scripts/world/look.gd")
 
-const STRIKE_GAP := Vector2(0.7, 1.7)
+const STRIKE_GAP := Vector2(0.5, 1.3)
 const WARN_TIME := 1.2
 const BLAST_RADIUS := 3.2
 const BLAST_DAMAGE := 60.0

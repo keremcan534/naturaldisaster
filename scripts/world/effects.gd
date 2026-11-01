@@ -7,11 +7,15 @@ const Look := preload("res://scripts/world/look.gd")
 
 const EXPLOSION_SLOTS := 8
 const DUST_SLOTS := 10
+## Big rolling clouds when a whole part of a building comes down.
+const CLOUD_SLOTS := 3
 
 var _explosions: Array[Node3D] = []
 var _dusts: Array[CPUParticles3D] = []
 var _next_explosion := 0
 var _next_dust := 0
+var _clouds: Array[CPUParticles3D] = []
+var _next_cloud := 0
 
 
 func _ready() -> void:
@@ -27,6 +31,10 @@ func _ready() -> void:
 		var dust := _dust()
 		add_child(dust)
 		_dusts.append(dust)
+	for i in CLOUD_SLOTS:
+		var cloud := _cloud()
+		add_child(cloud)
+		_clouds.append(cloud)
 
 
 func explosion(pos: Vector3, radius: float) -> void:
@@ -37,6 +45,17 @@ func explosion(pos: Vector3, radius: float) -> void:
 	get_tree().call_group("sound", "play", "boom", pos, 4.0)
 	for emitter: CPUParticles3D in slot.get_children():
 		emitter.restart()
+
+
+## A collapse: a cloud of dust rolling out low from where it came down.
+func cloud(pos: Vector3, size: float) -> void:
+	var emitter := _clouds[_next_cloud]
+	_next_cloud = (_next_cloud + 1) % _clouds.size()
+	emitter.global_position = pos
+	emitter.scale = Vector3.ONE * clampf(size / 6.0, 0.6, 2.0)
+	emitter.restart()
+	get_tree().call_group("sound", "play", "boom", pos, 2.0, 0.45)
+	get_tree().call_group("player", "rumble", pos, 600.0)
 
 
 ## Puff of dust where a structure piece broke loose.
@@ -112,6 +131,24 @@ func _dust() -> CPUParticles3D:
 	p.scale_amount_max = 5.5
 	p.scale_amount_curve = Look.grow(0.4)
 	p.color_ramp = Look.ramp([Color(0.6, 0.55, 0.48, 0.0), Color(0.6, 0.55, 0.48, 0.6), Color(0.65, 0.6, 0.55, 0)])
+	return p
+
+
+func _cloud() -> CPUParticles3D:
+	var p := _burst(18, 5.5, Look.sprite())
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 3.0
+	p.direction = Vector3(0, 0.25, 0)
+	p.spread = 90.0
+	p.initial_velocity_min = 2.0
+	p.initial_velocity_max = 5.0
+	p.damping_min = 1.0
+	p.damping_max = 2.0
+	p.gravity = Vector3(0, 0.3, 0)
+	p.scale_amount_min = 6.0
+	p.scale_amount_max = 11.0
+	p.scale_amount_curve = Look.grow(0.35)
+	p.color_ramp = Look.ramp([Color(0.55, 0.5, 0.44, 0.0), Color(0.55, 0.5, 0.44, 0.75), Color(0.6, 0.56, 0.5, 0.4), Color(0.65, 0.6, 0.55, 0)])
 	return p
 
 

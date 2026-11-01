@@ -23,11 +23,13 @@ const Look := preload("res://scripts/world/look.gd")
 ## hits pieces (far beyond what ordinary walls hold: the ground floors of houses
 ## go, and the rest of the house comes down with them; strong towers lose only
 ## some walls) and players. Set before begin(); the giant tsunami raises them all.
-var crest_height := 8.0
-var crest_depth := 7.0
-var water_level := 4.5
-var crest_force := 75.0
-var crest_damage := 35.0
+var crest_height := 10.0
+var crest_depth := 8.0
+var water_level := 5.0
+var crest_force := 95.0
+var crest_damage := 45.0
+## Buildings the crest has already sliced through.
+var _cleaved := {}
 
 var _dir := Vector3.RIGHT
 var _half := 30.0
@@ -91,6 +93,30 @@ func _physics_process(delta: float) -> void:
 		var width := _half + EDGE_MARGIN
 		var local := AABB(Vector3(-width, -1.0, -width), Vector3(_front + width, crest_height + 2.0, width * 2.0))
 		get_tree().call_group("structures", "apply_field", _root.global_transform * local, _force_at, FIELD_INTERVAL)
+		_cleave_buildings()
+
+
+## When the crest reaches the middle of a building, it splits it in two along
+## the wave's path (strong towers only for the biggest waves, and narrower).
+func _cleave_buildings() -> void:
+	var side := _dir.cross(Vector3.UP)
+	for s: Node in get_tree().get_nodes_in_group("structures"):
+		if _cleaved.has(s) or s.strength > 5.0:
+			continue
+		var b: AABB = s.world_bounds()
+		if b.size.y < 4.0 or b.get_center().dot(_dir) > _front:
+			continue
+		_cleaved[s] = true
+		var strong: bool = s.strength >= 2.0
+		if strong and crest_height < 12.0:
+			continue
+		# Not every building splits: the worse the wave, the likelier.
+		if randf() > 0.15 + 0.2 * severity:
+			continue
+		var width := 0.9 if strong else 1.5
+		var offset := side * randf_range(-1.5, 1.5)
+		s.cleave(b.get_center() + offset, side, width, _dir * 12.0 + Vector3.UP * 3.0)
+		get_tree().call_group("effects", "cloud", Vector3(b.get_center().x, 2.0, b.get_center().z), 8.0)
 
 
 func _force_at(p: Vector3) -> Vector3:
