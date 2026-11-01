@@ -30,7 +30,7 @@ func begin() -> void:
 		if not s.climb_path.is_empty() or s.world_bounds().size.y > 6.0:
 			buildings.append(s)
 	buildings.shuffle()
-	for k in mini(START_FIRES, buildings.size()):
+	for k in mini(roundi(START_FIRES * power), buildings.size()):
 		var bounds: AABB = buildings[k].world_bounds()
 		var floors := maxi(int(bounds.size.y / 3.0), 1)
 		var y := 1.5 + 3.0 * (randi() % mini(floors, 3))

@@ -32,7 +32,7 @@ func _physics_process(delta: float) -> void:
 	_spawn_timer -= delta
 	if _spawn_timer > 0.0:
 		return
-	_spawn_timer = SPAWN_INTERVAL
+	_spawn_timer = SPAWN_INTERVAL / power
 	var half: float = world.map_size * 0.5
 	var pos := Vector3(randf_range(-half, half), SPAWN_HEIGHT, randf_range(-half, half))
 	_pool.launch(pos, Vector3(randf_range(-8, 8), -45.0, randf_range(-8, 8)))

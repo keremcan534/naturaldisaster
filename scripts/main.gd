@@ -16,6 +16,7 @@ const Effects := preload("res://scripts/world/effects.gd")
 const Debris := preload("res://scripts/world/debris.gd")
 const Flames := preload("res://scripts/world/flames.gd")
 const Ambience := preload("res://scripts/world/ambience.gd")
+const Hazards := preload("res://scripts/world/hazards.gd")
 const Sound := preload("res://scripts/core/sound.gd")
 const Structure := preload("res://scripts/world/structure.gd")
 const Settings := preload("res://scripts/core/settings.gd")
@@ -84,6 +85,7 @@ func _ready() -> void:
 	add_child(Effects.new())
 	add_child(Debris.new())
 	add_child(Flames.new())
+	add_child(Hazards.new())
 	_ambience = Ambience.new()
 	add_child(_ambience)
 	_apply_quality()
@@ -229,6 +231,9 @@ func load_next_map() -> void:
 	if _map_root:
 		_map_root.free()
 	get_tree().call_group("debris", "clear")
+	get_tree().call_group("hazards", "clear")
+	RenderingServer.global_shader_parameter_set("hole", Vector4.ZERO)
+	RenderingServer.global_shader_parameter_set("ash_cover", 0.0)
 	Structure.awake = 0
 	Structure.fires = 0
 	if forced_map >= 0:

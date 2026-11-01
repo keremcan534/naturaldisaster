@@ -42,7 +42,7 @@ func _physics_process(delta: float) -> void:
 	var k := intensity()
 	for p: Node3D in get_tree().get_nodes_in_group("player"):
 		if p.alive and exposed(p.global_position):
-			p.take_damage(exposed_dps * k * TICK)
+			p.take_damage(exposed_dps * k * power * TICK)
 	_hazard_tick(k)
 
 

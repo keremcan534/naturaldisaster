@@ -17,7 +17,7 @@ func _init() -> void:
 
 func _process(delta: float) -> void:
 	_elapsed += delta
-	var intensity := _intensity()
+	var intensity := minf(_intensity() * power, 1.0)
 	get_tree().call_group("player", "add_shake", intensity)
 	get_tree().call_group("sound", "loop", "rumble", intensity)
 	_damage_timer -= delta

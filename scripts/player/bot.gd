@@ -23,6 +23,13 @@ const SHOUTS := {
 	"hail": ["Çatının altına!", "Başınızı koruyun!"],
 	"acid": ["Islanmayın!", "Kapalı yere!"],
 	"sandstorm": ["Hiçbir şey görmüyorum!", "İçeri girin!"],
+	"hurricane": ["Rüzgâr çok sert!", "Üst kata çıkın!"],
+	"sinkhole": ["Yer çöküyor!", "Kenardan uzaklaşın!"],
+	"bigmeteor": ["Halkadan çıkın!", "Koşuuun!"],
+	"gas": ["Nefes alamıyorum!", "Yukarı çıkın!"],
+	"heat": ["Çok sıcak!", "Gölgeye girin!"],
+	"flare": ["Işınım geliyor!", "Çatı altına!"],
+	"ash": ["Kül yağıyor!", "İçeri girin!"],
 	"default": ["Dikkat!", "Koşun!"],
 }
 
@@ -331,7 +338,14 @@ func _make_plan(coming: String) -> void:
 			_go_far_side()
 		"fire":
 			_go_open()
-		"lightning", "hail", "acid", "sandstorm":
+		"hurricane", "gas":
+			_panic = 1.0
+			_go_up()
+		"sinkhole", "bigmeteor":
+			_panic = 1.0
+			_plan = "flee"
+			_hurry = true
+		"lightning", "hail", "acid", "sandstorm", "heat", "flare", "ash":
 			_panic = 1.0 if coming == "lightning" else 0.0
 			_go_inside()
 		_:

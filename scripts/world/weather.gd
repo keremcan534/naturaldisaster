@@ -116,6 +116,27 @@ const MOODS := {
 		"sun": Color(0.85, 0.9, 0.95), "energy": 0.4, "ambient": 0.75, "fog": 0.008, "rain": true, "lightning": false,
 		"rain_color": Color(0.95, 0.97, 1.0, 0.85),
 	},
+	"heat": {
+		"wind": 0.15,
+		"clouds": 0.05, "cloud_light": Color(1.0, 0.95, 0.85), "cloud_dark": Color(0.8, 0.7, 0.6), "waves": 0.3, "rooms": 0.1,
+		"saturation": 1.15,
+		"top": Color(0.45, 0.62, 0.85), "horizon": Color(0.98, 0.9, 0.75), "haze": Color(0.75, 0.7, 0.62),
+		"sun": Color(1.0, 0.9, 0.7), "energy": 1.45, "ambient": 1.1, "fog": 0.006, "rain": false, "lightning": false,
+	},
+	"gas": {
+		"wind": 0.2,
+		"clouds": 0.7, "cloud_light": Color(0.75, 0.82, 0.6), "cloud_dark": Color(0.35, 0.42, 0.25), "waves": 0.4, "rooms": 0.5,
+		"saturation": 0.85,
+		"top": Color(0.4, 0.5, 0.42), "horizon": Color(0.66, 0.74, 0.5), "haze": Color(0.4, 0.48, 0.32),
+		"sun": Color(0.9, 1.0, 0.8), "energy": 0.7, "ambient": 0.85, "fog": 0.012, "rain": false, "lightning": false,
+	},
+	"flare": {
+		"wind": 0.4,
+		"clouds": 0.2, "cloud_light": Color(1.0, 0.95, 0.85), "cloud_dark": Color(0.6, 0.55, 0.65), "waves": 0.6, "rooms": 0.0,
+		"saturation": 1.2,
+		"top": Color(0.3, 0.32, 0.55), "horizon": Color(0.95, 0.85, 0.7), "haze": Color(0.5, 0.5, 0.6),
+		"sun": Color(1.0, 0.95, 0.8), "energy": 1.6, "ambient": 1.0, "fog": 0.003, "rain": false, "lightning": false,
+	},
 	"ash": {
 		"wind": 0.6,
 		"clouds": 0.8, "cloud_light": Color(0.55, 0.32, 0.22), "cloud_dark": Color(0.18, 0.12, 0.1), "waves": 0.7, "rooms": 0.7,

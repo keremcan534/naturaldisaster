@@ -54,6 +54,8 @@ func _init() -> void:
 
 
 func begin() -> void:
+	crest_height *= sqrt(power)
+	water_level *= sqrt(power)
 	_half = world.map_size * 0.5
 	var angle := PI * 0.5 * (randi() % 4)
 	_dir = Basis(Vector3.UP, angle) * Vector3.RIGHT

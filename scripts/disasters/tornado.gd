@@ -179,7 +179,7 @@ func _force_at(p: Vector3) -> Vector3:
 	var inward := to_axis / maxf(dist, 0.1)
 	var tangent := inward.cross(Vector3.UP)
 	var lift := LIFT * falloff if p.y < TOP_HEIGHT else -2.0
-	return tangent * SWIRL * falloff + inward * PULL * falloff + Vector3.UP * lift
+	return (tangent * SWIRL * falloff + inward * PULL * falloff + Vector3.UP * lift) * power
 
 
 ## Half the time head for a structure, otherwise anywhere on the map.

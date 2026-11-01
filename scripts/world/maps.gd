@@ -184,6 +184,7 @@ static func _neighbourhood(root: Node3D) -> Dictionary:
 
 static func _ground(root: Node3D, size: float, color: Color) -> void:
 	var ground := StaticBody3D.new()
+	ground.add_to_group("ground")
 	ground.collision_layer = 1
 	ground.collision_mask = 0
 	var shape := CollisionShape3D.new()
@@ -469,10 +470,20 @@ static func _clutter(root: Node3D, size: float, spawn: Vector3, seed_value: int)
 		var across := along.cross(Vector3.UP)
 		var t := -length * 0.5 + 6.0
 		var side := 1.0
+		var last_pole := Vector3.INF
 		while t < length * 0.5 - 4.0:
 			var pos := center + along * t + across * 4.7 * side
 			if not _is_bare(Vector2(pos.x, pos.z), 0.4) and absf(pos.x) < size * 0.5 - 1.0 and absf(pos.z) < size * 0.5 - 1.0:
 				_lamp(s, Vector3(pos.x, 0, pos.z))
+			# Power poles along the other side, with cables between them.
+			var pole := center + along * (t + 5.5) - across * 5.6
+			if not _is_bare(Vector2(pole.x, pole.z), 0.4) and absf(pole.x) < size * 0.5 - 1.0 and absf(pole.z) < size * 0.5 - 1.0:
+				var top := _power_pole(s, Vector3(pole.x, 0, pole.z), along)
+				if last_pole != Vector3.INF and last_pole.distance_to(top) < 14.0:
+					_cable(s, last_pole, top, across)
+				last_pole = top
+			else:
+				last_pole = Vector3.INF
 			# A cone on the road now and then.
 			if rng.randf() < 0.35:
 				var cone := center + along * (t + 3.0) + across * rng.randf_range(-3.0, 3.0)
@@ -504,7 +515,10 @@ static func _clutter_item(s: Structure, kind: String, pos: Vector3, rng: RandomN
 						turn.rotated(Vector3.UP, rng.randf_range(-0.3, 0.3)))
 		"barrel":
 			var color: Color = [Color(0.75, 0.15, 0.12), Color(0.15, 0.35, 0.7), Color(0.3, 0.5, 0.25)][rng.randi() % 3]
-			s.add_box(pos + Vector3(0, 0.45, 0), Vector3(0.64, 0.9, 0.64), color, turn, Look.cylinder(0.32, 0.32, 0.9, color))
+			var barrel := s.add_box(pos + Vector3(0, 0.45, 0), Vector3(0.64, 0.9, 0.64), color, turn, Look.cylinder(0.32, 0.32, 0.9, color))
+			# Red ones are fuel: they blow up when knocked loose.
+			if color.r > 0.7:
+				barrel.set_meta("explosive", true)
 		"bin":
 			s.add_box(pos + Vector3(0, 0.5, 0), Vector3(0.6, 1.0, 0.6), Color(0.2, 0.35, 0.25), turn)
 		"bench":
@@ -516,6 +530,45 @@ static func _clutter_item(s: Structure, kind: String, pos: Vector3, rng: RandomN
 		"table":
 			s.add_box(pos + Vector3(0, 0.37, 0), Vector3(0.12, 0.74, 0.7), Color(0.45, 0.32, 0.2), turn)
 			s.add_box(pos + Vector3(0, 0.77, 0), Vector3(1.6, 0.06, 0.8), Color(0.55, 0.4, 0.25), turn)
+
+
+## A wooden power pole with a crossbar; returns where its cables hang. The pole
+## is tagged "power": knocked down, it leaves a live sparking spot.
+static func _power_pole(s: Structure, pos: Vector3, along: Vector3) -> Vector3:
+	var height := 7.0
+	var wood := Color(0.4, 0.3, 0.2)
+	var pole := s.add_box(pos + Vector3(0, height * 0.5, 0), Vector3(0.25, height, 0.25), wood, Basis.IDENTITY,
+			Look.cylinder(0.13, 0.11, height, wood))
+	var top := pos + Vector3(0, height - 0.4, 0)
+	pole.set_meta("power", top)
+	var bar := Basis(Vector3.UP, atan2(along.x, along.z) + PI * 0.5)
+	s.add_box(pos + Vector3(0, height - 0.4 + 0.075, 0), Vector3(1.6, 0.15, 0.15), wood, bar)
+	return top
+
+
+## Two sagging wires between pole tops (visual only; they drop when a pole falls).
+static func _cable(s: Structure, a: Vector3, b: Vector3, across: Vector3) -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_LINES)
+	for offset: float in [-0.6, 0.6]:
+		var shift := across * offset
+		var prev := a + shift
+		for k in range(1, 9):
+			var f := float(k) / 8.0
+			var p := a.lerp(b, f) + shift + Vector3.DOWN * sin(f * PI) * 0.7
+			st.add_vertex(prev)
+			st.add_vertex(p)
+			prev = p
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = Color(0.08, 0.08, 0.08)
+	st.set_material(mat)
+	var wire := MeshInstance3D.new()
+	wire.mesh = st.commit()
+	wire.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	wire.set_meta("ends", [a, b])
+	wire.add_to_group("cables")
+	s.add_child(wire)
 
 
 ## A street lamp: pole and a glowing head on top.

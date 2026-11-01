@@ -10,6 +10,10 @@ var kind := ""
 var safe_height := 0.0
 ## Seconds of warning, when this disaster needs more than the usual.
 var warning_time := 0.0
+## Severity 1 mild, 2 severe, 3 catastrophic (the manager rolls it, more often
+## high as a session goes on) and the strength multiplier it gives.
+var severity := 2
+var power := 1.0
 var warning := ""
 ## Weather mood (see weather.gd) the sky turns to from the warning on.
 var mood := "clear"

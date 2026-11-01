@@ -75,7 +75,7 @@ func _physics_process(delta: float) -> void:
 			k += 1
 	_timer -= delta
 	if _timer <= 0.0 and _pending.size() < RINGS:
-		_timer = randf_range(STRIKE_GAP.x, STRIKE_GAP.y)
+		_timer = randf_range(STRIKE_GAP.x, STRIKE_GAP.y) / power
 		_pending.append([_pick_target(), WARN_TIME])
 
 

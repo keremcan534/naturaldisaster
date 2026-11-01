@@ -5,6 +5,10 @@
 shader_type spatial;
 
 global uniform float wetness;
+// A sinkhole: center x, z and radius (see disasters/sinkhole.gd); 0 radius = none.
+global uniform vec4 hole;
+// Volcanic ash settled on everything, 0..1.
+global uniform float ash_cover;
 
 uniform vec3 tint : source_color = vec3(0.4, 0.6, 0.3);
 uniform sampler2D noise : filter_linear_mipmap, repeat_enable;
@@ -54,6 +58,9 @@ float line(float dist, float half_width) {
 }
 
 void fragment() {
+	if (hole.z > 0.0 && !vertical && distance(world_pos.xz, hole.xy) < hole.z) {
+		discard;
+	}
 	vec2 p = vertical ? vec2(world_pos.x + world_pos.z, world_pos.y * 1.6) : world_pos.xz;
 	float fine = texture(noise, p * scale).r;
 	float broad = texture(noise, p * scale * 0.11 + vec2(0.37, 0.71)).r;
@@ -111,6 +118,10 @@ void fragment() {
 		}
 	}
 	ALBEDO = col;
+	if (ash_cover > 0.001 && !vertical) {
+		float drift = texture(noise, p * 0.05 + vec2(0.13, 0.57)).r;
+		ALBEDO = mix(ALBEDO, vec3(0.42, 0.41, 0.4) * (0.85 + drift * 0.3), clamp(ash_cover * (0.7 + drift * 0.6), 0.0, 0.92));
+	}
 	ROUGHNESS = rough;
 	SPECULAR = 0.3;
 }

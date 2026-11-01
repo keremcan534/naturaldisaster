@@ -14,6 +14,9 @@ var _ships: Array[MeshInstance3D] = []
 var _routes: Array[Vector3] = []
 var _birds: MultiMeshInstance3D
 var _time := 0.0
+var _smoke: CPUParticles3D
+var _barks := 0
+var _bark_timer := 0.0
 
 
 func _ready() -> void:
@@ -30,6 +33,8 @@ func _ready() -> void:
 	_birds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_birds.custom_aabb = AABB(Vector3(-80, 0, -80), Vector3(160, 60, 160))
 	add_child(_birds)
+	_smoke = _volcano_plume()
+	add_child(_smoke)
 
 
 ## A new map: ships farther out for bigger islands, at random spots of their circle.
@@ -50,6 +55,43 @@ func scatter() -> void:
 	_flee(1.0, 7.0)
 
 
+## Dogs bark here and there before a quake (they feel it first).
+func barks() -> void:
+	_barks = 5
+	_bark_timer = 0.3
+
+
+## A plume rising off the sea where the volcano will come up (during its warning).
+func volcano_smoke(pos: Vector3, on: bool) -> void:
+	_smoke.global_position = pos + Vector3.UP * 2.0
+	_smoke.emitting = on
+
+
+func _volcano_plume() -> CPUParticles3D:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(5, 5)
+	quad.material = preload("res://scripts/world/look.gd").sprite(0.3)
+	var p := CPUParticles3D.new()
+	p.mesh = quad
+	p.amount = 30
+	p.lifetime = 7.0
+	p.emitting = false
+	p.local_coords = false
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 4.0
+	p.direction = Vector3.UP
+	p.spread = 10.0
+	p.initial_velocity_min = 4.0
+	p.initial_velocity_max = 7.0
+	p.gravity = Vector3(0.5, 0.4, 0)
+	p.scale_amount_min = 1.5
+	p.scale_amount_max = 3.0
+	p.color = Color(0.25, 0.23, 0.22, 0.7)
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	p.visibility_aabb = AABB(Vector3(-30, -5, -30), Vector3(60, 80, 60))
+	return p
+
+
 func _flee(to: float, seconds: float) -> void:
 	var mat: ShaderMaterial = _birds.multimesh.mesh.surface_get_material(0)
 	var tween := create_tween()
@@ -59,6 +101,16 @@ func _flee(to: float, seconds: float) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if _barks > 0:
+		_bark_timer -= delta
+		if _bark_timer <= 0.0:
+			_barks -= 1
+			_bark_timer = randf_range(0.4, 1.2)
+			var camera := get_viewport().get_camera_3d()
+			if camera:
+				var a := randf() * TAU
+				var at := camera.global_position + Vector3(cos(a), 0, sin(a)) * randf_range(8.0, 25.0)
+				get_tree().call_group("sound", "play", "bark", at, 2.0, randf_range(0.85, 1.2))
 	for i in SHIPS:
 		var route := _routes[i]
 		var angle := route.y + _time * route.z

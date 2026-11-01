@@ -16,7 +16,7 @@ const ONE_SHOT_PLAYERS := 10
 const CRASH_GAP := 0.09
 const HEARING := 45.0
 const LOOPS := {"rumble": 2.0, "wind": 2.5, "fire": 2.0, "surf": 2.5, "rain": 2.0}
-const SHOTS := {"siren": 3.0, "boom": 1.4, "crash": 0.5, "splash": 0.8, "click": 0.05, "coin": 0.4}
+const SHOTS := {"siren": 3.0, "boom": 1.4, "crash": 0.5, "splash": 0.8, "click": 0.05, "coin": 0.4, "bark": 0.6}
 ## Music loops: a calm one for the menu and between disasters, a tense one while
 ## a disaster is coming or under way.
 const MUSIC := {"calm": 8.0, "tense": 4.0}
@@ -47,7 +47,7 @@ var _building := false
 func _ready() -> void:
 	add_to_group("sound")
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_pending = ["click", "calm", "siren", "boom", "crash", "rumble", "wind", "fire", "surf", "rain", "splash", "coin", "tense"]
+	_pending = ["click", "calm", "siren", "boom", "crash", "rumble", "wind", "fire", "surf", "rain", "splash", "coin", "bark", "tense"]
 	_music = AudioStreamPlayer.new()
 	_music.volume_db = -80.0
 	add_child(_music)
@@ -152,7 +152,7 @@ func loop(name: String, level: float, pitch := 1.0) -> void:
 
 
 ## Loudest sample of each sound after normalizing.
-const PEAKS := {"siren": 0.45, "boom": 0.95, "crash": 0.7, "splash": 0.6, "click": 0.5, "coin": 0.35,
+const PEAKS := {"bark": 0.7, "siren": 0.45, "boom": 0.95, "crash": 0.7, "splash": 0.6, "click": 0.5, "coin": 0.35,
 		"rumble": 0.85, "wind": 0.6, "fire": 0.6, "surf": 0.75, "rain": 0.4}
 
 
@@ -336,6 +336,15 @@ func _samples(name: String, count: int, seconds: float, rate: int) -> PackedFloa
 				var white := randf() * 2.0 - 1.0
 				low += (white - low) * 0.4
 				x[i] = (white - low) * exp(-t * 4.0) * minf(t * 40.0, 1.0)
+		"bark":
+			# Two "woof"s: a falling growly tone with a breathy edge.
+			for i in count:
+				var t := i * dt
+				var local := t if t < 0.3 else t - 0.3
+				var f := 520.0 - local * 900.0
+				phase += TAU * maxf(f, 200.0) * dt
+				var env := exp(-local * 14.0) * minf(local * 120.0, 1.0)
+				x[i] = (sin(phase) + 0.6 * sin(phase * 2.0) + 0.3 * (randf() * 2.0 - 1.0)) * env
 		"click":
 			for i in count:
 				var t := i * dt

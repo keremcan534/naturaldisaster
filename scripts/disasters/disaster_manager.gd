@@ -29,7 +29,17 @@ const DISASTERS := [
 	preload("res://scripts/disasters/sandstorm.gd"),
 	preload("res://scripts/disasters/flood.gd"),
 	preload("res://scripts/disasters/acid_rain.gd"),
+	preload("res://scripts/disasters/hurricane.gd"),
+	preload("res://scripts/disasters/sinkhole.gd"),
+	preload("res://scripts/disasters/heatwave.gd"),
+	preload("res://scripts/disasters/gas.gd"),
+	preload("res://scripts/disasters/big_meteor.gd"),
+	preload("res://scripts/disasters/solar_flare.gd"),
+	preload("res://scripts/disasters/wave_series.gd"),
+	preload("res://scripts/disasters/ashfall.gd"),
 ]
+const SEVERITY_NAMES := ["Hafif", "Şiddetli", "Felaket"]
+const SEVERITY_POWER := [0.8, 1.0, 1.3]
 ## Double disasters: after the first round of a session, sometimes a second one
 ## from this list joins the main one (never two floods, never the same kind).
 const COMBO_CHANCE := 0.22
@@ -167,7 +177,7 @@ func _enter(state: State) -> void:
 				disaster_warned.emit("%s + %s" % [_current.display_name, _extra.display_name], "Çifte felaket! " + _current.warning)
 			else:
 				status_changed.emit("UYARI: %s geliyor!" % _current.display_name)
-				disaster_warned.emit(_current.display_name, _current.warning)
+				disaster_warned.emit("%s · %s" % [_current.display_name, SEVERITY_NAMES[_current.severity - 1]], _current.warning)
 		State.ACTIVE:
 			_omens(false)
 			_current.duration *= time_scale
@@ -205,6 +215,12 @@ func _pick_disaster() -> Node:
 	_last_index = index
 	var disaster: Node = DISASTERS[index].new()
 	disaster.world = world
+	# Mild ones get rarer and catastrophic ones commoner as the session goes on.
+	var roll := randf()
+	var high := minf(0.05 + 0.05 * _rounds, 0.35)
+	var low := maxf(0.45 - 0.07 * _rounds, 0.12)
+	disaster.severity = 3 if roll < high else (1 if roll > 1.0 - low else 2)
+	disaster.power = SEVERITY_POWER[disaster.severity - 1]
 	return disaster
 
 
@@ -224,6 +240,10 @@ func _omens(warning: bool) -> void:
 		get_tree().call_group("weather", "drain_sea", 3.5 if warning else 0.0)
 	if warning and _current.kind in ["earthquake", "volcano"]:
 		get_tree().call_group("ambience", "scatter")
+	if warning and _current.kind == "earthquake":
+		get_tree().call_group("ambience", "barks")
+	if _current.kind == "volcano":
+		get_tree().call_group("ambience", "volcano_smoke", Vector3(0, 0, -world.map_size * 0.5 - 6.0), warning)
 
 
 ## A second disaster to go with the current one: a different kind, and never

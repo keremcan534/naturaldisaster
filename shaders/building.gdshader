@@ -14,6 +14,7 @@ uniform bool planks = false;
 
 varying vec3 local_pos;
 varying vec3 local_normal;
+global uniform float ash_cover;
 // 0..1 how far fire has burnt this piece (instance custom data, see structure.gd).
 varying float burnt;
 
@@ -55,6 +56,9 @@ void fragment() {
 	}
 	ALBEDO = col * detail;
 	ROUGHNESS = planks && n.y > 0.5 ? 0.55 : 0.85;
+	if (ash_cover > 0.001 && n.y > 0.5) {
+		ALBEDO = mix(ALBEDO, vec3(0.42, 0.41, 0.4), clamp(ash_cover * 0.9, 0.0, 0.9));
+	}
 	if (burnt > 0.001) {
 		// Soot spreads in blotches; embers glow in the cracks while it burns.
 		float blotch = texture(panel, UV * vec2(1.3, 0.9) + local_pos.xz * 0.1).r;

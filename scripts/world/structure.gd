@@ -653,6 +653,13 @@ func _physics_process(delta: float) -> void:
 			awake -= 1
 			continue
 		k += 1
+		if rb.global_position.y < -40.0:
+			# Fell off the island or into a sinkhole: gone for good.
+			_crumble(i)
+			_moving.remove_at(k - 1)
+			k -= 1
+			awake -= 1
+			continue
 		var speed := rb.linear_velocity.length()
 		var lost := _last_speed[i] - speed
 		_last_speed[i] = speed
@@ -669,6 +676,7 @@ func _physics_process(delta: float) -> void:
 func _release(i: int) -> void:
 	if _loose[i]:
 		return
+	_detonate(i)
 	# Glass never comes out in one piece.
 	if _solid[i] and _colors[i] == WINDOW_COLOR:
 		_shatter(i, _pieces[i].global_position - _pieces[i].global_basis.z, 2.5)
@@ -702,7 +710,54 @@ func _crumble(i: int) -> void:
 
 ## Replaces a piece with debris chunks flying away from `from` at up to `power` m/s.
 ## Pieces with a custom look (trees) just come loose.
+## Pieces tagged "explosive" (fuel tanks, red barrels) blow up when they break
+## loose; "power" poles spark where they stood (see world/hazards.gd).
+func _detonate(i: int) -> void:
+	var rb := _pieces[i]
+	if rb.has_meta("explosive"):
+		rb.remove_meta("explosive")
+		get_tree().call_group("hazards", "explode", rb.global_position, 1.0)
+	elif rb.has_meta("power"):
+		var top: Vector3 = rb.get_meta("power")
+		rb.remove_meta("power")
+		get_tree().call_group("hazards", "sparks", global_transform * top)
+
+
+## A heavy load on top (ash): the highest intact pieces give way, and what
+## they held follows.
+func overload(count: int) -> void:
+	var top: Array[int] = []
+	for i in _pieces.size():
+		if not _loose[i] and not _gone[i]:
+			top.append(i)
+	top.sort_custom(func(a: int, b: int) -> bool: return _boxes[a].end.y > _boxes[b].end.y)
+	for k in mini(count, top.size()):
+		_release(top[k])
+	if not top.is_empty():
+		_settle()
+
+
+## Sinkhole: everything standing on the ground within radius of center (world)
+## loses its footing; what it held up follows.
+func sink(center: Vector3, radius: float) -> void:
+	if _pieces.is_empty() or not world_bounds().grow(radius).has_point(Vector3(center.x, world_bounds().position.y, center.z)):
+		return
+	var flat := Vector2(center.x, center.z)
+	var r2 := radius * radius
+	var any := false
+	for i in _pieces.size():
+		if _loose[i] or _gone[i] or not _grounded[i]:
+			continue
+		var p := _pieces[i].global_position
+		if Vector2(p.x, p.z).distance_squared_to(flat) < r2:
+			_release(i)
+			any = true
+	if any:
+		_settle()
+
+
 func _shatter(i: int, from: Vector3, power: float) -> void:
+	_detonate(i)
 	if not _solid[i]:
 		_release(i)
 		return
