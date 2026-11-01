@@ -1,10 +1,16 @@
 # Builds an Android APK (debug-signed, for testing on a phone) and attaches it
-# to the run as an artifact. Run it by hand: Actions > Build Android APK > Run
-# workflow. A Google Play release needs a release keystore (see ROADMAP.md).
+# to the run as an artifact. Run it by hand (Actions > Build Android APK > Run
+# workflow, once this file is on the default branch); it also runs by itself when
+# this file or the export presets change. A Google Play release needs a release
+# keystore (see ROADMAP.md).
 name: Build Android APK
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/android.yml
+      - export_presets.cfg
 
 permissions:
   contents: read
