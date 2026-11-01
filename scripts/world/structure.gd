@@ -52,11 +52,22 @@ const IMPACT_DV := 8.0
 const IMPACT_HOLD := 60.0
 ## Explosions shatter pieces within this fraction of their radius.
 const SHATTER_RADIUS := 0.55
+## Fire: how often it advances, how long a piece burns (heavier ones longer), the
+## chance per tick that a burning piece lights what rests on it, its sides and
+## what holds it up, and the color pieces char toward.
+const FIRE_TICK := 0.5
+const BURN_TIME := 14.0
+const SPREAD_UP := 0.3
+const SPREAD_SIDE := 0.13
+const SPREAD_DOWN := 0.05
+const CHAR_COLOR := Color(0.07, 0.06, 0.05)
 
 ## Loose pieces still moving, across all structures. Past the quality level's
 ## "chaos" budget, pieces that break off crumble to dust instead of tumbling, so
 ## a whole town coming down can't drown the physics on a phone.
 static var awake := 0
+## Pieces on fire in every structure (flames.gd draws them while it is above 0).
+static var fires := 0
 
 static var _meshes := {}
 static var _shapes := {}
@@ -66,6 +77,12 @@ const _HIDDEN_SCALE := Basis(Vector3(0.0001, 0, 0), Vector3(0, 0.0001, 0), Vecto
 
 ## Higher survives more shaking.
 @export var strength := 1.0
+## Fire (see ignite()): each burning piece's progress 0..1, the burning pieces,
+## and who rests on what in reverse (fire spreads down too, slowly).
+var _heat := PackedFloat32Array()
+var _burning: Array[int] = []
+var _down: Array[Array] = []
+var _fire_timer := 0.0
 ## Waypoints (local) from outside the front door up the stairs to the roof, for
 ## bots (see bot.gd); empty without stairs. roof_height: the roof's walking surface.
 var climb_path: Array[Vector3] = []
@@ -105,6 +122,116 @@ func _ready() -> void:
 	add_to_group("structures")
 	_link_pieces()
 	_build_batches()
+
+
+## Sets pieces within radius of center (global) on fire. Glass bursts from the heat.
+func ignite(center: Vector3, radius: float) -> void:
+	if _pieces.is_empty() or not world_bounds().grow(radius).has_point(center):
+		return
+	_prepare_fire()
+	var r2 := radius * radius
+	for i in _pieces.size():
+		if _heat[i] == 0.0 and not _gone[i] and not _loose[i] and _pieces[i].global_position.distance_squared_to(center) < r2:
+			_catch(i)
+
+
+## Puts every fire out (the char stays).
+func extinguish() -> void:
+	fires -= _burning.size()
+	_burning.clear()
+
+
+## Appends Vector4(x, y, z, strength 0..1) for each burning piece, at its top.
+func collect_fire(out: Array) -> void:
+	for i in _burning:
+		if _gone[i]:
+			continue
+		var top := _pieces[i].global_position + Vector3.UP * _sizes[i].y * 0.4
+		out.append(Vector4(top.x, top.y, top.z, sin(minf(_heat[i], 1.0) * PI) * 0.7 + 0.3))
+
+
+func _prepare_fire() -> void:
+	if _heat.size() == _pieces.size():
+		return
+	_heat.resize(_pieces.size())
+	_heat.fill(0.0)
+	_down.resize(_pieces.size())
+	for i in _pieces.size():
+		_down[i] = []
+	for i in _pieces.size():
+		for j: int in _up[i]:
+			_down[j].append(i)
+
+
+func _catch(i: int) -> void:
+	if _solid[i] and _colors[i] == WINDOW_COLOR:
+		_shatter(i, _pieces[i].global_position + Vector3.UP, 1.5)
+		return
+	_heat[i] = 0.01
+	_burning.append(i)
+	fires += 1
+
+
+## Every FIRE_TICK: burning pieces char, spread to their neighbours and, burnt
+## out, fall (or crumble); whatever they held drops after them.
+func _fire_tick() -> void:
+	var fell := false
+	var k := 0
+	while k < _burning.size():
+		var i := _burning[k]
+		if _gone[i]:
+			_burning.remove_at(k)
+			fires -= 1
+			continue
+		var mass := _pieces[i].mass
+		_heat[i] += FIRE_TICK / (BURN_TIME * clampf(pow(mass, 0.25), 0.6, 1.8))
+		_scorch(i, _heat[i])
+		if _heat[i] > 0.3:
+			_spread(_up[i], SPREAD_UP)
+			_spread(_side[i], SPREAD_SIDE)
+			_spread(_down[i], SPREAD_DOWN)
+		if _heat[i] >= 1.0:
+			_burning.remove_at(k)
+			fires -= 1
+			if not _loose[i]:
+				if randf() < 0.5:
+					_crumble(i)
+				else:
+					_release(i)
+				fell = true
+			continue
+		k += 1
+	if fell:
+		_settle()
+
+
+func _spread(neighbours: Array, chance: float) -> void:
+	for j: int in neighbours:
+		if _heat[j] == 0.0 and not _gone[j] and not _loose[j] and randf() < chance:
+			_catch(j)
+
+
+## Darkens a piece as it burns: instance color for plain pieces, the building
+## shader's char (custom data) for walls and floors.
+func _scorch(i: int, amount: float) -> void:
+	if _loose[i] or _gone[i]:
+		return
+	var multimesh := _batches[_batch_of[i]]
+	var c := clampf(amount, 0.0, 1.0)
+	if multimesh.use_colors:
+		multimesh.set_instance_color(_slot_of[i], _tints[i].lerp(CHAR_COLOR, c))
+	elif multimesh.use_custom_data:
+		multimesh.set_instance_custom_data(_slot_of[i], Color(c, 0, 0, 0))
+
+
+func _exit_tree() -> void:
+	fires -= _burning.size()
+	_burning.clear()
+
+
+## The structure's extent in world space (its pieces as built).
+func world_bounds() -> AABB:
+	return global_transform * _bounds
 
 
 ## center is in this node's local space. A rotated piece links to its neighbours
@@ -335,6 +462,8 @@ func _build_batches() -> void:
 		var multimesh := MultiMesh.new()
 		multimesh.transform_format = MultiMesh.TRANSFORM_3D
 		multimesh.use_colors = key[1] == Look.tinted()
+		# Char from fire for the building shader (see _scorch); the others get darker colors.
+		multimesh.use_custom_data = key[1] is ShaderMaterial
 		multimesh.mesh = key[0]
 		multimesh.instance_count = members.size()
 		for slot in members.size():
@@ -342,6 +471,8 @@ func _build_batches() -> void:
 			multimesh.set_instance_transform(slot, _batch_transform(i, unit))
 			if multimesh.use_colors:
 				multimesh.set_instance_color(slot, _tints[i])
+			if multimesh.use_custom_data:
+				multimesh.set_instance_custom_data(slot, Color(0, 0, 0, 0))
 			_batch_of[i] = _batches.size()
 			_slot_of[i] = slot
 		var batch := MultiMeshInstance3D.new()
@@ -502,6 +633,11 @@ func impact(pos: Vector3, energy: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not _burning.is_empty():
+		_fire_timer -= delta
+		if _fire_timer <= 0.0:
+			_fire_timer = FIRE_TICK
+			_fire_tick()
 	if _moving.is_empty():
 		return
 	_impact_timer -= delta

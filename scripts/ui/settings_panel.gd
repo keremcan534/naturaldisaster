@@ -31,6 +31,9 @@ func _ready() -> void:
 
 	box.add_child(_slider_row("Bakış hassasiyeti", 0.3, 3.0, Settings.sensitivity, func(v: float) -> void:
 		Settings.sensitivity = v))
+	box.add_child(_slider_row("Ses", 0.0, 1.0, Settings.volume, func(v: float) -> void:
+		Settings.volume = v
+		Settings.apply_volume()))
 	if controls:
 		box.add_child(_slider_row("Tuş boyutu", 0.8, 1.4, Settings.button_size, func(v: float) -> void:
 			Settings.button_size = v

@@ -6,6 +6,8 @@ signal timer_changed(seconds_left: int)
 ## After each disaster: every player and bot, best total score first.
 signal round_scored(board: Array)
 signal round_started
+## A disaster was announced: its name and what to do.
+signal disaster_warned(title: String, hint: String)
 
 ## Round points: surviving, plus half the health left, plus a bonus for every
 ## round survived in a row before this one, plus a team bonus for every other
@@ -20,6 +22,8 @@ const DISASTERS := [
 	preload("res://scripts/disasters/tsunami.gd"),
 	preload("res://scripts/disasters/tornado.gd"),
 	preload("res://scripts/disasters/volcano.gd"),
+	preload("res://scripts/disasters/mega_tsunami.gd"),
+	preload("res://scripts/disasters/fire.gd"),
 ]
 
 enum State { INTERMISSION, WARNING, ACTIVE, RESULTS }
@@ -78,6 +82,13 @@ func coming_kind() -> String:
 	return ""
 
 
+## For floods: how high bots should climb (0 otherwise).
+func safe_height() -> float:
+	if _current and (_state == State.WARNING or _state == State.ACTIVE):
+		return _current.safe_height
+	return 0.0
+
+
 func danger_center() -> Vector3:
 	if _current and _state == State.ACTIVE:
 		return _current.danger_center()
@@ -115,8 +126,10 @@ func _enter(state: State) -> void:
 		State.WARNING:
 			_current = _pick_disaster()
 			world.set_mood(_current.mood)
-			_time_left = warning_time * time_scale
-			status_changed.emit("UYARI: %s geliyor! %s" % [_current.display_name, _current.warning])
+			_time_left = maxf(warning_time, _current.warning_time) * time_scale
+			# The HUD's card shows what to do; the status line stays short.
+			status_changed.emit("UYARI: %s geliyor!" % _current.display_name)
+			disaster_warned.emit(_current.display_name, _current.warning)
 		State.ACTIVE:
 			_current.duration *= time_scale
 			_time_left = _current.duration

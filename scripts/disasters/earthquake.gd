@@ -19,6 +19,7 @@ func _process(delta: float) -> void:
 	_elapsed += delta
 	var intensity := _intensity()
 	get_tree().call_group("player", "add_shake", intensity)
+	get_tree().call_group("sound", "loop", "rumble", intensity)
 	_damage_timer -= delta
 	if _damage_timer <= 0.0:
 		_damage_timer = DAMAGE_INTERVAL

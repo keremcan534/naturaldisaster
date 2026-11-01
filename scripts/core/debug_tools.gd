@@ -19,6 +19,7 @@ extends Node
 ##   --pitch=<deg>       with --pos, looks up (positive) or down
 
 const SHOT_INTERVAL := 2.0
+const Structure := preload("res://scripts/world/structure.gd")
 
 var manager: Node
 
@@ -82,12 +83,12 @@ func _process(delta: float) -> void:
 		_perf_timer -= delta
 		if _perf_timer <= 0.0:
 			_perf_timer = 1.0
-			print("[%.1fs] fps %d, process %.2f ms, physics %.2f ms, draw calls %d, primitives %d" % [_elapsed,
+			print("[%.1fs] fps %d, process %.2f ms, physics %.2f ms, draw calls %d, primitives %d, fires %d" % [_elapsed,
 					Engine.get_frames_per_second(),
 					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
-					Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)])
+					Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME), Structure.fires])
 	if _bot_log:
 		_bot_timer -= delta
 		if _bot_timer <= 0.0:

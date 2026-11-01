@@ -106,11 +106,15 @@ static func _skyscraper(root: Node3D) -> Dictionary:
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_decal(root, Vector3(corner.x * 19, 0, corner.y * 19), Vector2(14, 14), GRASS_COLOR)
 	_building(root, Vector3(0, 0, -2), Vector2i(5, 5), 10, Color(0.7, 0.76, 0.82), 2.6, false, true, true)
+	# A little cafe beside the tower: two storeys, easy to knock down.
+	_building(root, Vector3(-15, 0, 4), Vector2i(4, 3), 2, Color(0.86, 0.72, 0.52), 0.9)
 	var props := _props()
 	for corner: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(-1, 1), Vector2(1, 1)]:
 		_tree(props, Vector3(corner.x * 19, 0, corner.y * 19))
 	_car(props, Vector3(-14, 0, 14), false, CAR_COLORS[0])
 	_car(props, Vector3(14, 0, 10), false, CAR_COLORS[1])
+	_trampoline(props, Vector3(11, 0, 15))
+	_slide(props, Vector3(12, 0, -12))
 	root.add_child(props)
 	return {"name": "Gökdelen", "size": size, "spawn": Vector3(0, 0.5, 20)}
 
@@ -138,7 +142,11 @@ static func _apartment(root: Node3D) -> Dictionary:
 	_road(root, Vector3(0, 0, 14), size, true)
 	_decal(root, Vector3(0, 0, 5.5), Vector2(2, 7), PATH_COLOR)
 	_building(root, Vector3(0, 0, -3), Vector2i(7, 5), 6, Color(0.85, 0.62, 0.5), 2.0, true)
+	# A corner shop and a playground beside the block.
+	_building(root, Vector3(16, 0, 2), Vector2i(3, 3), 1, Color(0.55, 0.7, 0.62), 0.8)
 	var props := _props()
+	_slide(props, Vector3(-18, 0, 2))
+	_trampoline(props, Vector3(-13, 0, 7))
 	for i in 4:
 		_car(props, Vector3(-15 + i * 10, 0, 14), i % 2 == 0, CAR_COLORS[i])
 	_tree(props, Vector3(-16, 0, -12))

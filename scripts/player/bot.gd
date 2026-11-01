@@ -6,6 +6,8 @@ extends CharacterBody3D
 ## always make it. Bots are in the "player" group, so disasters hurt them
 ## exactly like the player, and they compete for round points.
 
+signal died
+
 const Avatar := preload("res://scripts/player/avatar.gd")
 const Maps := preload("res://scripts/world/maps.gd")
 
@@ -292,6 +294,8 @@ func _make_plan(coming: String) -> void:
 			_hurry = true
 		"volcano":
 			_go_far_side()
+		"fire":
+			_go_open()
 		_:
 			_plan = "wander"
 			_hurry = false
@@ -330,12 +334,13 @@ func _follow_plan() -> void:
 func _go_up() -> void:
 	var best: Dictionary = {}
 	var best_score := -INF
+	var safe: float = maxf(SAFE_HEIGHT, manager.safe_height())
 	for refuge: Dictionary in Maps.refuges:
 		if not is_instance_valid(refuge.structure):
 			continue
 		var path: Array = refuge.path
 		var dist := global_position.distance_to(path[0])
-		var value := minf(refuge.height, SAFE_HEIGHT + 3.0) * 3.0 - dist * (0.3 + (1.0 - _skill) * 0.5) + _rng.randf() * 6.0
+		var value := minf(refuge.height, safe + 3.0) * 3.0 - dist * (0.3 + (1.0 - _skill) * 0.5) + _rng.randf() * 6.0
 		if value > best_score:
 			best_score = value
 			best = refuge
@@ -348,8 +353,8 @@ func _go_up() -> void:
 	# Not exactly in each other's footsteps.
 	for k in _path.size():
 		_path[k] += Vector3(_rng.randf_range(-0.25, 0.25), 0, _rng.randf_range(-0.25, 0.25))
-	if best.height > SAFE_HEIGHT + 3.0:
-		_stop_height = SAFE_HEIGHT + _rng.randf() * 4.0
+	if best.height > safe + 3.0:
+		_stop_height = safe + _rng.randf() * 4.0
 
 
 ## Earthquake: the open spot farthest from buildings among a few tries.
@@ -500,6 +505,7 @@ func take_damage(amount: float) -> void:
 		_label.visible = false
 		velocity = Vector3.ZERO
 		_path.clear()
+		died.emit()
 
 
 func respawn(pos: Vector3) -> void:

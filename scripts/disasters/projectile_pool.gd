@@ -11,6 +11,8 @@ const LOST_HEIGHT := -20.0
 var blast_radius := 5.0
 var blast_force := 14.0
 var blast_damage := 80.0
+## Chance that an impact sets what it hit on fire (see Structure.ignite).
+var ignite_chance := 0.0
 
 var _bodies: Array[RigidBody3D] = []
 var _trails: Array[CPUParticles3D] = []
@@ -112,6 +114,8 @@ func _explode(pos: Vector3) -> void:
 	get_tree().call_group("player", "explode_at", pos, blast_radius, blast_damage)
 	get_tree().call_group("player", "add_shake", 0.6)
 	get_tree().call_group("effects", "explosion", pos, blast_radius)
+	if randf() < ignite_chance:
+		get_tree().call_group("structures", "ignite", pos, 2.2)
 
 	var flash := _flashes[_next_flash]
 	_next_flash = (_next_flash + 1) % _flashes.size()

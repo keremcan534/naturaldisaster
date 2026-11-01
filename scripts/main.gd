@@ -14,6 +14,9 @@ const TouchControls := preload("res://scripts/ui/touch_controls.gd")
 const Weather := preload("res://scripts/world/weather.gd")
 const Effects := preload("res://scripts/world/effects.gd")
 const Debris := preload("res://scripts/world/debris.gd")
+const Flames := preload("res://scripts/world/flames.gd")
+const Ambience := preload("res://scripts/world/ambience.gd")
+const Sound := preload("res://scripts/core/sound.gd")
 const Structure := preload("res://scripts/world/structure.gd")
 const Settings := preload("res://scripts/core/settings.gd")
 const Profile := preload("res://scripts/core/profile.gd")
@@ -45,6 +48,7 @@ const FPS_SETTLE := 2.5
 var _map_root: Node3D
 var _map_index := -1
 var _weather: Weather
+var _ambience: Ambience
 var _fps_time := 0.0
 var _fps_frames := 0
 var _fps_settle := FPS_SETTLE
@@ -71,10 +75,15 @@ func _ready() -> void:
 	Settings.load_settings()
 	Profile.load_profile()
 
+	add_child(Sound.new())
+	Settings.apply_volume()
 	_weather = Weather.new()
 	add_child(_weather)
 	add_child(Effects.new())
 	add_child(Debris.new())
+	add_child(Flames.new())
+	_ambience = Ambience.new()
+	add_child(_ambience)
 	_apply_quality()
 
 	_player = Player.new()
@@ -97,6 +106,8 @@ func _ready() -> void:
 	add_child(_manager)
 	_hud.bind(_manager, _player)
 	_manager.round_scored.connect(_on_round_scored)
+	_manager.disaster_warned.connect(func(_title: String, _hint: String) -> void:
+		get_tree().call_group("sound", "play", "siren"))
 
 	for i in BOT_COUNT:
 		var bot := Bot.new()
@@ -104,6 +115,7 @@ func _ready() -> void:
 		bot.manager = _manager
 		bot.world = self
 		add_child(bot)
+	_hud.watch_bots(get_tree().get_nodes_in_group("bots"))
 
 	_menu = Menu.new()
 	_menu.world = self
@@ -192,6 +204,7 @@ func load_next_map() -> void:
 		_map_root.free()
 	get_tree().call_group("debris", "clear")
 	Structure.awake = 0
+	Structure.fires = 0
 	if forced_map >= 0:
 		_map_index = forced_map
 	else:
@@ -205,7 +218,16 @@ func load_next_map() -> void:
 	spawn_point = info.spawn
 	_weather.set_island(map_size * 0.5)
 	_weather.new_day()
+	_ambience.set_island(map_size * 0.5)
+	_ambience.set_night(_weather.time_of_day() == "night")
 	_fps_settle = FPS_SETTLE
+
+
+## Moves a node into the current map (it goes when the next map loads), e.g. a
+## ship a disaster left stranded.
+func keep_on_map(node: Node3D) -> void:
+	if _map_root:
+		node.reparent(_map_root)
 
 
 ## Picks a quality level (see quality.gd); auto keeps adjusting it to the frame

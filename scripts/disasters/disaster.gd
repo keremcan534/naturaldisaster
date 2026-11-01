@@ -4,8 +4,12 @@ extends Node
 ## when the round ends. Disasters do their work in _process/_physics_process.
 
 var display_name := "Felaket"
-## What bots react to: earthquake, meteor, tsunami, tornado, volcano.
+## What bots react to: earthquake, meteor, tsunami, tornado, volcano, fire.
 var kind := ""
+## For floods: how high bots try to climb (0: not a flood).
+var safe_height := 0.0
+## Seconds of warning, when this disaster needs more than the usual.
+var warning_time := 0.0
 var warning := ""
 ## Weather mood (see weather.gd) the sky turns to from the warning on.
 var mood := "clear"

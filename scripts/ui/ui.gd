@@ -63,6 +63,7 @@ static func button(value: String, size: int, primary := false) -> Button:
 	b.add_theme_color_override("font_pressed_color", Color(0.1, 0.07, 0.02))
 	b.add_theme_color_override("font_hover_pressed_color", Color(0.1, 0.07, 0.02))
 	b.add_theme_color_override("font_disabled_color", Color(1, 1, 1, 0.4))
+	b.pressed.connect(func() -> void: b.get_tree().call_group("sound", "play", "click"))
 	return b
 
 

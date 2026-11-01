@@ -14,6 +14,8 @@ uniform bool planks = false;
 
 varying vec3 local_pos;
 varying vec3 local_normal;
+// 0..1 how far fire has burnt this piece (instance custom data, see structure.gd).
+varying float burnt;
 
 float hash(float n) {
 	return fract(sin(n * 91.345) * 47453.5453);
@@ -23,6 +25,7 @@ void vertex() {
 	// Batched pieces are a unit cube scaled by the instance transform.
 	vec3 scale = vec3(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz), length(MODEL_MATRIX[2].xyz));
 	local_normal = NORMAL;
+	burnt = INSTANCE_CUSTOM.r;
 	// Per-piece offset so floorboards don't line up across tiles.
 	local_pos = VERTEX * scale + MODEL_MATRIX[3].xyz;
 }
@@ -52,4 +55,13 @@ void fragment() {
 	}
 	ALBEDO = col * detail;
 	ROUGHNESS = planks && n.y > 0.5 ? 0.55 : 0.85;
+	if (burnt > 0.001) {
+		// Soot spreads in blotches; embers glow in the cracks while it burns.
+		float blotch = texture(panel, UV * vec2(1.3, 0.9) + local_pos.xz * 0.1).r;
+		float soot = smoothstep(0.0, 1.0, burnt * 1.5 - blotch * 0.5);
+		ALBEDO = mix(ALBEDO, vec3(0.04, 0.035, 0.03), soot);
+		float glow = smoothstep(0.55, 0.75, blotch) * smoothstep(0.15, 0.4, burnt) * (1.0 - smoothstep(0.85, 1.0, burnt));
+		EMISSION = vec3(1.0, 0.32, 0.05) * glow * (0.7 + 0.3 * sin(TIME * 7.0 + local_pos.x * 3.0 + local_pos.y));
+		ROUGHNESS = 1.0;
+	}
 }

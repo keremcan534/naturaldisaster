@@ -4,19 +4,12 @@ extends "res://scripts/disasters/disaster.gd"
 ## debris that drains at the end. High floors of strong buildings are the safe spots.
 
 const FIELD_INTERVAL := 0.1
-const CREST_HEIGHT := 8.0
-const CREST_DEPTH := 7.0
-const WATER_LEVEL := 4.5
-## Far beyond what ordinary walls hold: the ground floors of houses go, and the
-## rest of the house comes down with them. Strong towers lose only some walls.
-const CREST_FORCE := 75.0
 const CURRENT_FORCE := 9.0
 ## Sideways churn in the flood, so debris tumbles instead of gliding.
 const CHURN := 4.0
 ## Lift on submerged debris, past gravity once a piece is under: things float
 ## up and bob along the surface.
 const BUOYANCY := 13.0
-const CREST_PLAYER_DAMAGE := 35.0
 ## Fractions of the duration: the wave crossing, and draining at the end.
 const TRAVEL_PART := 0.45
 const DRAIN_PART := 0.25
@@ -25,6 +18,16 @@ const EDGE_MARGIN := 20.0
 const BOTTOM := -3.0
 
 const Look := preload("res://scripts/world/look.gd")
+
+## The wave: crest height and depth (m), the flood left behind, how hard the crest
+## hits pieces (far beyond what ordinary walls hold: the ground floors of houses
+## go, and the rest of the house comes down with them; strong towers lose only
+## some walls) and players. Set before begin(); the giant tsunami raises them all.
+var crest_height := 8.0
+var crest_depth := 7.0
+var water_level := 4.5
+var crest_force := 75.0
+var crest_damage := 35.0
 
 var _dir := Vector3.RIGHT
 var _half := 30.0
@@ -47,6 +50,7 @@ func _init() -> void:
 	warning = "Üst katlara ya da çatıya çık!"
 	duration = 28.0
 	mood = "overcast"
+	safe_height = 9.0
 
 
 func begin() -> void:
@@ -68,15 +72,22 @@ func _physics_process(delta: float) -> void:
 	_elapsed += delta
 	var travel := minf(_elapsed / (duration * TRAVEL_PART), 1.0)
 	_front = lerpf(-_half - EDGE_MARGIN, _half + EDGE_MARGIN, travel)
-	_level = WATER_LEVEL * clampf((duration - _elapsed) / (duration * DRAIN_PART), 0.0, 1.0)
+	_level = water_level * clampf((duration - _elapsed) / (duration * DRAIN_PART), 0.0, 1.0)
 	_update_meshes(travel)
 	_affect_players()
+	var camera := get_viewport().get_camera_3d()
+	if camera:
+		# The roar of the wall of water, then the flood's rush.
+		var gap := absf(camera.global_position.dot(_dir) - _front)
+		var roar := (1.0 - clampf(gap / 60.0, 0.0, 1.0)) if travel < 1.0 else 0.0
+		get_tree().call_group("sound", "loop", "surf", maxf(roar, 0.35 if _level > 0.5 else 0.0), 0.8 + crest_height * 0.01)
+		get_tree().call_group("sound", "loop", "rumble", roar * 0.6)
 
 	_field_timer -= delta
 	if _field_timer <= 0.0:
 		_field_timer = FIELD_INTERVAL
 		var width := _half + EDGE_MARGIN
-		var local := AABB(Vector3(-width, -1.0, -width), Vector3(_front + width, CREST_HEIGHT + 2.0, width * 2.0))
+		var local := AABB(Vector3(-width, -1.0, -width), Vector3(_front + width, crest_height + 2.0, width * 2.0))
 		get_tree().call_group("structures", "apply_field", _root.global_transform * local, _force_at, FIELD_INTERVAL)
 
 
@@ -84,8 +95,8 @@ func _force_at(p: Vector3) -> Vector3:
 	var s := p.dot(_dir)
 	if s > _front:
 		return Vector3.ZERO
-	if s > _front - CREST_DEPTH and p.y < CREST_HEIGHT + 1.0:
-		return _dir * CREST_FORCE * (1.0 - 0.6 * clampf(p.y / CREST_HEIGHT, 0.0, 1.0)) + Vector3.UP * 8.0
+	if s > _front - crest_depth and p.y < crest_height + 1.0:
+		return _dir * crest_force * (1.0 - 0.6 * clampf(p.y / crest_height, 0.0, 1.0)) + Vector3.UP * 8.0
 	if p.y < _level:
 		var side := _dir.cross(Vector3.UP)
 		var churn := side * sin(_elapsed * 1.7 + s * 0.35) * CHURN
@@ -101,12 +112,12 @@ func _affect_players() -> void:
 		var s := p.global_position.dot(_dir)
 		if s > _front:
 			continue
-		if s > _front - CREST_DEPTH and p.global_position.y < CREST_HEIGHT:
+		if s > _front - crest_depth and p.global_position.y < crest_height:
 			if not _hit_players.has(p):
 				_hit_players[p] = true
-				p.take_damage(CREST_PLAYER_DAMAGE)
+				p.take_damage(crest_damage)
 				p.push(_dir * 18.0 + Vector3.UP * 5.0)
-			p.set_water(CREST_HEIGHT, _dir * 20.0)
+			p.set_water(crest_height, _dir * 20.0)
 		elif _level > 0.0:
 			p.set_water(_level, _dir * CURRENT_FORCE)
 
@@ -116,9 +127,9 @@ func _update_meshes(travel: float) -> void:
 	_water.visible = _level > 0.02 or breaking
 	_water_mat.set_shader_parameter("front", _front if breaking else _half + EDGE_MARGIN * 3.0)
 	_water_mat.set_shader_parameter("level", _level)
-	_water_mat.set_shader_parameter("crest_height", CREST_HEIGHT if breaking else _level)
+	_water_mat.set_shader_parameter("crest_height", crest_height if breaking else _level)
 	_spray.emitting = breaking
-	_spray.position = Vector3(_front - 0.5, CREST_HEIGHT, 0)
+	_spray.position = Vector3(_front - 0.5, crest_height, 0)
 
 
 func _make_water() -> MeshInstance3D:
@@ -129,7 +140,8 @@ func _make_water() -> MeshInstance3D:
 	plane.subdivide_width = int(plane.size.x / 0.6)
 	plane.subdivide_depth = 6
 	_water_mat = Look.tsunami_water()
-	_water_mat.set_shader_parameter("crest_depth", CREST_DEPTH)
+	_water_mat.set_shader_parameter("crest_depth", crest_depth)
+	_water_mat.set_shader_parameter("lip_size", crest_height * 0.28)
 	_water_mat.set_shader_parameter("bottom", BOTTOM)
 	_water_mat.set_shader_parameter("side_half", reach)
 	_water_mat.set_shader_parameter("back", -reach - 10.0)
@@ -139,7 +151,7 @@ func _make_water() -> MeshInstance3D:
 	water.material_override = _water_mat
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# The shader lifts the flat plane into the wave.
-	water.extra_cull_margin = CREST_HEIGHT - BOTTOM
+	water.extra_cull_margin = crest_height - BOTTOM
 	water.visible = false
 	return water
 

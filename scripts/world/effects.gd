@@ -34,6 +34,7 @@ func explosion(pos: Vector3, radius: float) -> void:
 	_next_explosion = (_next_explosion + 1) % _explosions.size()
 	slot.global_position = pos
 	slot.scale = Vector3.ONE * clampf(radius / 5.0, 0.5, 1.5)
+	get_tree().call_group("sound", "play", "boom", pos, 4.0)
 	for emitter: CPUParticles3D in slot.get_children():
 		emitter.restart()
 
@@ -44,6 +45,7 @@ func dust(pos: Vector3) -> void:
 	_next_dust = (_next_dust + 1) % _dusts.size()
 	emitter.global_position = pos
 	emitter.restart()
+	get_tree().call_group("sound", "play", "crash", pos)
 
 
 func _fire() -> CPUParticles3D:

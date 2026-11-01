@@ -25,6 +25,17 @@ var _board_rows: VBoxContainer
 var _board_time := 0.0
 var _manager: Node
 var _player: Node
+## A big card announcing the coming disaster, the list of who fell, and a red
+## flash when the player gets hurt (a slow pulse while health is low).
+var _card: PanelContainer
+var _card_title: Label
+var _card_hint: Label
+var _feed: VBoxContainer
+var _hurt: TextureRect
+var _hurt_amount := 0.0
+var _last_health := 100.0
+var _low_health := false
+var _time := 0.0
 
 
 func _ready() -> void:
@@ -128,6 +139,27 @@ func _ready() -> void:
 	_board = _build_board()
 	add_child(_board)
 
+	_hurt = TextureRect.new()
+	_hurt.texture = shade
+	_hurt.stretch_mode = TextureRect.STRETCH_SCALE
+	_hurt.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_hurt.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_hurt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hurt.modulate = Color(1.0, 0.1, 0.05, 0.0)
+	add_child(_hurt)
+	move_child(_hurt, 1)
+
+	_card = _build_card()
+	add_child(_card)
+	_feed = VBoxContainer.new()
+	_feed.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_feed.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_feed.offset_right = -20
+	_feed.offset_top = 84
+	_feed.alignment = BoxContainer.ALIGNMENT_BEGIN
+	_feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_feed)
+
 	var hint := _label(14)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
 	hint.grow_horizontal = Control.GROW_DIRECTION_BEGIN
@@ -156,6 +188,10 @@ func _process(delta: float) -> void:
 		_board_time -= delta
 		if _board_time <= 0.0:
 			_board.visible = false
+	_time += delta
+	_hurt_amount = move_toward(_hurt_amount, 0.0, delta * 0.8)
+	var pulse := (0.18 + 0.12 * sin(_time * 5.0)) if _low_health else 0.0
+	_hurt.modulate.a = maxf(_hurt_amount, pulse)
 
 
 func bind(manager: Node, player: Node) -> void:
@@ -164,10 +200,12 @@ func bind(manager: Node, player: Node) -> void:
 	manager.status_changed.connect(func(text: String) -> void: _status.text = text)
 	manager.timer_changed.connect(func(seconds: int) -> void: _timer.text = str(seconds))
 	manager.round_started.connect(func() -> void: _board.visible = false)
+	manager.disaster_warned.connect(_show_card)
 	player.health_changed.connect(_set_health)
 	player.died.connect(func() -> void:
 		_center.text = "Öldün! Sonraki turu bekle"
-		_center.visible = true)
+		_center.visible = true
+		_add_feed(player.display_name, player.tint))
 	player.respawned.connect(func() -> void: _center.visible = false)
 	player.spectating.connect(func(bot_name: String) -> void:
 		_center.text = "Öldün! İzliyorsun: %s" % bot_name if bot_name != "" else "Öldün! Sonraki turu bekle")
@@ -207,6 +245,7 @@ func show_board(board: Array, coins_earned: int) -> void:
 		row.add_child(total)
 		_board_rows.add_child(row)
 	if coins_earned > 0:
+		get_tree().call_group("sound", "play", "coin")
 		var earned := Ui.CoinLabel.new(22)
 		earned.set_amount(coins_earned)
 		var line := HBoxContainer.new()
@@ -216,6 +255,7 @@ func show_board(board: Array, coins_earned: int) -> void:
 		_board_rows.add_child(line)
 	_board.visible = true
 	_board_time = 7.5
+	_center.visible = false
 
 
 func _build_board() -> PanelContainer:
@@ -238,7 +278,80 @@ func _build_board() -> PanelContainer:
 	return panel
 
 
+## Bots' deaths go into the feed too.
+func watch_bots(bots: Array) -> void:
+	for bot: Node in bots:
+		bot.died.connect(func() -> void: _add_feed(bot.display_name, bot.tint))
+
+
+func _add_feed(who: String, color: Color) -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(Ui.text(who, 18, color.lightened(0.3)))
+	row.add_child(Ui.text(" elendi", 18, Color(1, 1, 1, 0.85)))
+	_feed.add_child(row)
+	if _feed.get_child_count() > 5:
+		_feed.get_child(0).queue_free()
+	var tween := row.create_tween()
+	tween.tween_interval(5.0)
+	tween.tween_property(row, "modulate:a", 0.0, 0.8)
+	tween.tween_callback(row.queue_free)
+
+
+func _show_card(title: String, hint: String) -> void:
+	_card_title.text = title.to_upper()
+	_card_hint.text = hint
+	_card.visible = true
+	_card.modulate.a = 0.0
+	_card.scale = Vector2(1.15, 1.15)
+	_card.pivot_offset = _card.size * 0.5
+	var tween := _card.create_tween()
+	tween.tween_property(_card, "modulate:a", 1.0, 0.25)
+	tween.parallel().tween_property(_card, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tween.tween_interval(3.2)
+	tween.tween_property(_card, "modulate:a", 0.0, 0.6)
+	tween.tween_callback(func() -> void: _card.visible = false)
+
+
+func _build_card() -> PanelContainer:
+	var card := PanelContainer.new()
+	card.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	card.offset_top = 140
+	card.custom_minimum_size = Vector2(620, 0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.55, 0.06, 0.04, 0.88)
+	style.border_color = Color(1.0, 0.8, 0.2)
+	style.border_width_top = 5
+	style.border_width_bottom = 5
+	style.set_corner_radius_all(10)
+	style.set_content_margin_all(16)
+	card.add_theme_stylebox_override("panel", style)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(box)
+	var tag := Ui.title("! UYARI !", 22)
+	tag.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	box.add_child(tag)
+	_card_title = Ui.title("", 52)
+	_card_title.add_theme_color_override("font_color", Color.WHITE)
+	box.add_child(_card_title)
+	_card_hint = Ui.title("", 22)
+	_card_hint.add_theme_color_override("font_color", Color(1, 0.95, 0.85))
+	_card_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(_card_hint)
+	card.visible = false
+	return card
+
+
 func _set_health(value: float, max_value: float) -> void:
+	if value < _last_health:
+		_hurt_amount = minf(_hurt_amount + (_last_health - value) / max_value * 2.0 + 0.15, 0.7)
+		Input.vibrate_handheld(40)
+	_last_health = value
+	_low_health = value > 0.0 and value < max_value * 0.3
 	_health.max_value = max_value
 	_health.value = value
 	_health_fill.bg_color = Color(0.9, 0.2, 0.2).lerp(Color(0.3, 0.85, 0.35), value / max_value)

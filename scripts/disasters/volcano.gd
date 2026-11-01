@@ -92,11 +92,13 @@ func begin() -> void:
 	_bombs.blast_radius = 5.5
 	_bombs.blast_force = 18.0
 	_bombs.blast_damage = 60.0
+	_bombs.ignite_chance = 0.5
 	add_child(_bombs)
 	_bombs.setup(14, 0.6, Color(0.25, 0.1, 0.05), Color(1.0, 0.35, 0.05))
 
 
 func _physics_process(delta: float) -> void:
+	get_tree().call_group("sound", "loop", "rumble", 0.8 if _elapsed < _rise else 0.3, 0.8)
 	_elapsed += delta
 	var sink_start := duration - _sink
 	var erupting := _elapsed >= _rise and _elapsed < sink_start

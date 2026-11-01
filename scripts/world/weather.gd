@@ -238,6 +238,11 @@ func apply_quality(q: Dictionary) -> void:
 
 
 ## Picks this round's time of day and snaps the sky to it (a new map is loading).
+## The time of day this round (a key of TIMES).
+func time_of_day() -> String:
+	return _time
+
+
 func new_day() -> void:
 	if forced_time != "":
 		_time = forced_time
@@ -323,6 +328,10 @@ func _process(delta: float) -> void:
 		_apply(_now)
 
 	var raining := _rain.emitting
+	if raining:
+		get_tree().call_group("sound", "loop", "rain", 0.5)
+	if MOODS[_mood].lightning:
+		get_tree().call_group("sound", "loop", "wind", 0.25, 1.0)
 	_wet = clampf(_wet + delta / (WET_TIME if raining else -DRY_TIME), 0.0, 1.0)
 	RenderingServer.global_shader_parameter_set("wetness", _wet)
 	if _rainbow_age < RAINBOW_TIME:
@@ -336,6 +345,8 @@ func _process(delta: float) -> void:
 			_next_flash = randf_range(2.5, 7.0)
 			_flash = 1.0
 			_strike()
+			# Thunder: a deep, slowed boom.
+			get_tree().call_group("sound", "play", "boom", null, -4.0, 0.55)
 	# Flicker: two quick pulses as it fades.
 	_flash = maxf(_flash - delta * 3.0, 0.0)
 	var flicker := _flash * (1.0 if fmod(_flash, 0.4) > 0.15 else 0.3)

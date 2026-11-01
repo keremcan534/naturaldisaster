@@ -46,6 +46,13 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   tinted per instance), so a building is a few draw calls; check `--perf` draw counts
   after adding pieces. Shaders on batched boxes must read the piece size from
   `MODEL_MATRIX` scale, not from `VERTEX`.
+- Fire: `Structure.ignite(center, radius)` sets pieces burning; each structure spreads
+  it on its own 0.5 s tick through the piece links (up easily, sideways, down slowly),
+  chars pieces (instance color, or the building shader's `INSTANCE_CUSTOM.r` with glowing
+  embers) and drops burnt ones. `collect_fire()` lists burning spots, `extinguish()`
+  puts all out; `Structure.fires` counts them. `scripts/world/flames.gd` draws flames
+  (one MultiMesh, `shaders/flame.gdshader`), smoke and light, and burns anyone close.
+  The fire disaster, meteors and lava bombs (`ignite_chance`) start fires.
 - Building stairs (`Structure._add_ramp`): every floor's ramp runs along the back row
   from a 1 m landing to the fourth column, stacked one storey apart; the second row is
   the walkway back to the next ramp's foot, and furniture keeps clear of both. When
@@ -88,6 +95,12 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   warning on; moods are tinted by the time of day. Rain wets the ground (puddles via
   the `wetness` global), storms throw lightning bolts, rain ends in a rainbow, clear
   nights get stars and an aurora, and a lens flare follows the sun.
+- `scripts/world/ambience.gd`: ships sailing around the island and seagulls
+  (`shaders/birds.gdshader`, moved entirely in the shader).
+- `scripts/core/sound.gd`: all audio is generated in code at startup (no files), one sound
+  per frame in the menu. `call_group("sound", "play", name, pos)` for one-shots (siren,
+  boom, crash, splash, click, coin) and `"loop", name, level, pitch` every frame/tick to
+  keep a loop (rumble, wind, fire, surf, rain) going; it fades when the calls stop.
 - `scripts/world/effects.gd`: pooled particle bursts (explosions, dust from breaking
   pieces), reached through `call_group("effects", ...)`.
 - `scripts/world/maps.gd`: the maps (skyscraper with offices and a helipad, garden house
@@ -95,6 +108,12 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   some buildings.
 - `scripts/disasters/`: `disaster.gd` base + one file per disaster, registered in
   `disaster_manager.gd`'s `DISASTERS`. `projectile_pool.gd` is shared by meteors and lava bombs.
+  A disaster can set `safe_height` (how high bots climb), a longer `warning_time` and
+  `danger_center()`. `tsunami.gd` takes its wave size from vars; `mega_tsunami.gd` raises
+  them and surfs a cargo ship (`scripts/world/ship.gd`, one mesh) down the wave: it plows
+  through weak houses, stops at the first strong building, runs aground and stays
+  (`world.keep_on_map`). The tornado is shader layers on lathe meshes
+  (`shaders/tornado*.gdshader`: core and sheath, wall cloud, dust moved in the shader).
 - `scripts/player/player.gd`: first-person controller at human scale (1.75 m, 0.3 m
   radius, 4.5/7 m/s, ~1.3 m jump, horizontal 90° FOV); world effects go through
   `push()`, `set_water()`, `explode_at()`, `take_damage()`, `add_shake()` (ground shaking:
@@ -102,7 +121,8 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   between the last two physics positions (`Engine.get_physics_interpolation_fraction()`),
   so move it with `teleport()`/`set_view()`, not by setting transforms. Dead players
   watch a bot. Touch screens get auto-jump over knee-high things.
-- `scripts/ui/`: HUD (with an FPS / quality readout) and touch controls (shown on phones
+- `scripts/ui/`: HUD (FPS / quality readout, warning card on `disaster_warned`, who-fell
+  feed, red flash when hurt) and touch controls (shown on phones
   and with `-- --touch`), laid out like PUBG Mobile: floating analog stick in the lower
   left (full forward sprints; dragged up onto the lock and released, it auto-runs),
   drag-to-look everywhere else (every finger tracked by index from press to release; the
@@ -146,5 +166,6 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
 (`--fast`, `--log`, `--perf`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
-`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`). Screenshots need a display: `xvfb-run -a` works.
+`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`; `--perf` also prints
+the number of burning pieces). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

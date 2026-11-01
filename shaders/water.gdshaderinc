@@ -24,6 +24,8 @@ uniform float front = 0.0;
 uniform float level = 0.0;
 uniform float crest_height = 6.0;
 uniform float crest_depth = 6.0;
+// How far the breaking lip leans out over the face.
+uniform float lip_size = 2.2;
 uniform float bottom = -3.0;
 // Mesh extent: the water sinks back into the sea toward its sides and back end.
 uniform float side_half = 60.0;
@@ -92,9 +94,9 @@ void vertex() {
 	float slope = (wave_profile(s + 0.3) - wave_profile(s - 0.3)) / 0.6;
 	float behind = front - s;
 	// The lip leans forward over the face.
-	float lip = smoothstep(crest_height - 2.5, crest_height, h) * step(-1.5, behind) * step(behind, 2.0);
+	float lip = smoothstep(crest_height - lip_size * 1.15, crest_height, h) * step(-1.5, behind) * step(behind, 2.0);
 	float edge = (1.0 - smoothstep(side_half - 18.0, side_half, abs(VERTEX.z))) * smoothstep(back, back + 18.0, s);
-	VERTEX.x += lip * 2.2 * edge;
+	VERTEX.x += lip * lip_size * edge;
 	VERTEX.y = mix(bottom, h, edge);
 	world_normal = normalize((MODEL_MATRIX * vec4(-slope, 1.0, 0.0, 0.0)).xyz);
 	crest = smoothstep(level, crest_height, h);

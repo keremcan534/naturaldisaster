@@ -24,6 +24,7 @@ func begin() -> void:
 	_pool.blast_radius = 6.5
 	_pool.blast_force = 22.0
 	_pool.blast_damage = 70.0
+	_pool.ignite_chance = 0.25
 	_pool.setup(24, 0.9, Color(0.3, 0.15, 0.1), Color(1.0, 0.45, 0.1))
 
 
