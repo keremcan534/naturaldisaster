@@ -87,6 +87,8 @@ var score := 0
 var round_points := 0
 var streak := 0
 var bonus_points := 0
+## This round: the highest the feet got (the scoreboard's standout moment).
+var max_height := 0.0
 var personality := "normal"
 ## Reached the rescue helicopter: nothing hurts any more this round.
 var rescued := false
@@ -137,6 +139,8 @@ var _panic := 0.0
 var _skill_roll := 0.5
 var _cheer := 0.0
 var _face := -1.0
+## Voice pitch: everyone sounds a bit different.
+var _voice := 1.0
 var _wave := 0.0
 
 
@@ -148,6 +152,7 @@ func setup(index: int, seed_value: int) -> void:
 	_apply_level()
 	_pace = _rng.randf_range(0.88, 1.04)
 	personality = PERSONALITIES[_rng.randi() % PERSONALITIES.size()]
+	_voice = _rng.randf_range(0.8, 1.4)
 
 
 ## Skill from the bot level setting (read again at every respawn).
@@ -308,6 +313,7 @@ func _physics_process(delta: float) -> void:
 	velocity.z = _walk.z + _push.z
 	move_and_slide()
 	_touch_pieces()
+	max_height = maxf(max_height, global_position.y)
 	if global_position.y < KILL_HEIGHT:
 		if rescued:
 			global_position = world.spawn_point + Vector3.UP * 2.0
@@ -420,6 +426,7 @@ func _make_plan(coming: String) -> void:
 	if coming != "" and _rng.randf() < 0.65:
 		var lines: Array = SHOUTS.get(coming, SHOUTS.default)
 		_say(lines[_rng.randi() % lines.size()])
+		get_tree().call_group("sound", "play", "shout", global_position + Vector3.UP * 1.6, -4.0, _voice)
 
 
 ## A speech bubble over the head for a few seconds.
@@ -719,6 +726,7 @@ func take_damage(amount: float) -> void:
 	health = maxf(health - amount, 0.0)
 	if health > 0.0 and health < 35.0 and was >= 35.0:
 		_say("Yardım edin!")
+		get_tree().call_group("sound", "play", "shout", global_position + Vector3.UP * 1.6, -2.0, _voice * 1.15)
 	if health <= 0.0:
 		alive = false
 		_dead_time = 0.0
@@ -726,6 +734,7 @@ func take_damage(amount: float) -> void:
 		_bubble.visible = false
 		velocity = Vector3.ZERO
 		_path.clear()
+		get_tree().call_group("sound", "play", "scream", global_position + Vector3.UP * 1.6, 0.0, _voice)
 		died.emit()
 
 
@@ -740,6 +749,7 @@ func respawn(pos: Vector3) -> void:
 	_underwater = 0.0
 	health = MAX_HEALTH
 	bonus_points = 0
+	max_height = 0.0
 	rescued = false
 	leader = null
 	_cheer = 0.0

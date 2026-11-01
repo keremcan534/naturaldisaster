@@ -26,6 +26,11 @@ static var bot_level := 1
 static var gyro := false
 ## The camera behind the character instead of its eyes.
 static var third_person := false
+## Orange/blue instead of red/green; interface scale (all menus and buttons);
+## language ("tr" or "en").
+static var colorblind := false
+static var ui_scale := 1.0
+static var language := "tr"
 
 
 static func load_settings() -> void:
@@ -45,6 +50,9 @@ static func load_settings() -> void:
 	bot_level = config.get_value("touch", "bot_level", 1)
 	gyro = config.get_value("touch", "gyro", false)
 	third_person = config.get_value("touch", "third_person", false)
+	colorblind = config.get_value("touch", "colorblind", false)
+	ui_scale = config.get_value("touch", "ui_scale", 1.0)
+	language = config.get_value("touch", "language", "tr")
 
 
 static func save_settings() -> void:
@@ -63,6 +71,9 @@ static func save_settings() -> void:
 	config.set_value("touch", "bot_level", bot_level)
 	config.set_value("touch", "gyro", gyro)
 	config.set_value("touch", "third_person", third_person)
+	config.set_value("touch", "colorblind", colorblind)
+	config.set_value("touch", "ui_scale", ui_scale)
+	config.set_value("touch", "language", language)
 	config.save(PATH)
 
 

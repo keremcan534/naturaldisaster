@@ -198,6 +198,9 @@ var _hand_l: Node3D
 var _hand_r: Node3D
 var _hands_up := 0.0
 var _hand_phase := 0.0
+## Footsteps: distance walked since the last one, and whether the view is muffled.
+var _stride := 0.0
+var _muffled := false
 
 
 func _ready() -> void:
@@ -683,9 +686,38 @@ func _process(delta: float) -> void:
 		_underwater_mat.set_shader_parameter("depth", surface - _camera.global_position.y)
 	_update_lens(delta, under)
 	_update_hands(delta)
+	if under != _muffled:
+		_muffled = under
+		get_tree().call_group("sound", "muffle", under)
 	_wave_time -= delta
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0
 	_body.animate(delta, ground_speed, 1.0 if _ladder > 0.0 or _wave_time > 0.0 or _chute > 0.0 else 0.0)
+	_footsteps(delta, ground_speed)
+
+
+## A step sound every stride: soft on earth and grass, sharper on floors and
+## pavement, a splash in water.
+func _footsteps(delta: float, ground_speed: float) -> void:
+	if ground_speed < 0.8:
+		_stride = 0.0
+		return
+	_stride += ground_speed * delta
+	var length := 0.75 if ground_speed < SPEED + 0.5 else 1.0
+	if _stride < length:
+		return
+	_stride = 0.0
+	if _in_water():
+		get_tree().call_group("sound", "play", "splash", null, -16.0, randf_range(1.3, 1.6))
+		return
+	var hard := true
+	for i in get_slide_collision_count():
+		var hit := get_slide_collision(i)
+		if hit.get_normal().y > 0.6:
+			var floor_node := hit.get_collider() as Node
+			hard = floor_node != null and not floor_node.is_in_group("ground")
+			break
+	var volume := -9.0 if ground_speed > SPEED else -13.0
+	get_tree().call_group("sound", "play", "step", null, volume, randf_range(1.35, 1.6) if hard else randf_range(0.8, 0.95))
 
 
 ## Rain on the lens out in the open (nothing overhead), and water running off

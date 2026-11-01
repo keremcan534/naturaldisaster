@@ -8,6 +8,8 @@ const Profile := preload("res://scripts/core/profile.gd")
 const Settings := preload("res://scripts/core/settings.gd")
 const Structure := preload("res://scripts/world/structure.gd")
 const Ui := preload("res://scripts/ui/ui.gd")
+const Lang := preload("res://scripts/core/lang.gd")
+const Ads := preload("res://scripts/core/ads.gd")
 
 ## Set before adding to the tree; hides the keyboard hint.
 var touch_mode := false
@@ -57,6 +59,9 @@ var _danger_angle := 0.0
 var _vote: PanelContainer
 var _vote_buttons: Array[Button] = []
 var _items: Label
+## A compass strip under the timer: headings, the danger, the helicopter.
+var _compass: Control
+var _danger_at := Vector3.INF
 
 
 func _ready() -> void:
@@ -210,6 +215,16 @@ func _ready() -> void:
 	hint.text = "WASD: yürü  Shift: koş  Space: zıpla  C: çömel  F: takip et  G: selam  V: kamera  P: fotoğraf  Esc: menü"
 	hint.visible = not touch_mode
 
+	_compass = Control.new()
+	_compass.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_compass.offset_left = -190
+	_compass.offset_right = 190
+	_compass.offset_top = 118
+	_compass.offset_bottom = 146
+	_compass.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_compass.draw.connect(_draw_compass)
+	add_child(_compass)
+
 	_vote = _build_vote()
 	add_child(_vote)
 	# Desktop: what the number keys hold this round.
@@ -233,16 +248,17 @@ func _process(delta: float) -> void:
 		_fps.text = "%d FPS · %s%s" % [Engine.get_frames_per_second(), Quality.current().name, mode]
 		_coins.set_amount(Profile.coins)
 		if _player:
-			_score.text = "Puan: %d" % _player.score
+			_score.text = Lang.t("Puan: %d") % _player.score
 		var players := get_tree().get_nodes_in_group("player")
 		var alive := players.filter(func(p: Node) -> bool: return p.alive).size()
 		var fighting: bool = _manager != null and _manager.coming_kind() != ""
-		_alive.text = "Hayatta: %d / %d" % [alive, players.size()] if fighting and players.size() > 1 else ""
+		_alive.text = Lang.t("Hayatta: %d / %d") % [alive, players.size()] if fighting and players.size() > 1 else ""
 	if _board.visible:
 		_board_time -= delta
 		if _board_time <= 0.0:
 			_board.visible = false
 	_update_vote()
+	_compass.queue_redraw()
 	_time += delta
 	_update_toast(delta)
 	_update_danger()
@@ -260,11 +276,11 @@ func bind(manager: Node, player: Node) -> void:
 		_board.visible = false
 		_close_vote()
 		if not player.alive:
-			_center.text = "Elendin! Son kalan belirlenince döneceksin"
+			_center.text = Lang.t("Elendin! Son kalan belirlenince döneceksin")
 			_center.visible = true)
 	manager.vote_started.connect(_open_vote)
 	player.helped.connect(func(bot_name: String) -> void:
-		toast("%s ayağa kalktı! +25 puan" % bot_name, 0))
+		toast(Lang.t("%s ayağa kalktı! +25 puan") % bot_name, 0))
 	player.rescued_now.connect(func() -> void:
 		toast("KURTARILDIN! Bu tur artık hasar almazsın", 0))
 	player.items_changed.connect(_show_items)
@@ -276,7 +292,7 @@ func bind(manager: Node, player: Node) -> void:
 		_add_feed(player.display_name, player.tint))
 	player.respawned.connect(func() -> void: _center.visible = false)
 	player.spectating.connect(func(bot_name: String) -> void:
-		_center.text = "Öldün! İzliyorsun: %s" % bot_name if bot_name != "" else "Öldün! Sonraki turu bekle")
+		_center.text = Lang.t("Öldün! İzliyorsun: %s") % bot_name if bot_name != "" else Lang.t("Öldün! Sonraki turu bekle"))
 
 
 ## The ranking after a disaster: total score, this round's points, and the coins
@@ -302,8 +318,9 @@ func show_board(board: Array, coins_earned: int) -> void:
 		var name_label := Ui.text(p.display_name if p.alive else "%s (öldü)" % p.display_name, 22, color if p.alive else Color(1, 0.55, 0.5))
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(name_label)
+		var good := Color(0.45, 0.7, 1.0) if Settings.colorblind else Color(0.5, 1.0, 0.55)
 		var gained := Ui.text("+%d" % p.round_points if p.round_points > 0 else "0", 22,
-				Color(0.5, 1.0, 0.55) if p.round_points > 0 else Color(1, 1, 1, 0.5))
+				good if p.round_points > 0 else Color(1, 1, 1, 0.5))
 		gained.custom_minimum_size.x = 80
 		gained.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		row.add_child(gained)
@@ -312,6 +329,19 @@ func show_board(board: Array, coins_earned: int) -> void:
 		total.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		row.add_child(total)
 		_board_rows.add_child(row)
+	# MVP: the most points this round, and the round's standout moment.
+	var mvp: Node = null
+	var highest: Node = null
+	for p: Node in board:
+		if p.round_points > 0 and (mvp == null or p.round_points > mvp.round_points):
+			mvp = p
+		if p.alive and (highest == null or p.max_height > highest.max_height):
+			highest = p
+	if mvp:
+		_board_rows.add_child(Ui.text(Lang.t("MVP: %s  (+%d)") % [mvp.display_name, mvp.round_points], 20, Ui.ACCENT))
+	if highest and highest.max_height > 6.0:
+		_board_rows.add_child(Ui.text(Lang.t("En yükseğe çıkan: %s  (%d m)") % [highest.display_name, int(highest.max_height)], 18,
+				Color(0.8, 0.95, 1.0)))
 	if coins_earned > 0:
 		get_tree().call_group("sound", "play", "coin")
 		var earned := Ui.CoinLabel.new(22)
@@ -321,6 +351,15 @@ func show_board(board: Array, coins_earned: int) -> void:
 		line.add_child(Ui.text("Kazandın:  +", 22, Ui.COIN))
 		line.add_child(earned)
 		_board_rows.add_child(line)
+		if Ads.available():
+			var double := Ui.button(Lang.t("Reklam izle: +%d coin") % coins_earned, 18)
+			double.pressed.connect(func() -> void:
+				double.disabled = true
+				Ads.show_rewarded(func() -> void:
+					Profile.coins += coins_earned
+					Profile.save_profile()
+					toast(Lang.t("Reklam ödülü"), coins_earned)))
+			_board_rows.add_child(double)
 	_board.visible = true
 	_board_time = 7.5
 	_center.visible = false
@@ -420,19 +459,66 @@ func _update_danger() -> void:
 	if _manager and _player and _player.alive and camera:
 		var found: Array = _manager.danger_for(_player.global_position)
 		var at: Vector3 = found[0]
+		_danger_at = at
 		if at != Vector3.INF:
 			var local := camera.global_transform.affine_inverse() * at
 			_danger_angle = atan2(local.x, -local.z)
 			var dist := Vector2(at.x - _player.global_position.x, at.z - _player.global_position.z).length()
-			_danger_label.text = "%s  %d m" % [found[1].to_upper(), int(dist)]
+			_danger_label.text = "%s  %d m" % [Lang.t(found[1]).to_upper(), int(dist)]
 			show = dist > 2.0
 	_danger.visible = show
+	if not show:
+		_danger_at = Vector3.INF
 	if show:
 		var size := _danger.size
 		var radius := size.y * 0.3
 		var tip := size * 0.5 + Vector2(sin(_danger_angle), -cos(_danger_angle)) * (radius + 46.0)
 		_danger_label.position = tip - Vector2(110, -6) + Vector2(sin(_danger_angle), -cos(_danger_angle)) * 22.0
 		_danger.queue_redraw()
+
+
+## Compass: K/D/G/B (north is -Z) and ticks across ±70° of the view, a red
+## mark toward the danger and a yellow H toward the rescue helicopter.
+func _draw_compass() -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null or _player == null or not _player.alive:
+		return
+	var size := _compass.size
+	var mid := size.x * 0.5
+	var forward := -camera.global_basis.z
+	var heading := atan2(forward.x, -forward.z)
+	var span := deg_to_rad(70.0)
+	var font := ThemeDB.fallback_font
+	_compass.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.28))
+	for k in 24:
+		var bearing := k * TAU / 24.0
+		var rel := wrapf(bearing - heading, -PI, PI)
+		if absf(rel) > span:
+			continue
+		var x := mid + rel / span * mid
+		var fade := 1.0 - absf(rel) / span
+		if k % 6 == 0:
+			var letter: String = ["K", "D", "G", "B"][k / 6]
+			var color := Color(1.0, 0.45, 0.35, fade) if k == 0 else Color(1, 1, 1, fade)
+			_compass.draw_string(font, Vector2(x - 6, size.y - 7), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
+		else:
+			_compass.draw_line(Vector2(x, size.y * 0.3), Vector2(x, size.y * (0.75 if k % 2 == 0 else 0.6)), Color(1, 1, 1, fade * 0.7), 2.0)
+	_compass.draw_line(Vector2(mid, 0), Vector2(mid, 5), Ui.ACCENT, 3.0)
+	var marks: Array = []
+	if _danger_at != Vector3.INF and _danger.visible:
+		marks.append([_danger_at, Color(1.0, 0.3, 0.2), ""])
+	var heli := get_tree().get_first_node_in_group("rescue") as Node3D
+	if heli and heli.visible:
+		marks.append([heli.global_position, Color(1.0, 0.85, 0.25), "H"])
+	for mark: Array in marks:
+		var to: Vector3 = mark[0] - _player.global_position
+		var rel := wrapf(atan2(to.x, -to.z) - heading, -PI, PI)
+		var x := mid + clampf(rel / span, -1.0, 1.0) * (mid - 8.0)
+		var color: Color = mark[1]
+		if mark[2] == "":
+			_compass.draw_colored_polygon(PackedVector2Array([Vector2(x, size.y - 2), Vector2(x - 7, size.y - 13), Vector2(x + 7, size.y - 13)]), color)
+		else:
+			_compass.draw_string(font, Vector2(x - 6, size.y - 7), mark[2], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, color)
 
 
 func _draw_danger() -> void:
@@ -473,7 +559,7 @@ func _show_items(items: Dictionary) -> void:
 		_items.text = ""
 		return
 	var parts: Array = []
-	var names := {"parachute": "1 Paraşüt", "bandage": "2 Sargı", "hook": "3 Kanca"}
+	var names := {"parachute": "1 " + Lang.t("Paraşüt"), "bandage": "2 " + Lang.t("Sargı"), "hook": "3 " + Lang.t("Kanca")}
 	for id: String in ["parachute", "bandage", "hook"]:
 		if items.get(id, 0) > 0:
 			parts.append("%s ×%d" % [names[id], items[id]])
@@ -542,7 +628,7 @@ func _update_vote() -> void:
 	for k in _manager.vote_options.size():
 		var key := "" if touch_mode else "%d) " % (k + 1)
 		var option: Array = _manager.vote_options[k]
-		_vote_buttons[k].text = "%s%s%s  · %d" % ["> " if k == mine else "", key, option[1], counts[k]]
+		_vote_buttons[k].text = "%s%s%s  · %d" % ["> " if k == mine else "", key, Lang.t(option[1]), counts[k]]
 
 
 func _add_feed(who: String, color: Color) -> void:
@@ -615,7 +701,10 @@ func _set_health(value: float, max_value: float) -> void:
 	_low_health = value > 0.0 and value < max_value * 0.3
 	_health.max_value = max_value
 	_health.value = value
-	_health_fill.bg_color = Color(0.9, 0.2, 0.2).lerp(Color(0.3, 0.85, 0.35), value / max_value)
+	# Colorblind mode: orange to blue instead of red to green.
+	var low := Color(0.95, 0.55, 0.1) if Settings.colorblind else Color(0.9, 0.2, 0.2)
+	var high := Color(0.25, 0.55, 0.95) if Settings.colorblind else Color(0.3, 0.85, 0.35)
+	_health_fill.bg_color = low.lerp(high, value / max_value)
 
 
 func _label(font_size: int) -> Label:

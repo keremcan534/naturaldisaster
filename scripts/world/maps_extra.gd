@@ -2,8 +2,9 @@ extends RefCounted
 ## More maps, built from the same pieces as maps.gd (its helpers are passed in
 ## as M, since the two scripts can't preload each other): school, hospital,
 ## stadium, village, campsite, castle, city centre, airport, funfair, river
-## with a bridge, desert town, ski resort and oil rig. Each returns
-## {name, size, spawn} like the maps in maps.gd.
+## with a bridge, desert town, ski resort, oil rig and a town below a dam. Each
+## returns {name, size, spawn} like the maps in maps.gd (the dam map also
+## "dam": where its wall stands, which water disasters burst).
 
 const Structure := preload("res://scripts/world/structure.gd")
 const Look := preload("res://scripts/world/look.gd")
@@ -11,8 +12,8 @@ const WaterZone := preload("res://scripts/world/water_zone.gd")
 const Elevator := preload("res://scripts/world/elevator.gd")
 
 const NAMES := ["Okul", "Hastane", "Stadyum", "Köy", "Kamp Alanı", "Kale", "Şehir Merkezi", "Havalimanı",
-		"Lunapark", "Nehir ve Köprü", "Çöl Kasabası", "Kayak Merkezi", "Petrol Platformu"]
-const COUNT := 13
+		"Lunapark", "Nehir ve Köprü", "Çöl Kasabası", "Kayak Merkezi", "Petrol Platformu", "Baraj"]
+const COUNT := 14
 
 const WOOD := Color(0.5, 0.36, 0.22)
 const DARK_WOOD := Color(0.36, 0.25, 0.16)
@@ -50,8 +51,10 @@ static func build(M: GDScript, index: int, root: Node3D) -> Dictionary:
 			return _desert(M, root)
 		11:
 			return _ski(M, root)
-		_:
+		12:
 			return _oil_rig(M, root)
+		_:
+			return _dam(M, root)
 
 
 # --- Shared bits -------------------------------------------------------------
@@ -699,3 +702,59 @@ static func _oil_rig(M: GDScript, root: Node3D) -> Dictionary:
 	pad.add_box(Vector3(0, 0.01, 0), Vector3(1.45, 0.02, 0.35), Color(0.95, 0.8, 0.15))
 	root.add_child(pad)
 	return {"name": NAMES[12], "size": size, "spawn": Vector3(-16, 0.5, 22)}
+
+
+## A town below a concrete dam: the wall stands across the -Z end with a lake
+## held high behind it between canyon walls. Water disasters here burst the dam
+## and come down the valley (tsunami.gd reads world.dam).
+static func _dam(M: GDScript, root: Node3D) -> Dictionary:
+	var size := 56.0
+	var half := size * 0.5
+	M._ground(root, size, M.GRASS_COLOR)
+	M._road(root, Vector3(0, 0, 10), size, true)
+	M._decal(root, Vector3(0, 0, -6), Vector2(3, 22), M.PATH_COLOR)
+	# The wall: concrete blocks, thicker toward the bottom, a walkway on top.
+	var dam := Structure.new()
+	dam.strength = 2.2
+	dam.span_limit = 6
+	var z := -half + 2.5
+	var concrete := Color(0.68, 0.67, 0.64)
+	for row in 7:
+		for col in 14:
+			var x := -half + 2.0 + col * 4.0
+			var thick := 3.0 + (6 - row) * 0.35
+			dam.add_box(Vector3(x, 1.0 + row * 2.0, z - thick * 0.5 + 1.5), Vector3(4.0, 2.0, thick), concrete if (row + col) % 2 == 0 else concrete.darkened(0.06))
+	for col in 14:
+		dam.add_box(Vector3(-half + 2.0 + col * 4.0, 14.5, z + 1.3), Vector3(4.0, 1.0, 0.25), concrete.darkened(0.15))
+	# Spillway gates on the face.
+	for x: float in [-6.0, 0.0, 6.0]:
+		dam.add_box(Vector3(x, 9.0, z + 1.55), Vector3(2.4, 3.0, 0.15), Color(0.35, 0.37, 0.4))
+	root.add_child(dam)
+	# The lake behind the wall, between canyon walls that run off into the haze.
+	var lake := MeshInstance3D.new()
+	lake.name = "DamLake"
+	var surface := PlaneMesh.new()
+	surface.size = Vector2(size + 8.0, 300.0)
+	surface.material = Look.water()
+	lake.mesh = surface
+	lake.position = Vector3(0, 12.6, -half - 150.0 + 0.5)
+	root.add_child(lake)
+	for side: float in [-1.0, 1.0]:
+		var canyon := MeshInstance3D.new()
+		var rock := BoxMesh.new()
+		rock.size = Vector3(24.0, 46.0, 300.0)
+		rock.material = Look.cliff()
+		canyon.mesh = rock
+		canyon.position = Vector3(side * (half + 11.0), 0.0, -half - 150.0)
+		root.add_child(canyon)
+	# The town on the valley floor: two blocks with stairs, houses, a water tower.
+	M._building(root, Vector3(-12, 0, -6), Vector2i(5, 4), 3, Color(0.85, 0.8, 0.7), 1.3, true)
+	M._building(root, Vector3(12, 0, -8), Vector2i(4, 4), 4, Color(0.7, 0.75, 0.82), 1.6)
+	M._building(root, Vector3(-15, 0, 20), Vector2i(4, 3), 2, Color(0.62, 0.45, 0.3), 0.8)
+	M._building(root, Vector3(15, 0, 21), Vector2i(4, 3), 1, Color(0.9, 0.85, 0.75), 0.7)
+	_water_tower(M, root, Vector3(22, 0, 2))
+	var props: Structure = M._props()
+	for p: Vector3 in [Vector3(-24, 0, 4), Vector3(-4, 0, -16), Vector3(4, 0, -16), Vector3(24, 0, 14), Vector3(-24, 0, 14)]:
+		M._tree(props, p)
+	root.add_child(props)
+	return {"name": NAMES[13], "size": size, "spawn": Vector3(0, 0.5, 18), "dam": Vector3(0, 7.0, z)}

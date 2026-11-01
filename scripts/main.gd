@@ -27,7 +27,10 @@ const Bot := preload("res://scripts/player/bot.gd")
 const Menu := preload("res://scripts/ui/menu.gd")
 const Events := preload("res://scripts/core/events.gd")
 const RescueHeli := preload("res://scripts/world/rescue_heli.gd")
+const Doors := preload("res://scripts/world/doors.gd")
+const Boat := preload("res://scripts/world/boat.gd")
 const Photo := preload("res://scripts/core/photo.gd")
+const Season := preload("res://scripts/core/season.gd")
 
 ## AI teammates in every session.
 const BOT_COUNT := 5
@@ -41,6 +44,9 @@ var map_size := 50.0
 var spawn_point := Vector3(0, 0.5, 0)
 ## Debug: >= 0 always loads this map.
 var forced_map := -1
+## The dam map: where the wall stands (Vector3.INF elsewhere) and its lake.
+var dam := Vector3.INF
+var dam_lake: Node3D
 ## Debug: a time of day (see weather.gd TIMES) for every round.
 var forced_time := "":
 	set(value):
@@ -85,8 +91,11 @@ func _ready() -> void:
 			or "--touch" in args
 	Quality.load_settings(_touch)
 	Settings.load_settings()
+	preload("res://scripts/core/lang.gd").apply(Settings.language)
+	get_tree().root.content_scale_factor = Settings.ui_scale
 	Profile.load_profile()
 	Progress.load_progress()
+	Season.load_season()
 	if Settings.gyro and _touch:
 		preload("res://scripts/core/gyro.gd").start()
 
@@ -101,6 +110,7 @@ func _ready() -> void:
 	_ambience = Ambience.new()
 	add_child(_ambience)
 	add_child(RescueHeli.new())
+	add_child(Doors.new())
 	_apply_quality()
 
 	_player = Player.new()
@@ -108,6 +118,9 @@ func _ready() -> void:
 	add_child(_player)
 	_player.pause_requested.connect(_pause)
 	_player.photo_requested.connect(_take_photo)
+	_player.helped.connect(func(_name: String) -> void: Profile.count("helps"))
+	_player.rescued_now.connect(func() -> void: Profile.count("rescues"))
+	_player.died.connect(func() -> void: get_tree().call_group("sound", "play", "lose", null, -2.0))
 
 	_hud = Hud.new()
 	_hud.touch_mode = _touch
@@ -159,7 +172,7 @@ func _ready() -> void:
 
 	load_next_map()
 	get_tree().call_group("bots", "respawn", spawn_point)
-	if "--play" in args or "--fast" in args:
+	if "--play" in args or "--fast" in args or "--selftest" in args:
 		play(false)
 	else:
 		show_menu()
@@ -237,7 +250,8 @@ func _on_round_scored(board: Array) -> void:
 	var toasts: Array = []
 	if _player.is_in_group("player"):
 		var multiplier := Events.coin_multiplier(_manager.last_round) if _player.alive else 1
-		earned = Profile.add_round(_player.round_points, _player.alive, _player.score, multiplier)
+		earned = Profile.add_round(_player.round_points, _player.alive, _player.score, multiplier,
+				_manager.last_round.get("kinds", []), _player.streak)
 		if multiplier > 1 and earned > 0:
 			toasts.append(["%s: 2 kat coin!" % Events.current().name, 0])
 		var everyone := board.all(func(p: Node) -> bool: return p.alive)
@@ -245,9 +259,13 @@ func _on_round_scored(board: Array) -> void:
 				"height": _player.max_height, "flawless": _player.alive and _player.damage_taken < 0.5,
 				"team": everyone, "kinds": _manager.last_round.get("kinds", []),
 				"mega": _manager.last_round.get("mega", false), "double": _manager.last_round.get("double", false)}
-		toasts = Progress.record_round(info)
+		var xp_before := Progress.xp
+		toasts.append_array(Progress.record_round(info))
+		toasts.append_array(Season.add_xp(Progress.xp - xp_before))
 	_hud.show_board(board, earned)
 	get_tree().call_group("sound", "music", "calm")
+	if _player.is_in_group("player") and _player.alive:
+		get_tree().call_group("sound", "play", "win", null, -2.0)
 	for toast: Array in toasts:
 		_hud.toast(toast[0], toast[1])
 
@@ -274,10 +292,15 @@ func load_next_map(choice := -1) -> void:
 		_map_index = (index + 1) % Maps.COUNT if index == _map_index else index
 	_map_root = Node3D.new()
 	add_child(_map_root)
+	get_tree().call_group("doors", "clear")
 	var info := Maps.build(_map_index, _map_root)
+	get_tree().call_group("doors", "add_map")
 	map_name = info.name
 	map_size = info.size
 	spawn_point = info.spawn
+	dam = info.get("dam", Vector3.INF)
+	dam_lake = _map_root.find_child("DamLake", true, false)
+	_place_boat()
 	_weather.set_island(map_size * 0.5)
 	_weather.new_day()
 	_ambience.set_island(map_size * 0.5)
@@ -287,6 +310,22 @@ func load_next_map(choice := -1) -> void:
 
 func map_index() -> int:
 	return _map_index
+
+
+## A lifeboat beside the spawn point, on open ground (floods float it).
+func _place_boat() -> void:
+	for offset: Vector3 in [Vector3(6, 0, 0), Vector3(-6, 0, 0), Vector3(6, 0, 4), Vector3(-6, 0, 4), Vector3(0, 0, 6)]:
+		var at := spawn_point + offset
+		var spot := Rect2(at.x - 2.0, at.z - 3.0, 4.0, 6.0)
+		if absf(at.x) > map_size * 0.5 - 3.0 or absf(at.z) > map_size * 0.5 - 3.5:
+			continue
+		if Maps.buildings.any(func(r: Rect2) -> bool: return r.grow(1.0).intersects(spot)):
+			continue
+		var boat := Boat.new()
+		boat.position = Vector3(at.x, spawn_point.y - 0.5, at.z)
+		boat.rotation.y = randf() * TAU
+		_map_root.add_child(boat)
+		return
 
 
 ## A screenshot without the HUD: saved (desktop) or downloaded (browser).

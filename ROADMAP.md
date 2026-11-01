@@ -38,7 +38,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ UFO istilası: ışını insanları ve eşyaları yukarı çeker
 - ✅ Dalga serisi: art arda büyüyen 3 dalga
 - ✅ Volkanik kül yağmuru: ada griye döner, zayıf çatılar çöker
-- 💡 Barajın yıkılması (barajlı haritada)
+- ✅ Barajın yıkılması: Baraj haritasında sel ve dalgalar barajı patlatır, su vadiden gelir, göl boşalır
 - ✅ Elektrik direkleri: devrilince kablolar kopar, yerde kıvılcım çarpar
 - ✅ Patlayan kırmızı variller: zincirleme patlama (benzinlik haritası sırada)
 - ✅ Şiddet seviyeleri: Şiddetli / Felaket / Kıyamet (kolay tur yok), tur ilerledikçe artar
@@ -67,10 +67,11 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Havalimanı: pist, kırılabilen yolcu uçağı, hangar, terminal, kontrol kulesi
 - ✅ Petrol platformu: ayaklar üstünde güverte, rampa, sondaj kulesi, patlayan tanklar
 - ✅ Kamp alanı: çadırlar, karavanlar, göl, kamp ateşi, kano
+- ✅ Baraj: vadide kasaba, arkasında göl tutan beton baraj
 - ✅ Beton sığınaklar (şehir, havalimanı): gökten düşenlere karşı güvenli
 - ✅ Asansörler: dış cam asansör çalışır, deprem/kasırgada kilitlenir
 - ✅ Kırılabilen camlar her yerde (cam her zaman tuzla buz olur)
-- 💡 Açılıp kapanan kapılar
+- ✅ Otomatik sürgülü cam kapılar (binaların ön kapısı): yaklaşınca açılır, duvar yıkılınca kırılır
 - ✅ Harita oylaması: skor tablosunun altında 3 harita, botlar da oy verir (eşitlikte senin oyun)
 
 ## 3. Oynanış
@@ -85,8 +86,8 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ ⭐ Kullanılabilir eşyalar: paraşüt, sargı bezi, kanca (mağazada; her tur yenilenir, 1/2/3 veya dokunmatik tuş); kask ve can yeleği güçlendirme olarak
 - ✅ Çömelme (C / dokunmatik "Çömel"): masa altına sığarsın, ayağa kalkmak için yer gerekir
 - ✅ Çıkıntıdan tutunup tırmanma: 2 m'ye kadar duvara zıplayıp ileri basınca üstüne çıkarsın
-- 💡 Kapı açma / kapatma
-- 🚧 Araçlar: kurtarma helikopteri var; sürülebilir araba / tekne ileride
+- ✅ Kapılar kendiliğinden açılıp kapanır (oyuncu da bot da yaklaşınca)
+- ✅ Araçlar: kurtarma helikopteri; her haritada can botu (selde yüzer, içindeyken ileri basınca baktığın yöne gider). Araba / bisiklet: ileride
 - ✅ Kurtarma helikopteri: bazı turlarda en yüksek çatıya gelir, ip merdivene ulaşan kurtulur (+60, o tur hasar yok)
 - 🚧 Sığınak: beton sığınaklar var; kilitlenen kapı ileride
 - ✅ Selam (G / "Selam"): yakındaki botlar el sallar; tur sonunda hayatta kalan botlar zıplayıp sevinir
@@ -128,25 +129,25 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 ## 6. Ses ve müzik
 - ✅ Siren, patlama, gök gürültüsü, çökme, deprem, rüzgâr, dalga, yağmur, ateş, arayüz sesleri
 - ✅ ⭐ Müzik: menüde sakin tema, felakette gerilimli tema (kodla üretildi)
-- 💡 Sonuçta zafer müziği, ölünce hüzünlü kısa melodi
-- 💡 Ayak sesleri (zemine göre: ahşap, beton, çimen, su)
-- 💡 Ortam sesleri: martılar, dalga, kuşlar, şehir uğultusu
-- 💡 Botların sesleri (çığlık, "yardım!")
-- 💡 Cam kırılma, metal gıcırtısı, ahşap çatırtısı ayrı ayrı
-- 💡 Su altında boğuk ses
+- ✅ Hayatta kalınca zafer melodisi, ölünce hüzünlü kısa melodi
+- ✅ Ayak sesleri (toprak/çimen yumuşak, zemin/kaldırım sert, suda şapırtı)
+- ✅ Ortam sesleri: gündüz kuş cıvıltısı ve martılar, gece cırcır böcekleri (yağmurda ve kuşlar kaçınca susar)
+- ✅ Botların sesleri: bağırma, "yardım" çağrısı, ölünce çığlık (herkesin sesi farklı)
+- ✅ Cam şıngırtısı, metal çınlaması, ahşap çatırtısı, beton çöküşü ayrı ayrı
+- ✅ Su altında her ses boğuklaşır
 
 ## 7. Arayüz
 - ✅ Ana menü, mağaza, ayarlar, duraklatma
 - ✅ Uyarı kartı, elenenler listesi, hasar flaşı, skor tablosu
 - ✅ ⭐ Tehlike yön oku ve mesafe (hortum, volkan, dalga, yıldırım, yangın)
 - ✅ ⭐ İlk açılışta kısa öğretici (nasıl oynanır)
-- 💡 Mini harita / pusula
-- 💡 Oyuncu adı girme
-- 💡 İstatistik ekranı (toplam tur, en uzun seri, felaket başına hayatta kalma)
-- 💡 Tur sonunda "MVP" ve öne çıkan an
+- ✅ Pusula: yönler, tehlike işareti, helikopter
+- ✅ Oyuncu adı (Ayarlar), skor tablosunda görünür
+- ✅ İstatistikler (Görevler ekranında): turlar, en uzun seri, coin, kurtarılmalar, felaket başına hayatta kalma
+- ✅ Skor tablosunda MVP ve en yükseğe çıkan
 - ✅ Bildirim: "Görev tamam!", "Seviye atladın!", "Başarım!"
-- 💡 Renk körü modu, yazı boyutu ayarı
-- 💡 İngilizce dil desteği (daha çok oyuncu)
+- ✅ Renk körü modu, arayüz boyutu ayarı
+- 🚧 İngilizce (Ayarlar > English): menüler, uyarılar, felaketler, haritalar, mağaza; görev metinleri ve bot konuşmaları henüz Türkçe
 
 ## 8. Kontroller
 - ✅ PUBG tarzı joystick, zıplama, otomatik koşu, tuş yerleştirme, hassasiyet
@@ -159,25 +160,25 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 ## 9. Ekonomi ve mağaza
 - ✅ Coin, güçlendirmeler, kıyafet renkleri, günlük hediye
 - ✅ ⭐ Şapka, güneş gözlüğü, sırt çantası (mağazada, tak/çıkar); iz efektleri ileride
-- 💡 ⭐ Günlük giriş serisi (7 gün üst üste → büyük ödül)
-- 💡 Sezon kartı (ücretsiz + premium yol)
-- 💡 Reklam izle → 2 kat coin (web portalı SDK'sı ile)
-- 💡 Coin paketleri, reklamsız paket (Android)
-- 💡 Nadir kozmetikler (sadece etkinlikte)
+- ✅ ⭐ Günlük giriş serisi: her gün artan hediye, 7. gün 1000 coin
+- 🚧 Sezon kartı: aylık ücretsiz yol var (10 kademe, sonunda özel kıyafet); 🔒 premium yol ödeme sistemi ister
+- 🔒 Reklam izle → 2 kat coin: oyun tarafı hazır (sayfada showRewardedAd varsa tuş çıkar); bir oyun portalı hesabı ve SDK'sı lazım
+- 🔒 Coin paketleri, reklamsız paket: Google Play geliştirici hesabı ve ödeme ayarı lazım
+- ✅ Etkinlik kıyafetleri: sadece o haftanın etkinliğinde satılır
 
 ## 10. Çok oyunculu ve sosyal
-- 💡 ⭐ Gerçek çok oyunculu (WebSocket/WebRTC sunucusu, 8-12 kişilik odalar)
-- 💡 Çevrimiçi liderlik tablosu (haftalık / tüm zamanlar)
-- 💡 Arkadaş ekleme, davet linki
-- 💡 Sohbet (hazır mesajlar: "Buraya gel!", "Teşekkürler!")
-- 💡 Bulut kayıt (hesap ile coin ve kıyafetler cihazlar arası)
+- 🔒 ⭐ Gerçek çok oyunculu (WebSocket/WebRTC sunucusu, 8-12 kişilik odalar): bir sunucu kiralanması lazım
+- 🔒 Çevrimiçi liderlik tablosu: sunucu / veritabanı lazım
+- 🔒 Arkadaş ekleme, davet linki: hesap sistemi ve sunucu lazım
+- 🔒 Sohbet: çok oyunculu ister (botlara "Takip" ve "Selam" komutları var)
+- 🔒 Bulut kayıt: hesap sistemi ve sunucu lazım
 
 ## 11. Teknik
 - ✅ Kalite seviyeleri + otomatik kalite, MultiMesh çizimi, havuzlama
 - ✅ Web hata kutusu
-- 💡 ⭐ PWA: ana ekrana ekle, çevrimdışı oyna
-- 💡 ⭐ Android sürümü (Google Play)
-- 💡 iOS sürümü
-- 💡 Daha hızlı yükleme (sıkıştırma, ilk açılışta küçük yükleme)
+- 💡 ⭐ PWA (ana ekrana ekle, çevrimdışı): yayın sürümünde açılacak; şimdi açılırsa telefon eski sürümü önbellekten gösterir
+- 🚧 ⭐ Android: APK iş akışı hazır (GitHub > Actions > Build Android APK > Run workflow, APK'yı indirip telefona kur); 🔒 Google Play için geliştirici hesabı ve imza anahtarı
+- 🔒 iOS sürümü: Mac ve Apple geliştirici hesabı lazım
+- 🚧 Daha hızlı yükleme: oyun dosyası çok küçük (her şey kodla üretiliyor); asıl yük Godot motorunun kendisi
 - ✅ Enkaz tek çizimde, parçacıklar birbirine çarpmaz, fizik interpolasyonu (akıcılık), shader ısınması
-- 💡 Otomatik test botu (her felaket her haritada hatasız mı)
+- ✅ Otomatik test (`--selftest`): her felaket ayrı bir haritada çalışır, durağan haldeyken düşen parça varsa söyler

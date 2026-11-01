@@ -157,7 +157,7 @@ func _pick_up() -> void:
 		if Vector2(at.x - _roof.x, at.z - _roof.z).length() < REACH and at.y > _roof.y - 0.8 and at.y < _roof.y + HOVER_HEIGHT:
 			p.rescue(BONUS)
 			if p.is_bot:
-				get_tree().call_group("hud", "add_note", "%s kurtarıldı!" % p.display_name)
+				get_tree().call_group("hud", "add_note", String(TranslationServer.translate("%s kurtarıldı!")) % p.display_name)
 
 
 ## One mesh of colored boxes: [center, size, color] each.

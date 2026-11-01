@@ -17,6 +17,10 @@ var _time := 0.0
 var _smoke: CPUParticles3D
 var _barks := 0
 var _bark_timer := 0.0
+## Calm-weather sounds: birdsong and gull cries by day, crickets at night.
+var _night := false
+var _fled := false
+var _call_timer := 3.0
 
 
 func _ready() -> void:
@@ -47,11 +51,14 @@ func set_island(half: float) -> void:
 
 func set_night(night: bool) -> void:
 	_birds.visible = not night
+	_night = night
+	_fled = false
 	_flee(0.0, 0.1)
 
 
 ## The gulls fly off before an earthquake or an eruption (they come back next map).
 func scatter() -> void:
+	_fled = true
 	_flee(1.0, 7.0)
 
 
@@ -101,6 +108,7 @@ func _flee(to: float, seconds: float) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	_calls(delta)
 	if _barks > 0:
 		_bark_timer -= delta
 		if _bark_timer <= 0.0:
@@ -119,6 +127,30 @@ func _process(delta: float) -> void:
 		var heading := -angle - PI * 0.5 if route.z > 0.0 else -angle + PI * 0.5
 		var rock := Basis.from_euler(Vector3(sin(_time * 0.5 + i) * 0.04, 0, sin(_time * 0.37 + i * 2.0) * 0.025))
 		_ships[i].transform = Transform3D(Basis(Vector3.UP, heading) * rock, pos)
+
+
+## Birds and crickets, only while the weather is calm (they go quiet in rain
+## and when they have fled).
+func _calls(delta: float) -> void:
+	var camera := get_viewport().get_camera_3d()
+	var weather := get_tree().get_first_node_in_group("weather")
+	if camera == null or (weather and weather.raining()) or _fled:
+		return
+	if _night:
+		get_tree().call_group("sound", "loop", "crickets", 0.45)
+		return
+	_call_timer -= delta
+	if _call_timer > 0.0:
+		return
+	_call_timer = randf_range(2.0, 6.0)
+	var a := randf() * TAU
+	var flat := Vector3(cos(a), 0, sin(a))
+	if randf() < 0.4:
+		get_tree().call_group("sound", "play", "gull", camera.global_position + flat * randf_range(25.0, 40.0) + Vector3.UP * 14.0,
+				-2.0, randf_range(0.9, 1.15))
+	else:
+		get_tree().call_group("sound", "play", "chirp", camera.global_position + flat * randf_range(6.0, 16.0) + Vector3.UP * 4.0,
+				-6.0, randf_range(0.85, 1.25))
 
 
 func _bird_flock() -> MultiMesh:

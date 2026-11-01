@@ -140,24 +140,34 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   while climbing, mantling, gliding or hooking. Avatars have a mouth that opens in panic and
   extras (`set_extras`: glasses, cap, backpack; shop cosmetics, random on bots).
 - `scripts/world/ambience.gd`: ships sailing around the island and seagulls
-  (`shaders/birds.gdshader`, moved entirely in the shader).
+  (`shaders/birds.gdshader`, moved entirely in the shader); birdsong and gull cries by day,
+  crickets at night, quiet in rain.
 - `scripts/core/sound.gd`: all audio is generated in code at startup (no files), one sound
   per frame in the menu. `call_group("sound", "play", name, pos)` for one-shots (siren,
-  boom, crash, splash, click, coin) and `"loop", name, level, pitch` every frame/tick to
-  keep a loop (rumble, wind, fire, surf, rain) going; it fades when the calls stop.
-  `"music", "calm"/"tense"` crossfades the generated music (built a slice per frame).
+  boom, crash/glass/metal/wood breaks (debris picks one from the piece's color), splash,
+  click, coin, win/lose jingles, step, voices "shout"/"scream" (bots, pitched per bot),
+  chirp, gull) and `"loop", name, level, pitch` every frame/tick to keep a loop (rumble,
+  wind, fire, surf, rain, crickets) going; it fades when the calls stop. `"muffle", on`
+  low-passes everything (camera under water). `"music", "calm"/"tense"` crossfades the
+  generated music (built a slice per frame).
 - `scripts/world/effects.gd`: pooled particle bursts (explosions, dust from breaking
   pieces), reached through `call_group("effects", ...)`.
 - `scripts/world/maps.gd`: the maps (skyscraper with offices, a helipad and a cafe, garden
   house with a playground, apartment with a corner shop, neighbourhood, mall, port with
   gantry cranes, container stacks, a lighthouse and a moored ship); trampolines, slides
   and ladders up some buildings. Ladders become bot refuges through `_add_ladder_refuge`.
-- `scripts/world/maps_extra.gd`: 13 more maps (school, hospital, stadium, village, camp,
+- `scripts/world/maps_extra.gd`: 14 more maps (school, hospital, stadium, village, camp,
   castle, city with a gas station, airport, funfair, river with a bridge and swimmable
-  water via `water_zone.gd`, desert town, ski resort, oil rig) built with maps.gd's
+  water via `water_zone.gd`, desert town, ski resort, oil rig, a town below a dam whose
+  `info.dam` makes tsunami-kind disasters burst it and come down the valley) built with maps.gd's
   helpers passed in as `M`; towers with ladders (`_tower`) and concrete bunkers become
   bot refuges; `elevator.gd` lifts jam in quakes. Frames like the big wheel raise
   their structure's `span_limit`.
+- `scripts/world/doors.gd`: sliding glass doors in every `add_building` front doorway
+  (`Structure.door_spots`), opening when anyone is near, shattering when the wall around
+  them breaks; one MultiMesh for all. `scripts/world/boat.gd`: a lifeboat by the spawn
+  (`main._place_boat`) that water disasters float (`set_water`, group "boats") and the
+  player drives by standing in it and pushing forward.
 - Omens (`DisasterManager._omens`): the sea draws back before a tsunami
   (`weather.drain_sea`), the gulls flee before a quake or an eruption (`ambience.scatter`).
 - Severity: every disaster rolls Şiddetli / Felaket / Kıyamet (`power` 1.15 / 1.4 / 1.7,
@@ -176,7 +186,18 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   tsunami with no wave whose water just rises. The manager sometimes runs a second
   disaster from `COMBO_PARTNERS` alongside the main one (double disaster).
 - `ROADMAP.md`: the backlog of everything planned or imagined, in Turkish, with what is
-  done; keep it up to date when adding features.
+  done; keep it up to date when adding features. 🔒 items need the user's accounts or a
+  server (multiplayer, stores, ads).
+- UI extras: HUD compass (headings, danger, helicopter), MVP line, colorblind colors,
+  interface scale (`content_scale_factor`), player name. `scripts/core/lang.gd`: English
+  (Settings language): a Turkish->English table registered only while English is on (Godot
+  falls back to English translations otherwise); labels whose whole text is a key switch by
+  themselves, formatted text goes through `Lang.t()`. New player-facing strings should get
+  an entry. Economy: 7-day gift streak (profile.gd), monthly free season track
+  (`scripts/core/season.gd`), lifetime `Profile.stats`, a rewarded-ad hook
+  (`scripts/core/ads.gd`, only if the page defines `window.showRewardedAd`).
+- `.github/workflows/android.yml`: manual "Build Android APK" run (debug-signed APK as an
+  artifact, Android preset in export_presets.cfg, Compatibility renderer on mobile too).
 - `scripts/player/player.gd`: first-person controller at human scale (1.75 m, 0.3 m
   radius, 4.5/7 m/s, ~1.3 m jump, horizontal 90° FOV); world effects go through
   `push()`, `set_water()`, `explode_at()`, `take_damage()`, `add_shake()` (ground shaking:
@@ -231,6 +252,6 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
 (`--fast`, `--log`, `--perf`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
-`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`, `--mode=<i>`, `--rescue`, `--third`; `--perf` also prints
+`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`, `--mode=<i>`, `--rescue`, `--third`, `--selftest` (every disaster once, each on another map, reports pieces falling at rest); `--perf` also prints
 the number of burning pieces). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

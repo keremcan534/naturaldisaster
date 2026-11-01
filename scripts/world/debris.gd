@@ -84,8 +84,21 @@ func _batch(count: int, material: Material) -> MultiMesh:
 
 ## Breaks a box (global transform, size, color) into chunks flying apart from
 ## `from` with up to `power` m/s on top of the piece's own velocity.
+## What a piece sounds like breaking, guessed from its color: glass, wood
+## (browns), metal (dark greys and car paint), or concrete and brick.
+static func _break_sound(color: Color, glass: bool) -> String:
+	if glass:
+		return "glass"
+	if color.s > 0.3 and color.h > 0.04 and color.h < 0.13 and color.v < 0.75:
+		return "wood"
+	if color.s < 0.15 and color.v < 0.35:
+		return "metal"
+	return "crash"
+
+
 func shatter(xform: Transform3D, size: Vector3, color: Color, velocity: Vector3, from: Vector3, power: float) -> void:
 	var glass := color == Look.GLASS_KEY or color == Look.CAR_GLASS_KEY
+	get_tree().call_group("sound", "play", _break_sound(color, glass), xform.origin, -2.0)
 	var edge := SHARD_EDGE if glass else CHUNK_EDGE
 	var cuts := Vector3i(maxi(roundi(size.x / edge), 1), maxi(roundi(size.y / edge), 1), maxi(roundi(size.z / edge), 1))
 	while cuts.x * cuts.y * cuts.z > MAX_CHUNKS:

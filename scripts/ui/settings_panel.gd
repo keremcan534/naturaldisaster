@@ -10,6 +10,8 @@ const Quality := preload("res://scripts/core/quality.gd")
 const Settings := preload("res://scripts/core/settings.gd")
 const Ui := preload("res://scripts/ui/ui.gd")
 const Gyro := preload("res://scripts/core/gyro.gd")
+const Lang := preload("res://scripts/core/lang.gd")
+const Profile := preload("res://scripts/core/profile.gd")
 
 const QUALITY_NAMES := ["Otomatik", "Düşük", "Orta", "Yüksek"]
 const BOT_LEVELS := ["Kolay", "Normal", "Zor"]
@@ -40,6 +42,36 @@ func _ready() -> void:
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)
 
+	# Name (shown on the scoreboard) and language.
+	var name_row := HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 10)
+	name_row.add_child(Ui.text("Adın", 20))
+	var name_edit := LineEdit.new()
+	name_edit.text = Profile.player_name
+	name_edit.max_length = 14
+	name_edit.custom_minimum_size = Vector2(220, 44)
+	name_edit.add_theme_font_size_override("font_size", 20)
+	name_edit.text_changed.connect(func(text: String) -> void:
+		var clean := text.strip_edges()
+		if clean != "":
+			Profile.player_name = clean
+			Profile.save_profile())
+	name_row.add_child(name_edit)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_row.add_child(spacer)
+	var language_group := ButtonGroup.new()
+	for entry: Array in [["tr", "Türkçe"], ["en", "English"]]:
+		var choice := Ui.button(entry[1], 18)
+		choice.toggle_mode = true
+		choice.button_group = language_group
+		choice.button_pressed = Settings.language == entry[0]
+		choice.pressed.connect(func() -> void:
+			Settings.language = entry[0]
+			Settings.save_settings()
+			Lang.apply(entry[0]))
+		name_row.add_child(choice)
+	box.add_child(name_row)
 	box.add_child(_slider_row("Bakış hassasiyeti", 0.3, 3.0, Settings.sensitivity, func(v: float) -> void:
 		Settings.sensitivity = v))
 	box.add_child(_slider_row("Ses", 0.0, 1.0, Settings.volume, func(v: float) -> void:
@@ -47,6 +79,11 @@ func _ready() -> void:
 		Settings.apply_volume()))
 	box.add_child(_slider_row("Müzik", 0.0, 1.0, Settings.music, func(v: float) -> void:
 		Settings.music = v))
+	box.add_child(_slider_row("Arayüz boyutu", 0.8, 1.3, Settings.ui_scale, func(v: float) -> void:
+		Settings.ui_scale = v
+		get_tree().root.content_scale_factor = v
+		if controls:
+			controls.apply_settings()))
 	if controls:
 		box.add_child(_slider_row("Tuş boyutu", 0.8, 1.4, Settings.button_size, func(v: float) -> void:
 			Settings.button_size = v
@@ -67,6 +104,8 @@ func _ready() -> void:
 			controls.start_editing())
 		box.add_child(place)
 
+	box.add_child(_toggle("Renk körü modu", Settings.colorblind, func(on: bool) -> void:
+		Settings.colorblind = on))
 	box.add_child(_toggle("Üçüncü şahıs kamera (V)", Settings.third_person, func(on: bool) -> void:
 		Settings.third_person = on
 		for p: Node in get_tree().get_nodes_in_group("player"):
@@ -157,9 +196,9 @@ func _slider_row(caption: String, low: float, high: float, value: float, changed
 	filled.bg_color = Color(1, 0.85, 0.3, 0.8)
 	slider.add_theme_stylebox_override("grabber_area", filled)
 	slider.add_theme_stylebox_override("grabber_area_highlight", filled)
-	label.text = "%s: %.2f" % [caption, value]
+	label.text = "%s: %.2f" % [Lang.t(caption), value]
 	slider.value_changed.connect(func(v: float) -> void:
-		label.text = "%s: %.2f" % [caption, v]
+		label.text = "%s: %.2f" % [Lang.t(caption), v]
 		changed.call(v)
 		Settings.save_settings())
 	row.add_child(slider)

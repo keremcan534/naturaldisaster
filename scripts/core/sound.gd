@@ -15,8 +15,12 @@ const ONE_SHOT_PLAYERS := 10
 ## only within earshot.
 const CRASH_GAP := 0.09
 const HEARING := 45.0
-const LOOPS := {"rumble": 2.0, "wind": 2.5, "fire": 2.0, "surf": 2.5, "rain": 2.0}
-const SHOTS := {"siren": 3.0, "boom": 1.4, "crash": 0.5, "splash": 0.8, "click": 0.05, "coin": 0.4, "bark": 0.6}
+const LOOPS := {"rumble": 2.0, "wind": 2.5, "fire": 2.0, "surf": 2.5, "rain": 2.0, "crickets": 3.0}
+const SHOTS := {"siren": 3.0, "boom": 1.4, "crash": 0.5, "splash": 0.8, "click": 0.05, "coin": 0.4, "bark": 0.6,
+		"win": 1.6, "lose": 1.8, "step": 0.12, "glass": 0.6, "metal": 0.9, "wood": 0.4, "scream": 0.9, "shout": 0.35,
+		"chirp": 0.5, "gull": 0.7}
+## Under water everything sounds muffled: a low-pass on the master bus.
+const MUFFLE_HZ := 600.0
 ## Music loops: a calm one for the menu and between disasters, a tense one while
 ## a disaster is coming or under way.
 const MUSIC := {"calm": 8.0, "tense": 4.0}
@@ -37,17 +41,26 @@ var _next_flat := 0
 ## name -> [player, level, target, last call time]
 var _loops := {}
 var _time := 0.0
-var _last_crash := -1.0
+## Breaking sounds come in bursts: each at most once per CRASH_GAP.
+const BREAKS := ["crash", "glass", "metal", "wood"]
+var _last_break := {}
 var _music: AudioStreamPlayer
 var _music_mode := ""
 var _music_level := 0.0
 var _building := false
+var _muffle_index := -1
 
 
 func _ready() -> void:
 	add_to_group("sound")
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_pending = ["click", "calm", "siren", "boom", "crash", "rumble", "wind", "fire", "surf", "rain", "splash", "coin", "bark", "tense"]
+	_pending = ["click", "calm", "siren", "boom", "crash", "rumble", "wind", "fire", "surf", "rain", "splash", "coin", "bark",
+			"step", "glass", "metal", "wood", "win", "lose", "scream", "shout", "chirp", "gull", "crickets", "tense"]
+	var muffle := AudioEffectLowPassFilter.new()
+	muffle.cutoff_hz = MUFFLE_HZ
+	AudioServer.add_bus_effect(0, muffle)
+	_muffle_index = AudioServer.get_bus_effect_count(0) - 1
+	AudioServer.set_bus_effect_enabled(0, _muffle_index, false)
 	_music = AudioStreamPlayer.new()
 	_music.volume_db = -80.0
 	add_child(_music)
@@ -94,6 +107,12 @@ func _process(delta: float) -> void:
 			player.stop()
 
 
+## Muffled (under water) or clear.
+func muffle(on: bool) -> void:
+	if _muffle_index >= 0 and AudioServer.is_bus_effect_enabled(0, _muffle_index) != on:
+		AudioServer.set_bus_effect_enabled(0, _muffle_index, on)
+
+
 ## "calm", "tense" or "" (silence): fades out what plays and into the new one.
 func music(mode: String) -> void:
 	_music_mode = mode
@@ -129,10 +148,10 @@ func play(name: String, pos: Variant = null, volume_db := 0.0, pitch := 1.0) -> 
 	var camera := get_viewport().get_camera_3d()
 	if camera and camera.global_position.distance_to(pos) > HEARING:
 		return
-	if name == "crash":
-		if _time - _last_crash < CRASH_GAP:
+	if name in BREAKS:
+		if _time - _last_break.get(name, -1.0) < CRASH_GAP:
 			return
-		_last_crash = _time
+		_last_break[name] = _time
 	var p := _players[_next]
 	_next = (_next + 1) % _players.size()
 	p.stream = _streams[name]
@@ -153,14 +172,15 @@ func loop(name: String, level: float, pitch := 1.0) -> void:
 
 ## Loudest sample of each sound after normalizing.
 const PEAKS := {"bark": 0.7, "siren": 0.45, "boom": 0.95, "crash": 0.7, "splash": 0.6, "click": 0.5, "coin": 0.35,
-		"rumble": 0.85, "wind": 0.6, "fire": 0.6, "surf": 0.75, "rain": 0.4}
+		"rumble": 0.85, "wind": 0.6, "fire": 0.6, "surf": 0.75, "rain": 0.4, "crickets": 0.25, "win": 0.45, "lose": 0.45,
+		"step": 0.35, "glass": 0.55, "metal": 0.5, "wood": 0.65, "scream": 0.5, "shout": 0.45, "chirp": 0.3, "gull": 0.35}
 
 
 ## Builds one sound: float samples from a tight loop per kind, normalized, then
 ## turned into a WAV in memory (the float-to-PCM conversion is native).
 func _make(name: String) -> AudioStreamWAV:
 	var seconds: float = LOOPS.get(name, SHOTS.get(name, 1.0))
-	var rate := HI_RATE if name == "click" or name == "coin" else RATE
+	var rate := HI_RATE if name in ["click", "coin", "glass", "chirp", "win", "lose", "metal"] else RATE
 	var n := int(seconds * rate)
 	var looped := LOOPS.has(name)
 	# Loops get extra samples to crossfade their end into their start.
@@ -355,4 +375,87 @@ func _samples(name: String, count: int, seconds: float, rate: int) -> PackedFloa
 				var second := t >= 0.09
 				phase += TAU * (1319.0 if second else 988.0) * dt
 				x[i] = signf(sin(phase)) * exp(-(t - (0.09 if second else 0.0)) * 9.0)
+		"win", "lose":
+			# Survived: a bright arpeggio up (C E G C). Died: a slow fall in minor.
+			var notes := [523.25, 659.25, 783.99, 1046.5] if name == "win" else [440.0, 415.3, 392.0, 329.63]
+			var length := 0.16 if name == "win" else 0.3
+			for i in count:
+				var t := i * dt
+				var k := mini(int(t / length), 3)
+				var tn := t - k * length
+				var f: float = notes[k]
+				var tail := 3.0 if k == 3 else 9.0
+				var tone := sin(TAU * f * t) + 0.35 * sin(TAU * f * 2.0 * t) + 0.15 * sin(TAU * f * 3.0 * t)
+				x[i] = tone * exp(-tn * tail) * minf(tn * 300.0, 1.0)
+		"step":
+			# A soft thud: low noise with a quick fall.
+			for i in count:
+				var t := i * dt
+				var white := randf() * 2.0 - 1.0
+				low += (white - low) * 0.18
+				x[i] = (low + sin(TAU * 90.0 * t) * 0.5) * exp(-t * 45.0) * minf(t * 900.0, 1.0)
+		"glass":
+			# Bright tinkles: a few high rings scattered over the first moments.
+			var rings := []
+			for k in 7:
+				rings.append([randf_range(2200.0, 5200.0), randf_range(0.0, 0.25)])
+			for i in count:
+				var t := i * dt
+				var v := (randf() * 2.0 - 1.0) * exp(-t * 40.0) * 0.6
+				for r: Array in rings:
+					var tr: float = t - r[1]
+					if tr > 0.0:
+						v += sin(TAU * r[0] * tr) * exp(-tr * 18.0) * 0.4
+				x[i] = v
+		"metal":
+			# A clang: inharmonic partials ringing out.
+			for i in count:
+				var t := i * dt
+				var v := sin(TAU * 310.0 * t) + 0.7 * sin(TAU * 853.0 * t) + 0.5 * sin(TAU * 1471.0 * t) + 0.3 * sin(TAU * 2290.0 * t)
+				x[i] = (v * exp(-t * 5.0) + (randf() * 2.0 - 1.0) * exp(-t * 60.0)) * minf(t * 2000.0, 1.0)
+		"wood":
+			# A crack and a hollow knock.
+			for i in count:
+				var t := i * dt
+				var white := randf() * 2.0 - 1.0
+				low += (white - low) * 0.45
+				x[i] = (low * exp(-t * 35.0) + sin(TAU * 180.0 * t) * exp(-t * 22.0) * 0.8) * minf(t * 1500.0, 1.0)
+		"scream", "shout":
+			# A voice: a buzzy tone through two vowel formants ("aaah"), falling
+			# (scream) or short and rising (shout).
+			var b1 := 0.0
+			var b2 := 0.0
+			for i in count:
+				var t := i * dt
+				var f := (420.0 - 160.0 * t / seconds) if name == "scream" else (230.0 + 120.0 * t / seconds)
+				f *= 1.0 + 0.02 * sin(TAU * 6.0 * t)
+				phase += f * dt
+				var buzz := fmod(phase, 1.0) * 2.0 - 1.0
+				b1 += (buzz - b1) * 0.35
+				b2 += (buzz - b2) * 0.75
+				var env := minf(t * 25.0, 1.0) * minf((seconds - t) * 6.0, 1.0)
+				x[i] = (b1 * 0.7 + (b2 - b1) * 0.6) * env
+		"chirp":
+			# A bird: two or three quick up-sweeping whistles.
+			for i in count:
+				var t := i * dt
+				var k := int(t / 0.13)
+				var tn := t - k * 0.13
+				var on := 1.0 if k < 3 and tn < 0.08 else 0.0
+				phase += TAU * (2600.0 + tn * 14000.0) * dt
+				x[i] = sin(phase) * on * sin(PI * minf(tn / 0.08, 1.0))
+		"gull":
+			# A gull's cry: a high, rough, falling "kyaa".
+			for i in count:
+				var t := i * dt
+				phase += TAU * (1250.0 - 500.0 * t / seconds) * dt
+				var rough := 1.0 + 0.4 * sin(TAU * 45.0 * t)
+				x[i] = (sin(phase) + 0.5 * sin(phase * 2.0)) * rough * minf(t * 20.0, 1.0) * exp(-t * 3.0)
+		"crickets":
+			# Night: pulsing high chirps, slightly out of step with each other.
+			for i in count:
+				var t := i * dt
+				var a := 1.0 if fmod(t * 16.0, 1.0) < 0.5 and fmod(t, 0.9) < 0.35 else 0.0
+				var b := 1.0 if fmod(t * 15.0 + 0.3, 1.0) < 0.5 and fmod(t + 0.4, 1.1) < 0.3 else 0.0
+				x[i] = sin(TAU * 4200.0 * t) * a * 0.6 + sin(TAU * 3900.0 * t) * b * 0.4
 	return x

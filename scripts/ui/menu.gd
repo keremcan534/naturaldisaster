@@ -15,6 +15,14 @@ const Profile := preload("res://scripts/core/profile.gd")
 const Progress := preload("res://scripts/core/progress.gd")
 const Events := preload("res://scripts/core/events.gd")
 const Settings := preload("res://scripts/core/settings.gd")
+const Lang := preload("res://scripts/core/lang.gd")
+const Season := preload("res://scripts/core/season.gd")
+## Disaster kinds by name, for the statistics.
+const KIND_NAMES := {"earthquake": "Deprem", "meteor": "Meteor Yağmuru", "tsunami": "Tsunami", "tornado": "Hortum",
+		"volcano": "Volkan", "fire": "Yangın", "lightning": "Yıldırım Fırtınası", "hail": "Dolu", "sandstorm": "Kum Fırtınası",
+		"acid": "Asit Yağmuru", "hurricane": "Kasırga", "sinkhole": "Obruk", "heat": "Isı Dalgası", "gas": "Zehirli Gaz",
+		"bigmeteor": "Dev Meteor", "flare": "Güneş Patlaması", "ash": "Kül Yağmuru", "blizzard": "Kar Fırtınası",
+		"blackhole": "Kara Delik", "ufo": "UFO İstilası"}
 const DisasterManager := preload("res://scripts/disasters/disaster_manager.gd")
 const BuildInfo := preload("res://scripts/core/build_info.gd")
 const Avatar := preload("res://scripts/player/avatar.gd")
@@ -210,18 +218,18 @@ func _build_main() -> Control:
 func _refresh_main() -> void:
 	_coins.set_amount(Profile.coins)
 	_gift.visible = Profile.gift_ready()
-	_gift.text = "GÜNLÜK HEDİYE: +%d" % Profile.DAILY_GIFT
-	_stats.text = "En yüksek puan: %d     Hayatta kalınan tur: %d / %d" % [
+	_gift.text = Lang.t("GÜNLÜK HEDİYE (%d. gün / 7): +%d") % [Profile.next_streak_day(), Profile.gift_amount()]
+	_stats.text = Lang.t("En yüksek puan: %d     Hayatta kalınan tur: %d / %d") % [
 			Profile.best_score, Profile.rounds_survived, Profile.rounds_played]
 	var progress := Progress.level_progress()
-	_level.text = "Seviye %d   ·   %d / %d XP" % [Progress.level(), progress.x, progress.y]
+	_level.text = Lang.t("Seviye %d   ·   %d / %d XP") % [Progress.level(), progress.x, progress.y]
 	_level_bar.max_value = progress.y
 	_level_bar.value = progress.x
 	var mode: Dictionary = DisasterManager.MODES[clampi(Settings.game_mode, 0, DisasterManager.MODES.size() - 1)]
-	_mode.text = "MOD: %s  >" % mode.name
+	_mode.text = Lang.t("MOD: %s  >") % Lang.t(mode.name)
 	_mode_desc.text = mode.desc
 	var event := Events.current()
-	_event.text = "HAFTANIN ETKİNLİĞİ: %s (%d gün)\n%s" % [event.name, Events.days_left(), event.desc]
+	_event.text = Lang.t("HAFTANIN ETKİNLİĞİ: %s (%d gün)\n%s") % [Lang.t(event.name), Events.days_left(), Lang.t(event.desc)]
 
 
 ## A thin bar for experience and mission progress.
@@ -283,11 +291,24 @@ func _refresh_goals() -> void:
 	for child in _goals_list.get_children():
 		child.queue_free()
 	var progress := Progress.level_progress()
-	_goals_list.add_child(Ui.text("Seviye %d   ·   %d / %d XP" % [Progress.level(), progress.x, progress.y], 24, Color(0.8, 0.95, 1.0)))
+	_goals_list.add_child(Ui.text(Lang.t("Seviye %d   ·   %d / %d XP") % [Progress.level(), progress.x, progress.y], 24, Color(0.8, 0.95, 1.0)))
 	var bar := _xp_bar(0)
 	bar.max_value = progress.y
 	bar.value = progress.x
 	_goals_list.add_child(bar)
+	# The month's free reward track.
+	var tier := Season.tier()
+	var top := Season.REWARDS.size()
+	_goals_list.add_child(Ui.text("%s  ·  %s %d / %d" % [Season.name(), Lang.t("kademe"), tier, top], 22, Ui.ACCENT))
+	var next := "Sezon kıyafeti kazanıldı!" if tier >= top else \
+			Lang.t("Sonraki kademe: %d / %d XP  →  +%d coin%s") % [Season.xp % Season.XP_PER_TIER, Season.XP_PER_TIER,
+			Season.REWARDS[tier], Lang.t(" ve Sezon kıyafeti") if tier == top - 1 else ""]
+	var season_bar := _xp_bar(0)
+	season_bar.max_value = 1.0
+	season_bar.step = 0.001
+	season_bar.value = 1.0 if tier >= top else float(Season.xp % Season.XP_PER_TIER) / Season.XP_PER_TIER
+	_goals_list.add_child(Ui.text(next, 18))
+	_goals_list.add_child(season_bar)
 	_goals_list.add_child(Ui.text("Günlük görevler (her gün yenilenir)", 22, Ui.ACCENT))
 	for id: String in Progress.daily:
 		var m := Progress.mission(id)
@@ -301,6 +322,23 @@ func _refresh_goals() -> void:
 		var got: bool = a.id in Progress.unlocked
 		var value: int = mini(Progress.counters.get(a.id, 0), a.goal)
 		_goals_list.add_child(_goal_row("%s — %s" % [a.name, a.text], "AÇILDI" if got else "%d / %d" % [value, a.goal], a.reward, got, float(value) / a.goal))
+	_goals_list.add_child(Ui.text("İstatistikler", 22, Ui.ACCENT))
+	var stats := Profile.stats
+	var lines := [
+		Lang.t("Oynanan tur: %d   ·   Hayatta kalınan: %d") % [Profile.rounds_played, Profile.rounds_survived],
+		Lang.t("En uzun seri: %d   ·   En yüksek puan: %d") % [stats.get("best_streak", 0), Profile.best_score],
+		Lang.t("Kazanılan coin: %d   ·   Helikopterle kurtulma: %d   ·   Kurtarılan arkadaş: %d") % [stats.get("coins", 0),
+				stats.get("rescues", 0), stats.get("helps", 0)],
+	]
+	for line: String in lines:
+		_goals_list.add_child(Ui.text(line, 19))
+	var kinds: Dictionary = stats.get("kinds", {})
+	var order: Array = kinds.keys()
+	order.sort_custom(func(a: String, b: String) -> bool: return kinds[a][0] > kinds[b][0])
+	for kind: String in order:
+		var entry: Array = kinds[kind]
+		var label := Lang.t(KIND_NAMES.get(kind, kind))
+		_goals_list.add_child(_goal_row(label, "%d / %d" % [entry[1], entry[0]], 0, false, float(entry[1]) / maxf(entry[0], 1.0)))
 
 
 func _goal_row(text: String, state: String, reward: int, done: bool, fraction: float) -> Control:
@@ -324,6 +362,7 @@ func _goal_row(text: String, state: String, reward: int, done: bool, fraction: f
 	var coins := Ui.CoinLabel.new(20)
 	coins.set_amount(reward)
 	coins.custom_minimum_size.x = 90
+	coins.modulate.a = 1.0 if reward > 0 else 0.0
 	row.add_child(coins)
 	return row
 
@@ -438,6 +477,8 @@ func _refresh_shop() -> void:
 	_shop_list.add_child(Ui.text("Kıyafetler", 22, Ui.ACCENT))
 	var event_skin: String = Events.current().skin
 	for entry: Dictionary in Profile.ITEMS:
+		if entry.get("season", false) and not Profile.has(entry.id):
+			continue
 		if entry.kind == "skin" and (not entry.get("event", false) or entry.id == event_skin or Profile.has(entry.id)):
 			_shop_list.add_child(_shop_row(entry))
 
@@ -484,7 +525,7 @@ func _shop_row(entry: Dictionary) -> Control:
 		action.text = "ALINDI"
 		action.disabled = true
 	else:
-		action.text = "SATIN AL  %d" % entry.price
+		action.text = Lang.t("SATIN AL  %d") % entry.price
 		action.disabled = Profile.coins < entry.price
 		action.pressed.connect(func() -> void:
 			if Profile.buy(entry.id):

@@ -14,6 +14,7 @@ signal vote_started(options: Array)
 const Settings := preload("res://scripts/core/settings.gd")
 const Events := preload("res://scripts/core/events.gd")
 const Maps := preload("res://scripts/world/maps.gd")
+const Lang := preload("res://scripts/core/lang.gd")
 
 ## Round points: surviving, plus half the health left, plus a bonus for every
 ## round survived in a row before this one, plus a team bonus for every other
@@ -212,9 +213,13 @@ func _enter(state: State) -> void:
 					p.respawn(world.spawn_point)
 			_time_left = (10.0 if mode_id() == "hard" else intermission_time) * time_scale
 			round_started.emit()
-			status_changed.emit("Harita: %s - sonraki felakete hazırlan" % world.map_name)
+			status_changed.emit(Lang.t("Harita: %s - sonraki felakete hazırlan") % Lang.t(world.map_name))
 		State.WARNING:
 			_current = _pick_disaster()
+			# Below the dam, a flood or a wave means the dam is bursting.
+			if world.dam != Vector3.INF and _current.display_name in ["Tsunami", "Sel", "Dalga Serisi", "Dev Tsunami"]:
+				_current.display_name = "Baraj Patlaması"
+				_current.warning = "Baraj çatlıyor! Dev su seli vadiden geliyor: hemen yükseğe çık!"
 			var combo: float = Events.current().get("combo", COMBO_CHANCE)
 			_extra = null
 			if mode_id() == "chaos" or (_rounds > 0 and randf() < combo and mode_id() != "water"):
@@ -225,11 +230,13 @@ func _enter(state: State) -> void:
 			_time_left = maxf(warning_time, _current.warning_time) * time_scale
 			# The HUD's card shows what to do; the status line stays short.
 			if _extra:
-				status_changed.emit("UYARI: ÇİFTE FELAKET! %s + %s" % [_current.display_name, _extra.display_name])
-				disaster_warned.emit("%s + %s" % [_current.display_name, _extra.display_name], "Çifte felaket! " + _current.warning)
+				var names := [Lang.t(_current.display_name), Lang.t(_extra.display_name)]
+				status_changed.emit(Lang.t("UYARI: ÇİFTE FELAKET! %s + %s") % names)
+				disaster_warned.emit("%s + %s" % names, Lang.t("Çifte felaket! ") + Lang.t(_current.warning))
 			else:
-				status_changed.emit("UYARI: %s geliyor!" % _current.display_name)
-				disaster_warned.emit("%s · %s" % [_current.display_name, SEVERITY_NAMES[_current.severity - 1]], _current.warning)
+				status_changed.emit(Lang.t("UYARI: %s geliyor!") % Lang.t(_current.display_name))
+				disaster_warned.emit("%s · %s" % [Lang.t(_current.display_name), Lang.t(SEVERITY_NAMES[_current.severity - 1])],
+						Lang.t(_current.warning))
 		State.ACTIVE:
 			_omens(false)
 			_current.duration *= time_scale
@@ -237,12 +244,12 @@ func _enter(state: State) -> void:
 			_rescue_time = _current.duration * (1.0 - RESCUE_AT) if randf() < rescue_chance else -INF
 			add_child(_current)
 			_current.begin()
-			var title: String = _current.display_name.to_upper()
+			var title: String = Lang.t(_current.display_name).to_upper()
 			if _extra:
 				_extra.duration = minf(_extra.duration * time_scale, _current.duration)
 				add_child(_extra)
 				_extra.begin()
-				title += " + " + _extra.display_name.to_upper()
+				title += " + " + Lang.t(_extra.display_name).to_upper()
 			status_changed.emit(title)
 		State.RESULTS:
 			last_round = {"kinds": [], "double": _extra != null,
@@ -303,10 +310,11 @@ func _results_text() -> String:
 	var alive := players.filter(func(p: Node) -> bool: return p.alive).size()
 	if mode_id() == "last" and alive <= 1:
 		var winner := players.filter(func(p: Node) -> bool: return p.alive)
-		return "SON KALAN: %s! Herkes geri dönüyor" % winner[0].display_name if alive == 1 else "Kimse kalmadı! Herkes geri dönüyor"
+		return Lang.t("SON KALAN: %s! Herkes geri dönüyor") % winner[0].display_name if alive == 1 \
+				else Lang.t("Kimse kalmadı! Herkes geri dönüyor")
 	if players.size() == 1:
-		return "Hayatta kaldın!" if alive == 1 else "Öldün!"
-	return "Hayatta kalanlar: %d / %d" % [alive, players.size()]
+		return Lang.t("Hayatta kaldın!") if alive == 1 else Lang.t("Öldün!")
+	return Lang.t("Hayatta kalanlar: %d / %d") % [alive, players.size()]
 
 
 ## Signs before it hits: the sea draws back before a tsunami (and returns with

@@ -60,6 +60,10 @@ func begin() -> void:
 	water_level *= sqrt(power)
 	_half = world.map_size * 0.5
 	var angle := PI * 0.5 * (randi() % 4)
+	if world.dam != Vector3.INF:
+		# Below the dam the water comes down the valley: the wall bursts.
+		angle = PI * 1.5
+		_burst_dam()
 	_dir = Basis(Vector3.UP, angle) * Vector3.RIGHT
 	_root = Node3D.new()
 	_root.rotation.y = angle
@@ -94,6 +98,19 @@ func _physics_process(delta: float) -> void:
 		var local := AABB(Vector3(-width, -1.0, -width), Vector3(_front + width, crest_height + 2.0, width * 2.0))
 		get_tree().call_group("structures", "apply_field", _root.global_transform * local, _force_at, FIELD_INTERVAL)
 		_cleave_buildings()
+
+
+## The dam map: blasts through the middle of the wall and lets the lake drain.
+func _burst_dam() -> void:
+	var at: Vector3 = world.dam
+	for k in 3:
+		var blast := at + Vector3((k - 1) * 7.0, randf_range(-2.0, 3.0), 1.5)
+		get_tree().call_group("effects", "explosion", blast, 6.0)
+		get_tree().call_group("structures", "damage_sphere", blast, 6.5, 70.0)
+	get_tree().call_group("player", "rumble", at, 3000.0)
+	if world.dam_lake:
+		var tween: Tween = world.dam_lake.create_tween()
+		tween.tween_property(world.dam_lake, "position:y", -3.0, duration * 0.6)
 
 
 ## When the crest reaches the middle of a building, it splits it in two along
@@ -148,6 +165,13 @@ func _affect_players() -> void:
 			p.set_water(crest_height, _dir * 20.0)
 		elif _level > 0.0:
 			p.set_water(_level, _dir * CURRENT_FORCE)
+	# Boats float on whatever water is there.
+	for boat: Node3D in get_tree().get_nodes_in_group("boats"):
+		var s := boat.global_position.dot(_dir)
+		if s <= _front:
+			var top := crest_height if s > _front - crest_depth else _level
+			if top > 0.0:
+				boat.set_water(top, _dir * CURRENT_FORCE)
 
 
 func _update_meshes(travel: float) -> void:

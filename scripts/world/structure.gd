@@ -89,6 +89,10 @@ var _fire_timer := 0.0
 ## Waypoints (local) from outside the front door up the stairs to the roof, for
 ## bots (see bot.gd); empty without stairs. roof_height: the roof's walking surface.
 var climb_path: Array[Vector3] = []
+## Sliding glass front doors (doors.gd builds them after the map): each
+## {"center": local position, "size": panel size, "slide": local direction it
+## opens to, "neighbors": the pieces holding it (if one breaks, so does the door)}.
+var door_spots: Array[Dictionary] = []
 var roof_height := 0.0
 
 var _pieces: Array[RigidBody3D] = []
@@ -324,6 +328,9 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 	var w := footprint.x * CELL
 	var d := footprint.y * CELL
 	var door := footprint.x / 2
+	var door_spot := {"center": origin + Vector3(-w * 0.5 + CELL * (door + 0.5), FLOOR_HEIGHT * 0.5, d * 0.5 - WALL_THICKNESS - 0.08),
+			"size": Vector3(CELL * 0.98, FLOOR_HEIGHT - 0.05, 0.06), "slide": Vector3.LEFT if door > 0 else Vector3.RIGHT,
+			"neighbors": []}
 	for f in floors:
 		var y0 := f * FLOOR_HEIGHT
 		if f > 0:
@@ -339,7 +346,9 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 			var mat := _wall_material(c)
 			var panel := Vector3(CELL, h, WALL_THICKNESS)
 			if not (f == 0 and i == door):
-				add_box(origin + Vector3(x, cy, d * 0.5 - WALL_THICKNESS * 0.5), panel, c, Basis.IDENTITY, null, mat)
+				var piece := add_box(origin + Vector3(x, cy, d * 0.5 - WALL_THICKNESS * 0.5), panel, c, Basis.IDENTITY, null, mat)
+				if (f == 0 and absi(i - door) == 1) or (f == 1 and i == door):
+					door_spot.neighbors.append(piece)
 			add_box(origin + Vector3(x, cy, -d * 0.5 + WALL_THICKNESS * 0.5), panel, c, FACING_BACK, null, mat)
 		var side_len := (d - WALL_THICKNESS * 2.0) / footprint.y
 		for j in footprint.y:
@@ -352,6 +361,8 @@ func add_building(origin: Vector3, footprint: Vector2i, floors: int, color: Colo
 		if stairs:
 			_add_ramp(origin, w, d, f, color.darkened(0.15))
 		Interior.furnish(self, origin, footprint, f, wall_bottom, h, stairs, CELL, WALL_THICKNESS, rng, office)
+	if stairs:
+		door_spots.append(door_spot)
 	var roof := floors * FLOOR_HEIGHT
 	roof_height = roof + SLAB_THICKNESS
 	if stairs:

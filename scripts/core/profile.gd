@@ -41,6 +41,8 @@ const ITEMS := [
 	{"id": "black", "kind": "skin", "name": "Gece", "price": 400, "color": Color(0.12, 0.12, 0.14)},
 	{"id": "gold", "kind": "skin", "name": "Altın", "price": 1500, "color": Color(1.0, 0.78, 0.2)},
 	# Event outfits: in the shop only during their week (events.gd).
+	# The season track's last reward (season.gd); not for sale.
+	{"id": "season", "kind": "skin", "name": "Sezon Şampiyonu", "price": 99999, "color": Color(0.9, 0.25, 0.3), "season": true},
 	{"id": "wave", "kind": "skin", "name": "Dalga (etkinlik)", "price": 600, "color": Color(0.1, 0.75, 0.85), "event": true},
 	{"id": "comet", "kind": "skin", "name": "Kuyruklu yıldız (etkinlik)", "price": 600, "color": Color(0.95, 0.35, 0.1), "event": true},
 	{"id": "storm", "kind": "skin", "name": "Fırtına (etkinlik)", "price": 600, "color": Color(0.35, 0.38, 0.6), "event": true},
@@ -57,8 +59,13 @@ static var owned: Array = ["blue"]
 static var skin := "blue"
 ## Extras (glasses, cap, backpack) the player has on.
 static var wearing: Array = []
-## Day number (days since 1970) of the last daily gift.
+## Day number (days since 1970) of the last daily gift, and how many days in a
+## row it was claimed (day 7 pays the big one, then it starts over).
 static var gift_day := -1
+static var login_streak := 0
+## Lifetime numbers for the statistics screen: per disaster kind [played,
+## survived], best streak, coins earned, rescues by helicopter, teammates helped.
+static var stats := {}
 
 
 static func load_profile() -> void:
@@ -74,6 +81,8 @@ static func load_profile() -> void:
 	skin = config.get_value("profile", "skin", skin)
 	wearing = config.get_value("profile", "wearing", [])
 	gift_day = config.get_value("profile", "gift_day", -1)
+	login_streak = config.get_value("profile", "login_streak", 0)
+	stats = config.get_value("profile", "stats", {})
 
 
 static func save_profile() -> void:
@@ -89,6 +98,8 @@ static func save_profile() -> void:
 	config.set_value("profile", "skin", skin)
 	config.set_value("profile", "wearing", wearing)
 	config.set_value("profile", "gift_day", gift_day)
+	config.set_value("profile", "login_streak", login_streak)
+	config.set_value("profile", "stats", stats)
 	config.save(PATH)
 
 
@@ -139,19 +150,47 @@ static func gift_ready() -> bool:
 	return gift_day != _today()
 
 
+## Today's gift grows with the days in a row: 100, 125, ... and 1000 on day 7.
+static func gift_amount() -> int:
+	var day := next_streak_day()
+	return 1000 if day == 7 else DAILY_GIFT + 25 * (day - 1)
+
+
+## Which day of the 7-day streak claiming today would be.
+static func next_streak_day() -> int:
+	if gift_day == _today() - 1 and login_streak < 7:
+		return login_streak + 1
+	return 1
+
+
 static func claim_gift() -> int:
 	if not gift_ready():
 		return 0
+	var amount := gift_amount()
+	login_streak = next_streak_day()
 	gift_day = _today()
-	coins += DAILY_GIFT
+	coins += amount
 	save_profile()
-	return DAILY_GIFT
+	return amount
+
+
+## Adds to a lifetime counter (rescues, helps...).
+static func count(key: String, amount := 1) -> void:
+	stats[key] = stats.get(key, 0) + amount
 
 
 ## After every round: the player's points become coins and records.
-static func add_round(points: int, survived: bool, session_score: int, multiplier := 1) -> int:
+static func add_round(points: int, survived: bool, session_score: int, multiplier := 1, kinds: Array = [],
+		streak := 0) -> int:
 	var earned := points / POINTS_PER_COIN * multiplier
 	coins += earned
+	count("coins", earned)
+	stats["best_streak"] = maxi(stats.get("best_streak", 0), streak)
+	var per_kind: Dictionary = stats.get("kinds", {})
+	for kind: String in kinds:
+		var entry: Array = per_kind.get(kind, [0, 0])
+		per_kind[kind] = [entry[0] + 1, entry[1] + (1 if survived else 0)]
+	stats["kinds"] = per_kind
 	rounds_played += 1
 	if survived:
 		rounds_survived += 1

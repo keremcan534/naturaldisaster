@@ -15,6 +15,8 @@ extends Node
 ##   --mode=<i>          plays game mode i (DisasterManager.MODES) without saving it
 ##   --rescue            the rescue helicopter comes every round
 ##   --third             third-person camera (not saved)
+##   --selftest          plays every disaster once, each on another map (fast),
+##                       reports loose pieces at rest and survivors, then quits
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
 ##   --botlog            prints every bot's plan, position and health each second
 ##   --pos=x,y,z         puts the player there on the first frame
@@ -38,6 +40,10 @@ var _perf := false
 var _perf_timer := 0.0
 var _bot_log := false
 var _bot_timer := 0.0
+var _selftest := false
+var _test_round := 0
+var _test_check := -1.0
+var _test_warnings: Array = []
 
 
 func _ready() -> void:
@@ -62,6 +68,13 @@ func _ready() -> void:
 			preload("res://scripts/core/settings.gd").game_mode = arg.get_slice("=", 1).to_int()
 		elif arg == "--rescue":
 			manager.rescue_chance = 1.0
+		elif arg == "--selftest":
+			_selftest = true
+			manager.time_scale = 0.3
+			manager.world.forced_map = 0
+			manager.forced_disaster = 0
+			manager.round_started.connect(func() -> void: _test_check = 1.5)
+			manager.round_scored.connect(_selftest_round)
 		elif arg == "--third":
 			preload("res://scripts/core/settings.gd").third_person = true
 		elif arg.begins_with("--pos="):
@@ -81,7 +94,30 @@ func _ready() -> void:
 			_run_for = arg.get_slice("=", 1).to_float()
 
 
+## After each round: the next disaster on the next map; after the last, a report.
+func _selftest_round(board: Array) -> void:
+	var count: int = manager.DISASTERS.size()
+	var alive := board.filter(func(p: Node) -> bool: return p.alive).size()
+	print("[selftest] %2d/%d  %-20s on %-18s survivors %d/%d" % [_test_round + 1, count,
+			manager.DISASTERS[manager.forced_disaster].resource_path.get_file().get_basename(), manager.world.map_name,
+			alive, board.size()])
+	_test_round += 1
+	if _test_round >= count:
+		print("[selftest] done: %d rounds, %d warnings" % [_test_round, _test_warnings.size()])
+		for warning: String in _test_warnings:
+			print("[selftest] WARNING " + warning)
+		get_tree().quit()
+		return
+	manager.forced_disaster = _test_round
+	manager.world.forced_map = _test_round % preload("res://scripts/world/maps.gd").COUNT
+
+
 func _process(delta: float) -> void:
+	if _selftest and _test_check > 0.0:
+		_test_check -= delta
+		if _test_check <= 0.0 and Structure.awake > 0:
+			# A fresh map should stand still: anything moving fell by itself.
+			_test_warnings.append("%s: %d pieces moving at rest" % [manager.world.map_name, Structure.awake])
 	if _elapsed == 0.0 and _start_pos != null:
 		for player: Node3D in get_tree().get_nodes_in_group("player"):
 			if not player.is_bot:
