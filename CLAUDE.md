@@ -36,13 +36,27 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   flawless, team) and returns toasts for the HUD. Saved in the "progress" section of
   `user://profile.cfg` (both modules load the file before saving, keep it that way).
   First play shows a tutorial (menu.gd) while the round clock waits.
+- Modes (`DisasterManager.MODES`, picked with the menu's MOD button, `Settings.game_mode`):
+  Klasik, Kaos (double every round), Zor (all Kıyamet), Sadece Su, Son Kalan (the fallen stay
+  out until one is left). `scripts/core/events.gd`: the week's event (from the week number)
+  favors some disasters, doubles coins for surviving them and sells an event outfit.
+  Results open a map vote (`vote_started`, HUD buttons or keys 1-3; bots vote too) and
+  `load_next_map(choice)` takes the winner. `scripts/world/rescue_heli.gd` (group "rescue")
+  sometimes flies to the highest refuge roof mid-disaster; reaching its ladder calls
+  `rescue()` on players/bots (no more damage that round, bonus points).
+- Player extras: crouch, mantling ledges, items bought in the shop (`items`, parachute /
+  bandage / hook, keys 1-3), helping hurt bots (stand next to them), F makes the nearest bots
+  `follow()`, G waves, P takes a photo (`scripts/core/photo.gd`: a download on the web),
+  gamepad, optional gyro aim (`scripts/core/gyro.gd`, browser device motion).
 - `scripts/player/bot.gd`: AI teammates in the "player" group (disasters treat them like
   the player; anything called on "player" must exist on bots too). They react a moment
   after the warning: tsunami → up a building (`Maps.refuges`: `Structure.climb_path`
   through the door and up the ramps, or a ladder), quake → open ground (`Maps.buildings`),
   meteors → inside, tornado → away from `danger_center()`, volcano → the +Z side, fire →
   open ground, lightning/hail/acid/sand → inside. They shout lines (`SHOUTS`) in a bubble.
-  `--botlog` prints what they do. `avatar.gd` + `shaders/avatar.gdshader`: blocky
+  `--botlog` prints what they do. Each has a personality (korkak / cesur / şakacı) and a
+  skill drawn from the bot level setting; they shout for help when hurt and cheer after a
+  round. `avatar.gd` + `shaders/avatar.gdshader`: blocky
   character in one draw call (limbs swing in the shader); also the player's shadow.
 - `scripts/world/structure.gd`: breakable structures. Intact pieces are frozen
   `RigidBody3D`s (free for physics); damage unfreezes them and `_settle()` drops
@@ -168,7 +182,8 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   drag-to-look everywhere else (every finger tracked by index from press to release; the
   view turns only by the newest look finger's own movement, so a second finger never
   makes it jump; never drop fast swipes: on slow frames one event carries a big step), a big
-  jump button under the right thumb, a menu button (sensitivity, invert, button size,
+  jump button under the right thumb with small buttons around it (crouch toggle, owned
+  items with counts; "Takip" and "Selam" next to the menu button), a menu button (sensitivity, invert, button size,
   "Tuşları yerleştir" to drag the stick/jump spots, graphics quality; all saved in
   `user://settings.cfg`, keep other sections when saving). Touches also reach GUI as
   emulated mouse.
@@ -206,6 +221,6 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
 (`--fast`, `--log`, `--perf`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
-`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`; `--perf` also prints
+`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`, `--mode=<i>`, `--rescue`; `--perf` also prints
 the number of burning pieces). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.
