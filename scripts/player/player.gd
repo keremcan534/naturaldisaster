@@ -117,6 +117,8 @@ var _bob := 0.0
 var _fall_speed := 0.0
 ## Horizontal velocity from input / from the world (blasts, wind, water).
 var _walk := Vector3.ZERO
+## Icy ground (blizzard): slow to speed up, slow to stop.
+var _icy := false
 var _push := Vector3.ZERO
 var _water_level := 0.0
 var _water_current := Vector3.ZERO
@@ -298,7 +300,7 @@ func _physics_process(delta: float) -> void:
 	# A shaking ground makes footing unreliable (a smooth sway, not jitter).
 	var sway_t := _shake_time * 3.0
 	var wobble := Vector3(sin(sway_t), 0, cos(sway_t * 1.3)) * _quake * 1.2
-	_walk = _walk.move_toward(dir * speed + wobble, speed * 10.0 * delta)
+	_walk = _walk.move_toward(dir * speed + wobble, speed * (1.6 if _icy else 10.0) * delta)
 	_push = _push.lerp(Vector3.ZERO, minf(drag * delta, 1.0))
 	velocity.x = _walk.x + _push.x
 	velocity.z = _walk.z + _push.z
@@ -414,6 +416,10 @@ func _follow_bot(delta: float) -> void:
 func rumble(pos: Vector3, energy: float) -> void:
 	var near := 1.0 - clampf(global_position.distance_to(pos) / 20.0, 0.0, 1.0)
 	_rumble = maxf(_rumble, clampf(energy / 400.0, 0.0, 0.35) * near * near)
+
+
+func set_icy(on: bool) -> void:
+	_icy = on
 
 
 ## Called every frame by shaking disasters; amount is 0..1.

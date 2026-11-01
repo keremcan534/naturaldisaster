@@ -37,6 +37,11 @@ const DISASTERS := [
 	preload("res://scripts/disasters/solar_flare.gd"),
 	preload("res://scripts/disasters/wave_series.gd"),
 	preload("res://scripts/disasters/ashfall.gd"),
+	preload("res://scripts/disasters/mudslide.gd"),
+	preload("res://scripts/disasters/avalanche.gd"),
+	preload("res://scripts/disasters/blizzard.gd"),
+	preload("res://scripts/disasters/black_hole.gd"),
+	preload("res://scripts/disasters/ufo.gd"),
 ]
 ## No easy rounds: every disaster is at least severe.
 const SEVERITY_NAMES := ["Şiddetli", "Felaket", "Kıyamet"]

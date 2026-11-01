@@ -12,6 +12,10 @@ global uniform float island_half;
 
 uniform vec3 deep_color : source_color = vec3(0.01, 0.06, 0.1);
 uniform vec3 shallow_color : source_color = vec3(0.05, 0.42, 0.42);
+// How mirror-like the surface is (mud and snow barely reflect) and the color
+// of its foam.
+uniform float reflectivity = 1.0;
+uniform vec3 foam_color : source_color = vec3(0.9, 0.93, 0.94);
 uniform sampler2D noise : filter_linear_mipmap, repeat_enable;
 uniform float ripple_strength = 1.0;
 uniform vec2 flow = vec2(0.0);
@@ -147,7 +151,7 @@ void fragment() {
 	vec3 r = reflect(view_dir, n);
 	r.y = abs(r.y);
 	float cos_v = clamp(dot(-view_dir, n), 0.0, 1.0);
-	float fresnel = 0.02 + 0.98 * pow(1.0 - cos_v, 5.0);
+	float fresnel = (0.02 + 0.98 * pow(1.0 - cos_v, 5.0)) * reflectivity;
 	vec3 sky = sky_reflection(r, TIME);
 
 	// Sun glint: a tight hot core and a softer sheen around it.
@@ -177,7 +181,7 @@ void fragment() {
 	foam = max(foam, shore_foam * 0.9);
 #endif
 
-	ALBEDO = mix(body * (1.0 - fresnel), vec3(0.9, 0.93, 0.94), foam);
+	ALBEDO = mix(body * (1.0 - fresnel), foam_color, foam);
 	EMISSION = (sky * fresnel + glint) * (1.0 - foam);
 	ROUGHNESS = mix(0.25, 0.9, foam);
 	SPECULAR = 0.0;

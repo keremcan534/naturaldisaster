@@ -137,6 +137,13 @@ const MOODS := {
 		"top": Color(0.3, 0.32, 0.55), "horizon": Color(0.95, 0.85, 0.7), "haze": Color(0.5, 0.5, 0.6),
 		"sun": Color(1.0, 0.95, 0.8), "energy": 1.6, "ambient": 1.0, "fog": 0.003, "rain": false, "lightning": false,
 	},
+	"snow": {
+		"wind": 1.3,
+		"clouds": 0.95, "cloud_light": Color(0.88, 0.9, 0.93), "cloud_dark": Color(0.55, 0.58, 0.63), "waves": 0.9, "rooms": 0.7,
+		"saturation": 0.7,
+		"top": Color(0.62, 0.66, 0.72), "horizon": Color(0.86, 0.88, 0.92), "haze": Color(0.7, 0.74, 0.78),
+		"sun": Color(0.92, 0.95, 1.0), "energy": 0.6, "ambient": 1.05, "fog": 0.03, "rain": false, "lightning": false,
+	},
 	"ash": {
 		"wind": 0.6,
 		"clouds": 0.8, "cloud_light": Color(0.55, 0.32, 0.22), "cloud_dark": Color(0.18, 0.12, 0.1), "waves": 0.7, "rooms": 0.7,

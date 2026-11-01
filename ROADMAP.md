@@ -27,15 +27,15 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ ⭐ Çifte felaket: arada bir iki felaket aynı anda (deprem + yangın, hortum + yıldırım…)
 - ✅ ⭐ Kasırga: deniz kabarması + sert rüzgâr, göz geçince rüzgâr ters döner
 - ✅ ⭐ Obruk: zemin çöker, büyüyen delik binaları yutar
-- 💡 Heyelan / çamur akıntısı: tepeden aşağı akan çamur, evleri iter
-- 💡 Çığ (karlı harita ile): yamaçtan kar dalgası
-- 💡 Kar fırtınası / buz fırtınası: görüş düşer, zemin kayar, donma hasarı, su donar
+- ✅ Çamur heyelanı: ağır kahverengi çamur dalgası evleri iter, çamur bırakır
+- ✅ Çığ: hızlı beyaz kar dalgası, derin kar bırakır
+- ✅ Kar fırtınası: görüş düşer, zemin kayar, açıkta donma hasarı, ada beyaza döner
 - ✅ Isı dalgası: açıkta can kaybı, gölge güvenli, hava titrer, kendiliğinden yangınlar
 - ✅ Zehirli gaz bulutu: yere çöken yeşil bulut, yükseğe çık
 - ✅ Tek dev meteor: gökyüzünde büyüyerek gelir, kırmızı halka, krater ve şok dalgası
 - ✅ Güneş patlaması: elektrik gider, gündüz aurora, ışınım dalgaları
-- 💡 Kara delik (eğlence modu): her şeyi kendine çeker
-- 💡 UFO istilası (eğlence modu): ışınla insan ve eşya kaçırır
+- ✅ Kara delik: her şeyi kendine çeker, çekirdeğe değen yok olur
+- ✅ UFO istilası: ışını insanları ve eşyaları yukarı çeker
 - ✅ Dalga serisi: art arda büyüyen 3 dalga
 - ✅ Volkanik kül yağmuru: ada griye döner, zayıf çatılar çöker
 - 💡 Barajın yıkılması (barajlı haritada)

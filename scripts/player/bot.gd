@@ -30,6 +30,9 @@ const SHOUTS := {
 	"heat": ["Çok sıcak!", "Gölgeye girin!"],
 	"flare": ["Işınım geliyor!", "Çatı altına!"],
 	"ash": ["Kül yağıyor!", "İçeri girin!"],
+	"blizzard": ["Donuyorum!", "İçeri girin!"],
+	"blackhole": ["Bizi çekiyor!", "Tutunun!"],
+	"ufo": ["Uzaylılar!", "Işıktan kaçın!"],
 	"default": ["Dikkat!", "Koşun!"],
 }
 
@@ -346,7 +349,11 @@ func _make_plan(coming: String) -> void:
 			_panic = 1.0
 			_plan = "flee"
 			_hurry = true
-		"lightning", "hail", "acid", "sandstorm", "heat", "flare", "ash":
+		"blackhole", "ufo":
+			_panic = 1.0
+			_plan = "flee"
+			_hurry = true
+		"lightning", "hail", "acid", "sandstorm", "heat", "flare", "ash", "blizzard":
 			_panic = 1.0 if coming == "lightning" else 0.0
 			_go_inside()
 		_:
@@ -517,6 +524,10 @@ func describe() -> String:
 	var pos := global_position
 	return "%-14s %-7s hp %3d at (%5.1f, %4.1f, %5.1f) wp %d%s" % [display_name, _plan, health, pos.x, pos.y, pos.z,
 			_path.size(), "" if alive else " DEAD"]
+
+
+func set_icy(_on: bool) -> void:
+	pass
 
 
 func add_shake(_amount: float) -> void:
