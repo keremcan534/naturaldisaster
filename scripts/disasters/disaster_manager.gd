@@ -8,6 +8,12 @@ signal round_scored(board: Array)
 signal round_started
 ## A disaster was announced: its name and what to do.
 signal disaster_warned(title: String, hint: String)
+## Results: three maps to vote on for the next round, as [[index, name], ...].
+signal vote_started(options: Array)
+
+const Settings := preload("res://scripts/core/settings.gd")
+const Events := preload("res://scripts/core/events.gd")
+const Maps := preload("res://scripts/world/maps.gd")
 
 ## Round points: surviving, plus half the health left, plus a bonus for every
 ## round survived in a row before this one, plus a team bonus for every other
@@ -51,6 +57,19 @@ const SEVERITY_POWER := [1.15, 1.4, 1.7]
 const COMBO_CHANCE := 0.35
 const COMBO_PARTNERS := [0, 6, 7, 8, 3]
 const WATER_KINDS := ["tsunami"]
+## Game modes (picked in the main menu, Settings.game_mode).
+const MODES := [
+	{"id": "classic", "name": "Klasik", "desc": "Rastgele felaketler, bazen çifte felaket"},
+	{"id": "chaos", "name": "Kaos", "desc": "Her tur iki felaket birden"},
+	{"id": "hard", "name": "Zor", "desc": "Hepsi Kıyamet şiddetinde, molalar kısa"},
+	{"id": "water", "name": "Sadece Su", "desc": "Tsunami, sel, kasırga, çamur ve çığ"},
+	{"id": "last", "name": "Son Kalan", "desc": "Ölen geri dönmez; en son kalan kazanır"},
+]
+const WATER_DISASTERS := [2, 5, 10, 12, 18, 20, 21]
+## Son Kalan: the last one standing gets this bonus.
+const LAST_BONUS := 150
+## Rescue helicopter: how often it comes, and when (fraction of the disaster).
+const RESCUE_AT := 0.45
 
 enum State { INTERMISSION, WARNING, ACTIVE, RESULTS }
 
@@ -74,6 +93,15 @@ var _rounds := 0
 var last_round := {}
 ## The first round of a session plays on the map already loaded (the menu's).
 var _keep_map := false
+## Map vote during results: the options and who voted for which (voter -> option).
+var vote_options: Array = []
+var votes := {}
+var _rescue_time := INF
+var rescue_chance := 0.4
+
+
+func mode_id() -> String:
+	return MODES[clampi(Settings.game_mode, 0, MODES.size() - 1)].id
 
 
 func _ready() -> void:
@@ -95,6 +123,8 @@ func start(keep_map := false) -> void:
 ## Ends the session (back to the menu): the disaster stops where it is.
 func stop() -> void:
 	set_process(false)
+	get_tree().call_group("rescue", "leave")
+	vote_options = []
 	for d: Node in [_current, _extra]:
 		if d:
 			if d.is_inside_tree():
@@ -145,6 +175,11 @@ func danger_center() -> Vector3:
 func _process(delta: float) -> void:
 	_time_left -= delta
 	timer_changed.emit(ceili(maxf(_time_left, 0.0)))
+	if _state == State.ACTIVE and _time_left < _rescue_time:
+		_rescue_time = -INF
+		get_tree().call_group("rescue", "arrive")
+	if _state == State.RESULTS:
+		_bot_votes()
 	if _time_left > 0.0:
 		return
 	match _state:
@@ -163,16 +198,24 @@ func _enter(state: State) -> void:
 	match state:
 		State.INTERMISSION:
 			if not _keep_map:
-				world.load_next_map()
+				world.load_next_map(_vote_winner())
 			_keep_map = false
+			vote_options = []
 			world.set_mood("clear")
-			get_tree().call_group("player", "respawn", world.spawn_point)
-			_time_left = intermission_time * time_scale
+			# Son Kalan: the fallen stay out until one (or nobody) is left.
+			var everyone := mode_id() != "last" or _alive_count() <= 1
+			for p: Node in get_tree().get_nodes_in_group("player"):
+				if everyone or p.alive:
+					p.respawn(world.spawn_point)
+			_time_left = (10.0 if mode_id() == "hard" else intermission_time) * time_scale
 			round_started.emit()
 			status_changed.emit("Harita: %s - sonraki felakete hazırlan" % world.map_name)
 		State.WARNING:
 			_current = _pick_disaster()
-			_extra = _pick_partner() if _rounds > 0 and randf() < COMBO_CHANCE else null
+			var combo: float = Events.current().get("combo", COMBO_CHANCE)
+			_extra = null
+			if mode_id() == "chaos" or (_rounds > 0 and randf() < combo and mode_id() != "water"):
+				_extra = _pick_partner()
 			_rounds += 1
 			world.set_mood(_current.mood)
 			_omens(true)
@@ -188,6 +231,7 @@ func _enter(state: State) -> void:
 			_omens(false)
 			_current.duration *= time_scale
 			_time_left = _current.duration
+			_rescue_time = _current.duration * (1.0 - RESCUE_AT) if randf() < rescue_chance else -INF
 			add_child(_current)
 			_current.begin()
 			var title: String = _current.display_name.to_upper()
@@ -207,15 +251,26 @@ func _enter(state: State) -> void:
 					d.queue_free()
 			_current = null
 			_extra = null
+			_rescue_time = INF
+			get_tree().call_group("rescue", "leave")
 			_time_left = results_time * time_scale
 			status_changed.emit(_results_text())
+			get_tree().call_group("bots", "celebrate")
 			round_scored.emit(_score_round())
+			_start_vote()
 
 
 func _pick_disaster() -> Node:
 	var index := randi() % DISASTERS.size()
 	if index == _last_index:
 		index = (index + 1) % DISASTERS.size()
+	# The week's event makes its disasters commoner; Sadece Su picks only water.
+	var favored: Array = Events.current().disasters
+	if mode_id() == "water":
+		favored = WATER_DISASTERS
+	if not favored.is_empty() and (mode_id() == "water" or randf() < Events.BOOST):
+		var choices := favored.filter(func(i: int) -> bool: return i != _last_index)
+		index = choices[randi() % choices.size()]
 	if forced_disaster >= 0:
 		index = forced_disaster
 	_last_index = index
@@ -226,13 +281,25 @@ func _pick_disaster() -> Node:
 	var high := minf(0.12 + 0.05 * _rounds, 0.45)
 	var low := maxf(0.5 - 0.06 * _rounds, 0.15)
 	disaster.severity = 3 if roll < high else (1 if roll > 1.0 - low else 2)
+	match mode_id():
+		"hard":
+			disaster.severity = 3
+		"chaos":
+			disaster.severity = maxi(disaster.severity, 2)
 	disaster.power = SEVERITY_POWER[disaster.severity - 1]
 	return disaster
+
+
+func _alive_count() -> int:
+	return get_tree().get_nodes_in_group("player").filter(func(p: Node) -> bool: return p.alive).size()
 
 
 func _results_text() -> String:
 	var players := get_tree().get_nodes_in_group("player")
 	var alive := players.filter(func(p: Node) -> bool: return p.alive).size()
+	if mode_id() == "last" and alive <= 1:
+		var winner := players.filter(func(p: Node) -> bool: return p.alive)
+		return "SON KALAN: %s! Herkes geri dönüyor" % winner[0].display_name if alive == 1 else "Kimse kalmadı! Herkes geri dönüyor"
 	if players.size() == 1:
 		return "Hayatta kaldın!" if alive == 1 else "Öldün!"
 	return "Hayatta kalanlar: %d / %d" % [alive, players.size()]
@@ -280,7 +347,9 @@ func _score_round() -> Array:
 	for p in players:
 		var points := 0
 		if p.alive:
-			points = SURVIVE_POINTS + int(p.health * 0.5) + STREAK_POINTS * p.streak + TEAM_POINTS * (survivors - 1)
+			points = SURVIVE_POINTS + int(p.health * 0.5) + STREAK_POINTS * p.streak + TEAM_POINTS * (survivors - 1) + p.bonus_points
+			if mode_id() == "last" and survivors == 1:
+				points += LAST_BONUS
 			p.streak += 1
 		else:
 			p.streak = 0
@@ -288,3 +357,54 @@ func _score_round() -> Array:
 		p.score += points
 	players.sort_custom(func(a: Node, b: Node) -> bool: return a.score > b.score)
 	return players
+
+
+## Results: three other maps to choose from; bots vote over the next seconds.
+func _start_vote() -> void:
+	votes = {}
+	var pool: Array = range(Maps.COUNT)
+	pool.erase(world.map_index())
+	pool.shuffle()
+	vote_options = []
+	for index: int in pool.slice(0, 3):
+		vote_options.append([index, Maps.map_name(index)])
+	vote_started.emit(vote_options)
+
+
+## A player picks option k (0..2) of the map vote.
+func vote(voter: Node, k: int) -> void:
+	if vote_options.is_empty() or k < 0 or k >= vote_options.size():
+		return
+	votes[voter] = k
+
+
+func _bot_votes() -> void:
+	if vote_options.is_empty():
+		return
+	for bot: Node in get_tree().get_nodes_in_group("bots"):
+		if not votes.has(bot) and randf() < 0.02:
+			votes[bot] = randi() % vote_options.size()
+
+
+## Votes per option.
+func vote_counts() -> Array:
+	var counts := [0, 0, 0]
+	for voter: Node in votes:
+		counts[votes[voter]] += 1
+	return counts
+
+
+## The most voted map (the player's own pick breaks ties), or -1 for a random one.
+func _vote_winner() -> int:
+	if vote_options.is_empty() or votes.is_empty():
+		return -1
+	var counts := vote_counts()
+	var best := -1
+	var mine := -1
+	for voter: Node in votes:
+		if not voter.is_bot:
+			mine = votes[voter]
+	for k in vote_options.size():
+		if best < 0 or counts[k] > counts[best] or (counts[k] == counts[best] and k == mine):
+			best = k
+	return vote_options[best][0]

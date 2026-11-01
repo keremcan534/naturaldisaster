@@ -10,6 +10,17 @@ signal died
 
 const Avatar := preload("res://scripts/player/avatar.gd")
 const Maps := preload("res://scripts/world/maps.gd")
+const Settings := preload("res://scripts/core/settings.gd")
+
+## Personalities: how quickly they react and what they do between disasters.
+## korkak: runs at the first warning; cesur: waits until the last moment;
+## şakacı: hops around and jokes.
+const PERSONALITIES := ["normal", "normal", "korkak", "cesur", "şakacı"]
+## Bot level (Settings.bot_level): the range their skill is drawn from.
+const SKILL_RANGES := [Vector2(0.1, 0.55), Vector2(0.35, 1.0), Vector2(0.75, 1.0)]
+const CHEERS := ["Yaşasın!", "Hayattayız!", "Az kalsın!", "Kolaydı!", "Bir tur daha!", "Ohh be!"]
+const JOKES := ["Hop hop!", "Beni yakala!", "Felaket mi? Hangi felaket?", "Dans zamanı!"]
+const GREETINGS := ["Selam!", "Merhaba!", "Naber?", "Hey!"]
 
 ## What bots shout when they react to a disaster.
 const SHOUTS := {
@@ -75,6 +86,12 @@ var is_bot := true
 var score := 0
 var round_points := 0
 var streak := 0
+var bonus_points := 0
+var personality := "normal"
+## Reached the rescue helicopter: nothing hurts any more this round.
+var rescued := false
+## Following this player ("Beni takip et!"), or null.
+var leader: Node3D
 var health := MAX_HEALTH
 var max_health := MAX_HEALTH
 var alive := true
@@ -117,14 +134,25 @@ var _water_frame := -10
 var _underwater := 0.0
 var _dead_time := 0.0
 var _panic := 0.0
+var _skill_roll := 0.5
+var _cheer := 0.0
+var _wave := 0.0
 
 
 func setup(index: int, seed_value: int) -> void:
 	_rng.seed = seed_value
 	display_name = NAMES[index % NAMES.size()]
 	tint = SHIRTS[index % SHIRTS.size()]
-	_skill = _rng.randf_range(0.35, 1.0)
+	_skill_roll = _rng.randf()
+	_apply_level()
 	_pace = _rng.randf_range(0.88, 1.04)
+	personality = PERSONALITIES[_rng.randi() % PERSONALITIES.size()]
+
+
+## Skill from the bot level setting (read again at every respawn).
+func _apply_level() -> void:
+	var range_: Vector2 = SKILL_RANGES[clampi(Settings.bot_level, 0, SKILL_RANGES.size() - 1)]
+	_skill = lerpf(range_.x, range_.y, _skill_roll)
 
 
 func _ready() -> void:
@@ -274,10 +302,17 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_touch_pieces()
 	if global_position.y < KILL_HEIGHT:
+		if rescued:
+			global_position = world.spawn_point + Vector3.UP * 2.0
+			reset_physics_interpolation()
 		take_damage(MAX_HEALTH)
 
+	_cheer -= delta
+	_wave -= delta
+	if _cheer > 0.0 and is_on_floor() and _path.is_empty():
+		velocity.y = JUMP_VELOCITY * 0.8
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0
-	var arms := 1.0 if _ladder > 0.0 or (_panic > 0.0 and _hurry) else 0.0
+	var arms := 1.0 if _ladder > 0.0 or (_panic > 0.0 and _hurry) or _cheer > 0.0 or _wave > 0.0 else 0.0
 	_avatar.animate(delta, ground_speed, arms)
 
 
@@ -297,6 +332,13 @@ func _touch_pieces() -> void:
 ## A few times a second: notice what is coming, make or refresh a plan, and get
 ## unstuck.
 func _decide() -> void:
+	if leader:
+		if not is_instance_valid(leader) or not leader.alive:
+			follow(null)
+		else:
+			_follow_leader()
+			_check_stuck()
+			return
 	var coming: String = manager.coming_kind() if manager and manager.running() else ""
 	if coming != _plan_for:
 		_plan_for = coming
@@ -306,6 +348,11 @@ func _decide() -> void:
 		_stop_height = INF
 		# Slow ones take a few seconds to react.
 		_react = lerpf(3.5, 0.3, _skill) + _rng.randf() * 1.0 if coming != "" else 0.0
+		match personality:
+			"korkak":
+				_react *= 0.3
+			"cesur":
+				_react += 1.5
 	if _react > 0.0:
 		_react -= THINK_INTERVAL
 		if _react > 0.0:
@@ -386,8 +433,11 @@ func _follow_plan() -> void:
 					if manager and not manager.running():
 						target.z = minf(target.z, world.spawn_point.z - 3.0)
 					_path = [target]
-					if _rng.randf() < 0.15 and is_on_floor():
+					var hop := 0.6 if personality == "şakacı" else 0.15
+					if _rng.randf() < hop and is_on_floor():
 						velocity.y = JUMP_VELOCITY
+					if personality == "şakacı" and _rng.randf() < 0.08:
+						_say(JOKES[_rng.randi() % JOKES.size()])
 		"flee":
 			var center: Vector3 = manager.danger_center()
 			if center == Vector3.INF:
@@ -530,6 +580,83 @@ func set_icy(_on: bool) -> void:
 	pass
 
 
+## Keeps a couple of meters behind the leader, running when far behind.
+func _follow_leader() -> void:
+	var to := leader.global_position - global_position
+	var flat := Vector3(to.x, 0, to.z)
+	_plan = "follow"
+	if flat.length() < 2.5 and absf(to.y) < 2.0:
+		_path.clear()
+		_hurry = false
+		return
+	_hurry = flat.length() > 6.0
+	_path = [leader.global_position - flat.normalized() * 1.8]
+
+
+## "Beni takip et!" (player.gd), or null to stop following.
+func follow(who: Node3D) -> void:
+	if who == leader:
+		return
+	leader = who
+	_path.clear()
+	_plan = ""
+	_plan_for = "-"
+	if who:
+		_say(["Peki, arkandayım!", "Takip ediyorum!", "Tamam, geliyorum!"][_rng.randi() % 3])
+	elif alive:
+		_say("Tamam, kendi başıma!")
+
+
+## The round is over: survivors cheer and hop.
+func celebrate() -> void:
+	if alive:
+		_cheer = _rng.randf_range(1.5, 3.0)
+		if _rng.randf() < 0.7:
+			_say(CHEERS[_rng.randi() % CHEERS.size()])
+
+
+## The player waved: wave back.
+func wave_back() -> void:
+	_wave = 1.6
+	look_toward_camera()
+	_say(GREETINGS[_rng.randi() % GREETINGS.size()])
+
+
+func look_toward_camera() -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera:
+		var to := camera.global_position - global_position
+		rotation.y = atan2(-to.x, -to.z)
+
+
+## The rescue helicopter is hovering over this roof: bots up high nearby go for it.
+func heli_at(point: Vector3) -> void:
+	if not alive or rescued or leader:
+		return
+	if global_position.y > point.y - 4.0 and global_position.distance_to(point) < 30.0 and _skill > 0.3:
+		_path = [point]
+		_plan = "heli"
+		_hurry = true
+		_stop_height = INF
+		_say("Helikopter! Buraya!")
+
+
+func rescue(bonus: int) -> void:
+	if not alive or rescued:
+		return
+	rescued = true
+	bonus_points += bonus
+	health = MAX_HEALTH
+	_say("Kurtarıldım!")
+
+
+## A teammate patched us up.
+func heal(amount: float) -> void:
+	if alive:
+		health = minf(health + amount, MAX_HEALTH)
+		_say("Teşekkürler!")
+
+
 func add_shake(_amount: float) -> void:
 	pass
 
@@ -575,9 +702,12 @@ func _update_breath(delta: float) -> void:
 
 
 func take_damage(amount: float) -> void:
-	if not alive or amount <= 0.0:
+	if not alive or amount <= 0.0 or rescued:
 		return
+	var was := health
 	health = maxf(health - amount, 0.0)
+	if health > 0.0 and health < 35.0 and was >= 35.0:
+		_say("Yardım edin!")
 	if health <= 0.0:
 		alive = false
 		_dead_time = 0.0
@@ -598,6 +728,11 @@ func respawn(pos: Vector3) -> void:
 	_fall_speed = 0.0
 	_underwater = 0.0
 	health = MAX_HEALTH
+	bonus_points = 0
+	rescued = false
+	leader = null
+	_cheer = 0.0
+	_apply_level()
 	alive = true
 	_avatar.visible = true
 	_avatar.rotation.x = 0.0

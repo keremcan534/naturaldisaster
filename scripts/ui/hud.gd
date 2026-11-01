@@ -53,9 +53,14 @@ var _toast_time := 0.0
 var _danger: Control
 var _danger_label: Label
 var _danger_angle := 0.0
+## Map vote under the scoreboard (buttons, or the number keys on desktop).
+var _vote: PanelContainer
+var _vote_buttons: Array[Button] = []
+var _items: Label
 
 
 func _ready() -> void:
+	add_to_group("hud")
 	# Soft dark edges pull the eye to the middle of the screen.
 	var vignette := TextureRect.new()
 	var shade := GradientTexture2D.new()
@@ -202,8 +207,18 @@ func _ready() -> void:
 	hint.offset_right = -16
 	hint.offset_bottom = -16
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hint.text = "WASD: yürü  Shift: koş  Space: zıpla  Fare: bak  Esc: imleci bırak  F12: ekran görüntüsü"
+	hint.text = "WASD: yürü  Shift: koş  Space: zıpla  C: çömel  F: takip et  G: selam  P: fotoğraf  Esc: menü"
 	hint.visible = not touch_mode
+
+	_vote = _build_vote()
+	add_child(_vote)
+	# Desktop: what the number keys hold this round.
+	_items = _label(18)
+	_items.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_items.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_items.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_items.offset_bottom = -44
+	_items.add_theme_color_override("font_color", Color(1.0, 0.9, 0.6))
 
 
 func _process(delta: float) -> void:
@@ -227,6 +242,7 @@ func _process(delta: float) -> void:
 		_board_time -= delta
 		if _board_time <= 0.0:
 			_board.visible = false
+	_update_vote()
 	_time += delta
 	_update_toast(delta)
 	_update_danger()
@@ -240,7 +256,18 @@ func bind(manager: Node, player: Node) -> void:
 	_player = player
 	manager.status_changed.connect(func(text: String) -> void: _status.text = text)
 	manager.timer_changed.connect(func(seconds: int) -> void: _timer.text = str(seconds))
-	manager.round_started.connect(func() -> void: _board.visible = false)
+	manager.round_started.connect(func() -> void:
+		_board.visible = false
+		_close_vote()
+		if not player.alive:
+			_center.text = "Elendin! Son kalan belirlenince döneceksin"
+			_center.visible = true)
+	manager.vote_started.connect(_open_vote)
+	player.helped.connect(func(bot_name: String) -> void:
+		toast("%s ayağa kalktı! +25 puan" % bot_name, 0))
+	player.rescued_now.connect(func() -> void:
+		toast("KURTARILDIN! Bu tur artık hasar almazsın", 0))
+	player.items_changed.connect(_show_items)
 	manager.disaster_warned.connect(_show_card)
 	player.health_changed.connect(_set_health)
 	player.died.connect(func() -> void:
@@ -424,6 +451,98 @@ func _draw_danger() -> void:
 func watch_bots(bots: Array) -> void:
 	for bot: Node in bots:
 		bot.died.connect(func() -> void: _add_feed(bot.display_name, bot.tint))
+
+
+## A line in the feed (rescues, team calls).
+func add_note(text: String) -> void:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(Ui.text(text, 18, Color(0.7, 0.95, 1.0)))
+	_feed.add_child(row)
+	if _feed.get_child_count() > 5:
+		_feed.get_child(0).queue_free()
+	var tween := row.create_tween()
+	tween.tween_interval(4.0)
+	tween.tween_property(row, "modulate:a", 0.0, 0.8)
+	tween.tween_callback(row.queue_free)
+
+
+func _show_items(items: Dictionary) -> void:
+	if touch_mode:
+		_items.text = ""
+		return
+	var parts: Array = []
+	var names := {"parachute": "1 Paraşüt", "bandage": "2 Sargı", "hook": "3 Kanca"}
+	for id: String in ["parachute", "bandage", "hook"]:
+		if items.get(id, 0) > 0:
+			parts.append("%s ×%d" % [names[id], items[id]])
+	_items.text = "   ".join(parts)
+
+
+func _build_vote() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	panel.offset_bottom = -24
+	panel.add_theme_stylebox_override("panel", Ui.panel_style(0.75))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	panel.add_child(box)
+	box.add_child(Ui.title("SONRAKİ HARİTA: OY VER", 20))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	box.add_child(row)
+	for k in 3:
+		var button := Ui.button("", 18)
+		button.custom_minimum_size = Vector2(190, 56)
+		button.focus_mode = Control.FOCUS_NONE
+		button.pressed.connect(func() -> void: _cast_vote(k))
+		row.add_child(button)
+		_vote_buttons.append(button)
+	panel.visible = false
+	return panel
+
+
+func _open_vote(options: Array) -> void:
+	if _player == null or not _player.is_in_group("player"):
+		return
+	for k in _vote_buttons.size():
+		_vote_buttons[k].visible = k < options.size()
+	_vote.visible = true
+	_player.voting = true
+	_update_vote()
+
+
+func _close_vote() -> void:
+	_vote.visible = false
+	if _player:
+		_player.voting = false
+
+
+func _cast_vote(k: int) -> void:
+	if _manager and _vote.visible:
+		_manager.vote(_player, k)
+		get_tree().call_group("sound", "play", "click")
+
+
+func _update_vote() -> void:
+	if not _vote.visible:
+		return
+	if _manager.vote_options.is_empty():
+		_close_vote()
+		return
+	for k: int in [0, 1, 2]:
+		var action: String = ["item_parachute", "item_bandage", "item_hook"][k]
+		if Input.is_action_just_pressed(action):
+			_cast_vote(k)
+	var counts: Array = _manager.vote_counts()
+	var mine: int = _manager.votes.get(_player, -1)
+	for k in _manager.vote_options.size():
+		var key := "" if touch_mode else "%d) " % (k + 1)
+		var option: Array = _manager.vote_options[k]
+		_vote_buttons[k].text = "%s%s%s  · %d" % ["> " if k == mine else "", key, option[1], counts[k]]
 
 
 func _add_feed(who: String, color: Color) -> void:

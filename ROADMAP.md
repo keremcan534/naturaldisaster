@@ -1,7 +1,7 @@
 # Doğal Afet — Yol Haritası
 
 Oyuna eklenebilecek her şeyin listesi. İşaretler:
-✅ yapıldı · 🚧 şu an yapılıyor · 💡 sırada / fikir · ⭐ en çok etki yapacaklar
+✅ yapıldı · 🚧 kısmen / sürüyor · 💡 sırada / fikir · ⭐ en çok etki yapacaklar · 🔒 sunucu, hesap ya da mağaza gerektirir (senin açman lazım)
 
 Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yapılmalı.
 
@@ -69,8 +69,9 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Kamp alanı: çadırlar, karavanlar, göl, kamp ateşi, kano
 - ✅ Beton sığınaklar (şehir, havalimanı): gökten düşenlere karşı güvenli
 - ✅ Asansörler: dış cam asansör çalışır, deprem/kasırgada kilitlenir
-- 💡 Açılıp kapanan kapılar, kırılabilen camlar her yerde
-- 💡 Harita oylaması (tur arasında oyuncular sonraki haritayı seçer)
+- ✅ Kırılabilen camlar her yerde (cam her zaman tuzla buz olur)
+- 💡 Açılıp kapanan kapılar
+- ✅ Harita oylaması: skor tablosunun altında 3 harita, botlar da oy verir (eşitlikte senin oyun)
 
 ## 3. Oynanış
 - ✅ Tur sistemi (bekleme, uyarı, felaket, sonuç)
@@ -81,27 +82,27 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ ⭐ Günlük görevler: her gün 3 yeni görev → coin
 - ✅ ⭐ Seviye / XP sistemi, seviye atlayınca ödül
 - ✅ ⭐ Başarımlar: Kaptan, İtfaiyeci, Fırtına Avcısı, Durdurulamaz… (12 tane)
-- 💡 ⭐ Kullanılabilir eşyalar: paraşüt (yüksekten atla), ilk yardım çantası, kask, can yeleği, kanca (grappling hook)
-- 💡 Çömelme / sürünme (masa altına saklanma depremde güvenli)
-- 💡 Tırmanılabilir duvarlar, çıkıntıdan tutunma
+- ✅ ⭐ Kullanılabilir eşyalar: paraşüt, sargı bezi, kanca (mağazada; her tur yenilenir, 1/2/3 veya dokunmatik tuş); kask ve can yeleği güçlendirme olarak
+- ✅ Çömelme (C / dokunmatik "Çömel"): masa altına sığarsın, ayağa kalkmak için yer gerekir
+- ✅ Çıkıntıdan tutunup tırmanma: 2 m'ye kadar duvara zıplayıp ileri basınca üstüne çıkarsın
 - 💡 Kapı açma / kapatma
-- 💡 Araçlar: bisiklet, araba, tekne (selde), helikopter (kurtarma)
-- 💡 Kurtarma helikopteri: felaketin sonunda çatıya gelir, binene bonus
-- 💡 Sığınak kapısını kilitleme / yer altı sığınağı
-- 💡 Emote / dans (tur arası)
-- 💡 Fotoğraf modu
-- 💡 Oyun modları: Klasik, Son kalan, Kaos (çifte felaket her tur), Zor mod, Sadece tsunami
-- 💡 Özel sunucu / özel oda (arkadaşlarla)
-- 💡 Haftalık etkinlik: "Tsunami haftası" çift coin
+- 🚧 Araçlar: kurtarma helikopteri var; sürülebilir araba / tekne ileride
+- ✅ Kurtarma helikopteri: bazı turlarda en yüksek çatıya gelir, ip merdivene ulaşan kurtulur (+60, o tur hasar yok)
+- 🚧 Sığınak: beton sığınaklar var; kilitlenen kapı ileride
+- ✅ Selam (G / "Selam"): yakındaki botlar el sallar; tur sonunda hayatta kalan botlar zıplayıp sevinir
+- ✅ Fotoğraf modu (P / menüde "FOTOĞRAF ÇEK"): arayüzsüz ekran görüntüsü, tarayıcıda PNG iner
+- ✅ Oyun modları (ana menüde MOD tuşu): Klasik, Kaos, Zor, Sadece Su, Son Kalan
+- 🔒 Özel sunucu / özel oda (arkadaşlarla): gerçek çok oyunculu sunucu gerektirir
+- ✅ Haftalık etkinlik: her hafta değişir (Tsunami, Meteor, Fırtına, Kaos, Ateş ve Buz), o felaketler sıklaşır ve 2 kat coin, haftaya özel kıyafet
 
 ## 4. Botlar (takım arkadaşları)
 - ✅ Felakete göre davranış (merdiven, ladder, açık alan, içeri, kaçış)
 - ✅ İsimler, renkler, ölüm listesi
 - ✅ ⭐ Konuşma balonları: "Çatıya çıkın!", "Kaçııın!", "İçeri girin!"
-- 💡 Kişilikler: korkak (hemen kaçar), cesur (son ana kadar bekler), şakacı (trambolinde zıplar)
-- 💡 Oyuncuyu takip et / beni bekle komutu
-- 💡 Yaralı botu taşıyıp kurtarma → bonus
-- 💡 Bot seviyeleri (kolay / zor bot)
+- ✅ Kişilikler: korkak (hemen kaçar), cesur (geç davranır), şakacı (zıplar, şaka yapar)
+- ✅ "Beni takip et" (F / "Takip"): en yakın iki bot peşinden gelir, tekrar basınca bırakır
+- ✅ Yaralı bota yardım: canı azalan bot "Yardım edin!" der, yanında durunca iyileşir (+25 puan)
+- ✅ Bot seviyeleri (Ayarlar: Kolay / Normal / Zor)
 - 💡 Bot kıyafetleri ve şapkaları çeşitlensin
 
 ## 5. Grafik ve atmosfer
@@ -150,10 +151,10 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 ## 8. Kontroller
 - ✅ PUBG tarzı joystick, zıplama, otomatik koşu, tuş yerleştirme, hassasiyet
 - ✅ Otomatik zıplama, parmak takibi düzeltmesi
-- 💡 Jiroskop ile nişan (isteğe bağlı)
-- 💡 Gamepad desteği
-- 💡 Çömelme / koşma tuşu ayrı
-- 💡 Hızlı eşya kullanma tuşları
+- ✅ Jiroskop ile nişan (Ayarlar, telefonda; iOS izin ister)
+- ✅ Gamepad desteği (sol çubuk yürü, sağ çubuk bak, tuşlar)
+- ✅ Çömelme / koşma tuşu ayrı
+- ✅ Hızlı eşya kullanma tuşları (1/2/3, dokunmatikte zıplamanın çevresinde)
 
 ## 9. Ekonomi ve mağaza
 - ✅ Coin, güçlendirmeler, kıyafet renkleri, günlük hediye

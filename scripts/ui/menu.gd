@@ -9,9 +9,13 @@ signal play_pressed
 signal resume_pressed
 signal main_menu_pressed
 signal tutorial_closed
+signal photo_pressed
 
 const Profile := preload("res://scripts/core/profile.gd")
 const Progress := preload("res://scripts/core/progress.gd")
+const Events := preload("res://scripts/core/events.gd")
+const Settings := preload("res://scripts/core/settings.gd")
+const DisasterManager := preload("res://scripts/disasters/disaster_manager.gd")
 const BuildInfo := preload("res://scripts/core/build_info.gd")
 const Avatar := preload("res://scripts/player/avatar.gd")
 const Ui := preload("res://scripts/ui/ui.gd")
@@ -33,6 +37,9 @@ var _shop_list: VBoxContainer
 var _shop_coins: Ui.CoinLabel
 var _level: Label
 var _level_bar: ProgressBar
+var _mode: Button
+var _mode_desc: Label
+var _event: Label
 var _goals: Control
 var _goals_list: VBoxContainer
 var _tutorial: Control
@@ -130,6 +137,10 @@ func _build_main() -> Control:
 	heading.add_child(_level)
 	_level_bar = _xp_bar(300)
 	heading.add_child(_level_bar)
+	_event = Ui.text("", 18, Color(1.0, 0.85, 0.45))
+	_event.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_event.custom_minimum_size.x = 460
+	heading.add_child(_event)
 	root.add_child(heading)
 
 	_coins = Ui.CoinLabel.new(32)
@@ -149,6 +160,17 @@ func _build_main() -> Control:
 	var play := Ui.button("OYNA", 40, true)
 	play.pressed.connect(func() -> void: play_pressed.emit())
 	column.add_child(play)
+	# The game mode: each press picks the next one.
+	_mode = Ui.button("", 22)
+	_mode.pressed.connect(func() -> void:
+		Settings.game_mode = (Settings.game_mode + 1) % DisasterManager.MODES.size()
+		Settings.save_settings()
+		_refresh_main())
+	column.add_child(_mode)
+	_mode_desc = Ui.text("", 16, Color(1, 1, 1, 0.8))
+	_mode_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_mode_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	column.add_child(_mode_desc)
 	var goals := Ui.button("GÖREVLER", 26)
 	goals.pressed.connect(func() -> void: _open(_goals))
 	column.add_child(goals)
@@ -194,6 +216,11 @@ func _refresh_main() -> void:
 	_level.text = "Seviye %d   ·   %d / %d XP" % [Progress.level(), progress.x, progress.y]
 	_level_bar.max_value = progress.y
 	_level_bar.value = progress.x
+	var mode: Dictionary = DisasterManager.MODES[clampi(Settings.game_mode, 0, DisasterManager.MODES.size() - 1)]
+	_mode.text = "MOD: %s  >" % mode.name
+	_mode_desc.text = mode.desc
+	var event := Events.current()
+	_event.text = "HAFTANIN ETKİNLİĞİ: %s (%d gün)\n%s" % [event.name, Events.days_left(), event.desc]
 
 
 ## A thin bar for experience and mission progress.
@@ -399,9 +426,14 @@ func _refresh_shop() -> void:
 	for entry: Dictionary in Profile.ITEMS:
 		if entry.kind == "perk":
 			_shop_list.add_child(_shop_row(entry))
-	_shop_list.add_child(Ui.text("Kıyafetler", 22, Ui.ACCENT))
+	_shop_list.add_child(Ui.text("Eşyalar (her tur yenilenir, tuşla kullanılır)", 22, Ui.ACCENT))
 	for entry: Dictionary in Profile.ITEMS:
-		if entry.kind == "skin":
+		if entry.kind == "item":
+			_shop_list.add_child(_shop_row(entry))
+	_shop_list.add_child(Ui.text("Kıyafetler", 22, Ui.ACCENT))
+	var event_skin: String = Events.current().skin
+	for entry: Dictionary in Profile.ITEMS:
+		if entry.kind == "skin" and (not entry.get("event", false) or entry.id == event_skin or Profile.has(entry.id)):
 			_shop_list.add_child(_shop_row(entry))
 
 
@@ -475,6 +507,9 @@ func _build_pause() -> Control:
 		_settings_back = _pause
 		_open(_settings))
 	box.add_child(settings)
+	var photo := Ui.button("FOTOĞRAF ÇEK", 24)
+	photo.pressed.connect(func() -> void: photo_pressed.emit())
+	box.add_child(photo)
 	var quit := Ui.button("ANA MENÜ", 24)
 	quit.pressed.connect(func() -> void: main_menu_pressed.emit())
 	box.add_child(quit)

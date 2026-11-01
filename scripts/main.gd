@@ -25,6 +25,9 @@ const Profile := preload("res://scripts/core/profile.gd")
 const Progress := preload("res://scripts/core/progress.gd")
 const Bot := preload("res://scripts/player/bot.gd")
 const Menu := preload("res://scripts/ui/menu.gd")
+const Events := preload("res://scripts/core/events.gd")
+const RescueHeli := preload("res://scripts/world/rescue_heli.gd")
+const Photo := preload("res://scripts/core/photo.gd")
 
 ## AI teammates in every session.
 const BOT_COUNT := 5
@@ -84,6 +87,8 @@ func _ready() -> void:
 	Settings.load_settings()
 	Profile.load_profile()
 	Progress.load_progress()
+	if Settings.gyro and _touch:
+		preload("res://scripts/core/gyro.gd").start()
 
 	add_child(Sound.new())
 	Settings.apply_volume()
@@ -95,12 +100,14 @@ func _ready() -> void:
 	add_child(Hazards.new())
 	_ambience = Ambience.new()
 	add_child(_ambience)
+	add_child(RescueHeli.new())
 	_apply_quality()
 
 	_player = Player.new()
 	_player.use_mouse = not _touch
 	add_child(_player)
 	_player.pause_requested.connect(_pause)
+	_player.photo_requested.connect(_take_photo)
 
 	_hud = Hud.new()
 	_hud.touch_mode = _touch
@@ -137,6 +144,9 @@ func _ready() -> void:
 	_menu.play_pressed.connect(play)
 	_menu.resume_pressed.connect(_resume)
 	_menu.main_menu_pressed.connect(show_menu)
+	_menu.photo_pressed.connect(func() -> void:
+		_resume()
+		_take_photo())
 	_menu.tutorial_closed.connect(func() -> void:
 		Progress.tutorial_done = true
 		Progress.save_progress()
@@ -226,7 +236,10 @@ func _on_round_scored(board: Array) -> void:
 	var earned := 0
 	var toasts: Array = []
 	if _player.is_in_group("player"):
-		earned = Profile.add_round(_player.round_points, _player.alive, _player.score)
+		var multiplier := Events.coin_multiplier(_manager.last_round) if _player.alive else 1
+		earned = Profile.add_round(_player.round_points, _player.alive, _player.score, multiplier)
+		if multiplier > 1 and earned > 0:
+			toasts.append(["%s: 2 kat coin!" % Events.current().name, 0])
 		var everyone := board.all(func(p: Node) -> bool: return p.alive)
 		var info := {"survived": _player.alive, "points": _player.round_points, "streak": _player.streak,
 				"height": _player.max_height, "flawless": _player.alive and _player.damage_taken < 0.5,
@@ -239,8 +252,9 @@ func _on_round_scored(board: Array) -> void:
 		_hud.toast(toast[0], toast[1])
 
 
-## Frees the current map and builds a different one.
-func load_next_map() -> void:
+## Frees the current map and builds a different one (`choice`, a map vote's
+## winner, or a random other one).
+func load_next_map(choice := -1) -> void:
 	if _map_root:
 		_map_root.free()
 	get_tree().call_group("debris", "clear")
@@ -251,6 +265,8 @@ func load_next_map() -> void:
 	Structure.fires = 0
 	if forced_map >= 0:
 		_map_index = forced_map
+	elif choice >= 0:
+		_map_index = choice
 	else:
 		var index := randi() % Maps.COUNT
 		_map_index = (index + 1) % Maps.COUNT if index == _map_index else index
@@ -265,6 +281,25 @@ func load_next_map() -> void:
 	_ambience.set_island(map_size * 0.5)
 	_ambience.set_night(_weather.time_of_day() == "night")
 	_fps_settle = FPS_SETTLE
+
+
+func map_index() -> int:
+	return _map_index
+
+
+## A screenshot without the HUD: saved (desktop) or downloaded (browser).
+func _take_photo() -> void:
+	if not _playing or _menu.is_open():
+		return
+	_hud.visible = false
+	if _controls:
+		_controls.visible = false
+	var ok := await Photo.capture(get_viewport())
+	_hud.visible = _playing
+	if _controls:
+		_controls.visible = _playing and not _menu.is_open()
+	_hud.toast("Fotoğraf kaydedildi" if ok else "Fotoğraf kaydedilemedi", 0)
+	get_tree().call_group("sound", "play", "click")
 
 
 ## Moves a node into the current map (it goes when the next map loads), e.g. a

@@ -12,6 +12,8 @@ extends Node
 ##   --quality=<0-2>     fixed graphics quality (0 low, 2 high), auto off
 ##   --time=<name>       always uses this time of day (morning, day, golden, night)
 ##   --disaster=<i>      always picks disaster i (see disaster_manager.gd)
+##   --mode=<i>          plays game mode i (DisasterManager.MODES) without saving it
+##   --rescue            the rescue helicopter comes every round
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
 ##   --botlog            prints every bot's plan, position and health each second
 ##   --pos=x,y,z         puts the player there on the first frame
@@ -55,6 +57,10 @@ func _ready() -> void:
 			manager.world.forced_time = arg.get_slice("=", 1)
 		elif arg.begins_with("--disaster="):
 			manager.forced_disaster = arg.get_slice("=", 1).to_int()
+		elif arg.begins_with("--mode="):
+			preload("res://scripts/core/settings.gd").game_mode = arg.get_slice("=", 1).to_int()
+		elif arg == "--rescue":
+			manager.rescue_chance = 1.0
 		elif arg.begins_with("--pos="):
 			var p := arg.get_slice("=", 1).split_floats(",")
 			_start_pos = Vector3(p[0], p[1], p[2])

@@ -7,7 +7,10 @@ extends CanvasLayer
 ##   and released, it keeps running forward (auto-run) until the stick is touched.
 ## - Right thumb: drag anywhere outside the stick area to look; a big jump button
 ##   where the thumb rests, which can also be dragged to look.
-## - A menu button (top left) opens the pause menu (settings, main menu).
+## - A menu button (top left) opens the pause menu (settings, main menu); next
+##   to it "Takip" (the nearest bots follow) and "Selam" (wave).
+## - Small buttons around the jump button: crouch (a toggle) and the items
+##   bought in the shop, each with what is left this round.
 ## Movement goes through the regular input actions (analog strengths), so the
 ## player doesn't care where input comes from. Settings live in settings.gd.
 ##
@@ -24,6 +27,13 @@ const STICK_RADIUS := 100.0
 const KNOB_RADIUS := 44.0
 const JUMP_RADIUS := 74.0
 const GEAR_RADIUS := 28.0
+const SMALL_RADIUS := 34.0
+## Around the jump button: angle (degrees, 0 = right, 90 = down) and distance in
+## jump radii.
+const CROUCH_SPOT := Vector2(160.0, 2.05)
+const ITEM_SPOTS := [Vector2(205.0, 2.1), Vector2(238.0, 2.1), Vector2(272.0, 2.0)]
+const ITEM_IDS := ["parachute", "bandage", "hook"]
+const ITEM_NAMES := {"parachute": "Paraşüt", "bandage": "Sargı", "hook": "Kanca"}
 ## Fraction of the radius ignored around the center, and the response curve.
 const STICK_DEADZONE := 0.08
 const STICK_CURVE := 1.1
@@ -66,6 +76,8 @@ var _lock_armed := false
 var _auto_run := false
 var _jump_pos := Vector2.ZERO
 var _gear_pos := Vector2.ZERO
+var _crouch := false
+var _items := {}
 
 ## Layout editing: which control a finger is dragging ("stick"/"jump").
 var _editing := false
@@ -81,6 +93,10 @@ func _ready() -> void:
 	_canvas.draw.connect(_draw_controls)
 	add_child(_canvas)
 	get_viewport().size_changed.connect(_layout)
+	if player:
+		player.items_changed.connect(func(items: Dictionary) -> void:
+			_items = items.duplicate()
+			_canvas.queue_redraw())
 	_layout()
 	_request_fullscreen_on_touch()
 
@@ -110,6 +126,48 @@ func _stick_radius() -> float:
 
 func _jump_radius() -> float:
 	return JUMP_RADIUS * Settings.button_size
+
+
+func _small_radius() -> float:
+	return SMALL_RADIUS * Settings.button_size
+
+
+func _around_jump(spot: Vector2) -> Vector2:
+	var angle := deg_to_rad(spot.x)
+	var at := _jump_pos + Vector2(cos(angle), sin(angle)) * spot.y * _jump_radius()
+	var r := _small_radius()
+	return at.clamp(Vector2(r, r), _size - Vector2(r, r))
+
+
+## The small buttons now on screen: [id, center, label].
+func _small_buttons() -> Array:
+	var list := [["crouch", _around_jump(CROUCH_SPOT), "Çömel"],
+			["follow", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() + 14.0, 0), "Takip"],
+			["wave", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() * 3.0 + 26.0, 0), "Selam"]]
+	var slot := 0
+	for id: String in ITEM_IDS:
+		if _items.get(id, 0) > 0:
+			list.append([id, _around_jump(ITEM_SPOTS[slot]), ITEM_NAMES[id]])
+			slot += 1
+	return list
+
+
+func _press_small(id: String) -> void:
+	Input.vibrate_handheld(10)
+	match id:
+		"crouch":
+			_crouch = not _crouch
+			if _crouch:
+				Input.action_press("crouch")
+			else:
+				Input.action_release("crouch")
+		"follow":
+			player.call_followers()
+		"wave":
+			player.wave()
+		_:
+			player.use_item(id)
+	_canvas.queue_redraw()
 
 
 func _layout() -> void:
@@ -146,6 +204,11 @@ func _press(finger: int, pos: Vector2) -> void:
 		menu_requested.emit()
 		return
 	var role := "look"
+	for button: Array in _small_buttons():
+		if pos.distance_to(button[1]) < _small_radius() * 1.15:
+			_press_small(button[0])
+			_fingers[finger] = {"role": "button", "last": pos}
+			return
 	if pos.distance_to(_jump_pos) < _jump_radius() * 1.25:
 		role = "jump"
 		_jump_finger = finger
@@ -187,7 +250,7 @@ func _release(finger: int) -> void:
 		# Another finger still on the look side takes over (from where it is now).
 		_look_finger = -1
 		for other: int in _fingers:
-			if _fingers[other].role != "stick":
+			if _fingers[other].role == "look" or _fingers[other].role == "jump":
 				_look_finger = other
 
 
@@ -293,6 +356,20 @@ func _draw_controls() -> void:
 	_canvas.draw_arc(_jump_pos, jr, 0, TAU, 48, COLOR_ACTIVE if pressed else COLOR_LINE, 3.0, true)
 	_arrow(_jump_pos + Vector2(0, -4), jr * 0.42, Color.WHITE)
 
+	# Crouch, items, team calls.
+	for button: Array in _small_buttons():
+		var at: Vector2 = button[1]
+		var r := _small_radius()
+		var lit: bool = button[0] == "crouch" and _crouch
+		_canvas.draw_circle(at, r, Color(1, 0.85, 0.3, 0.4) if lit else Color(0, 0, 0, 0.28))
+		_canvas.draw_arc(at, r, 0, TAU, 32, COLOR_ACTIVE if lit else COLOR_LINE, 2.0, true)
+		var count: int = _items.get(button[0], 0)
+		if count > 0:
+			_text(font, at + Vector2(0, -6), button[2], 15, Color.WHITE)
+			_text(font, at + Vector2(0, 12), "×%d" % count, 15, COLOR_ACTIVE)
+		else:
+			_text(font, at, button[2], 15, Color.WHITE)
+
 	# Menu: three bars.
 	_canvas.draw_circle(_gear_pos, GEAR_RADIUS, Color(0, 0, 0, 0.25))
 	_canvas.draw_arc(_gear_pos, GEAR_RADIUS, 0, TAU, 32, COLOR_LINE, 2.0, true)
@@ -330,6 +407,9 @@ func _release_all() -> void:
 	for finger: int in _fingers.keys():
 		_release(finger)
 	_auto_run = false
+	if _crouch:
+		_crouch = false
+		Input.action_release("crouch")
 	_set_stick(Vector2.ZERO)
 
 

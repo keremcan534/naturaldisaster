@@ -12,9 +12,18 @@ signal respawned
 signal spectating(bot_name: String)
 ## Esc on desktop.
 signal pause_requested
+## Items left this round changed (HUD and touch buttons show them).
+signal items_changed(items: Dictionary)
+## Patched up a hurt teammate.
+signal helped(bot_name: String)
+## P / the pause menu: a screenshot without the HUD (main.gd).
+signal photo_requested
+## Lifted by the rescue helicopter.
+signal rescued_now
 
 const Settings := preload("res://scripts/core/settings.gd")
 const Profile := preload("res://scripts/core/profile.gd")
+const Gyro := preload("res://scripts/core/gyro.gd")
 const Avatar := preload("res://scripts/player/avatar.gd")
 
 ## Human scale: a brisk walk, a run, and a jump of about 1.3 m.
@@ -66,6 +75,24 @@ const BOB_HEIGHT := 0.035
 const BOB_RATE := 0.9
 
 const EYE_HEIGHT := 1.62
+## Crouching: shorter body (fits under tables), lower eye, slow.
+const CROUCH_HEIGHT := 1.1
+const CROUCH_EYE := 0.95
+const CROUCH_SPEED := 2.3
+## Mantling: a ledge this high (above the feet) can be climbed onto from a jump.
+const LEDGE_MIN := 0.6
+const LEDGE_MAX := 2.2
+const MANTLE_TIME := 0.3
+## Items (bought in the shop, refilled each round).
+const CHUTE_TIME := 7.0
+const CHUTE_FALL := 2.2
+const HOOK_RANGE := 32.0
+const HOOK_SPEED := 18.0
+const BANDAGE_HEAL := 40.0
+## Standing by a badly hurt teammate this long patches them up.
+const HELP_TIME := 1.5
+const HELP_HEAL := 40.0
+const HELP_POINTS := 25
 const PITCH_LIMIT := 1.45
 const MOUSE_JUMP_LIMIT := 250.0
 
@@ -86,6 +113,14 @@ var streak := 0
 ## This round: the highest the feet got (m) and the damage taken (missions).
 var max_height := 0.0
 var damage_taken := 0.0
+## Extra round points (rescues, helping teammates).
+var bonus_points := 0
+## Uses left this round: parachute, bandage, hook.
+var items := {}
+## Reached the rescue helicopter: nothing hurts any more this round.
+var rescued := false
+## Map votes are open: the number keys vote instead of using items (hud.gd).
+var voting := false
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _body: Avatar
@@ -119,6 +154,20 @@ var _fall_speed := 0.0
 var _walk := Vector3.ZERO
 ## Icy ground (blizzard): slow to speed up, slow to stop.
 var _icy := false
+var _shape: CollisionShape3D
+var _crouching := false
+var _eye := EYE_HEIGHT
+var _mantle := 0.0
+var _mantle_from := Vector3.ZERO
+var _mantle_to := Vector3.ZERO
+var _chute := 0.0
+var _canopy: MeshInstance3D
+var _hook_point := Vector3.INF
+var _hook_time := 0.0
+var _hook_line: MeshInstance3D
+var _hook_mesh: ImmediateMesh
+var _help_time := 0.0
+var _help_target: Node3D
 var _push := Vector3.ZERO
 var _water_level := 0.0
 var _water_current := Vector3.ZERO
@@ -141,6 +190,31 @@ func _ready() -> void:
 	shape.shape = capsule
 	shape.position.y = BODY_HEIGHT * 0.5
 	add_child(shape)
+	_shape = shape
+
+	# Parachute canopy over the head, and the hook's rope (drawn only in use).
+	_canopy = MeshInstance3D.new()
+	var dome := SphereMesh.new()
+	dome.radius = 2.2
+	dome.height = 1.6
+	dome.is_hemisphere = true
+	var cloth := StandardMaterial3D.new()
+	cloth.albedo_color = Color(0.95, 0.35, 0.15)
+	cloth.cull_mode = BaseMaterial3D.CULL_DISABLED
+	dome.material = cloth
+	_canopy.mesh = dome
+	_canopy.position.y = 3.6
+	_canopy.visible = false
+	add_child(_canopy)
+	_hook_mesh = ImmediateMesh.new()
+	_hook_line = MeshInstance3D.new()
+	_hook_line.mesh = _hook_mesh
+	_hook_line.top_level = true
+	var rope := StandardMaterial3D.new()
+	rope.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	rope.albedo_color = Color(0.2, 0.18, 0.15)
+	_hook_line.material_override = rope
+	add_child(_hook_line)
 
 	# Our own character: only its shadow shows (first person).
 	_body = Avatar.new()
@@ -256,6 +330,17 @@ func _physics_process(delta: float) -> void:
 	_prev_pos = global_position
 	if not alive:
 		return
+	if _mantle > 0.0:
+		# Pulling up over a ledge: a short scripted move, no physics.
+		_mantle -= delta
+		var t := 1.0 - maxf(_mantle, 0.0) / MANTLE_TIME
+		global_position = _mantle_from.lerp(_mantle_to, smoothstep(0.0, 1.0, t))
+		velocity = Vector3.ZERO
+		_fall_speed = 0.0
+		return
+	_update_crouch()
+	_use_items()
+	_help_teammates(delta)
 
 	var in_water := _in_water()
 	if controls_enabled and Input.is_action_just_pressed("jump"):
@@ -293,10 +378,29 @@ func _physics_process(delta: float) -> void:
 	# Analog: a half-pushed stick walks at half speed.
 	var dir := transform.basis * Vector3(input.x, 0, input.y)
 	var speed := _sprint_speed if controls_enabled and Input.is_action_pressed("sprint") else SPEED
+	if _crouching:
+		speed = CROUCH_SPEED
 	if in_water:
 		speed *= _swim_factor
-	if not use_mouse and Settings.auto_jump and not in_water:
+	if not use_mouse and Settings.auto_jump and not in_water and not _crouching:
 		_auto_jump(dir)
+	if not is_on_floor() and not in_water and input.y < -0.5:
+		_try_mantle(dir)
+	if _chute > 0.0:
+		_chute -= delta
+		velocity.y = maxf(velocity.y, -CHUTE_FALL)
+		_fall_speed = 0.0
+		if is_on_floor() or in_water:
+			_chute = 0.0
+	if _hook_time > 0.0:
+		_hook_time -= delta
+		var to := _hook_point - (global_position + Vector3.UP)
+		if to.length() < 1.5 or is_on_wall() and _hook_time < 0.9:
+			_hook_time = 0.0
+		else:
+			velocity.y = to.normalized().y * HOOK_SPEED
+			_push = Vector3(to.x, 0, to.z).normalized() * HOOK_SPEED
+			_fall_speed = 0.0
 	# A shaking ground makes footing unreliable (a smooth sway, not jitter).
 	var sway_t := _shake_time * 3.0
 	var wobble := Vector3(sin(sway_t), 0, cos(sway_t * 1.3)) * _quake * 1.2
@@ -311,7 +415,21 @@ func _physics_process(delta: float) -> void:
 	RenderingServer.global_shader_parameter_set("player_pos", global_position)
 
 	if global_position.y < KILL_HEIGHT:
+		if rescued:
+			# Safe this round, but not falling forever.
+			teleport(Vector3(0, 30, 0))
 		take_damage(MAX_HEALTH)
+
+
+## The rescue helicopter picked us up: full health, bonus, safe till the round ends.
+func rescue(bonus: int) -> void:
+	if not alive or rescued:
+		return
+	rescued = true
+	bonus_points += bonus
+	health = max_health
+	health_changed.emit(health, max_health)
+	rescued_now.emit()
 
 
 ## Reacts to tagged structure pieces touched this step: trampolines ("bounce":
@@ -329,6 +447,136 @@ func _touch_pieces() -> void:
 			_rumble = maxf(_rumble, 0.15)
 		elif piece.has_meta("ladder") and absf(hit.get_normal().y) < 0.4:
 			_ladder = LADDER_GRACE
+
+
+## Crouch while the action is held (a toggle on touch); standing up needs room.
+func _update_crouch() -> void:
+	var want := controls_enabled and Input.is_action_pressed("crouch") and is_on_floor()
+	if want == _crouching:
+		return
+	if not want:
+		var space := get_world_3d().direct_space_state
+		var from := global_position + Vector3.UP * (CROUCH_HEIGHT - 0.1)
+		var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.UP * (BODY_HEIGHT - CROUCH_HEIGHT + 0.15), 1 | 2, [get_rid()])
+		if not space.intersect_ray(query).is_empty():
+			return
+	_crouching = want
+	var capsule := _shape.shape as CapsuleShape3D
+	capsule.height = CROUCH_HEIGHT if want else BODY_HEIGHT
+	_shape.position.y = capsule.height * 0.5
+
+
+## Jumping at a wall whose top is within reach pulls you up onto it.
+func _try_mantle(dir: Vector3) -> void:
+	if not is_on_wall() or dir.length() < 0.3 or _ladder > 0.0:
+		return
+	var ahead := Vector3(dir.x, 0, dir.z).normalized()
+	if ahead.dot(-get_wall_normal()) < 0.5:
+		return
+	var space := get_world_3d().direct_space_state
+	var probe := global_position + ahead * (BODY_RADIUS + 0.45) + Vector3.UP * (LEDGE_MAX + 0.3)
+	var down := PhysicsRayQueryParameters3D.create(probe, probe + Vector3.DOWN * (LEDGE_MAX - LEDGE_MIN + 0.3), 1 | 2, [get_rid()])
+	var hit := space.intersect_ray(down)
+	if hit.is_empty() or hit.normal.y < 0.7:
+		return
+	var top: Vector3 = hit.position
+	# Room to stand up there.
+	var up := PhysicsRayQueryParameters3D.create(top + Vector3.UP * 0.1, top + Vector3.UP * (BODY_HEIGHT - 0.1), 1 | 2, [get_rid()])
+	if not space.intersect_ray(up).is_empty():
+		return
+	_mantle = MANTLE_TIME
+	_mantle_from = global_position
+	_mantle_to = top + Vector3.UP * 0.05
+	_jump_buffer = 0.0
+
+
+## Item buttons / keys (1, 2, 3).
+func _use_items() -> void:
+	if not controls_enabled or voting:
+		return
+	if Input.is_action_just_pressed("item_parachute"):
+		use_item("parachute")
+	if Input.is_action_just_pressed("item_bandage"):
+		use_item("bandage")
+	if Input.is_action_just_pressed("item_hook"):
+		use_item("hook")
+	if Input.is_action_just_pressed("follow"):
+		call_followers()
+	if Input.is_action_just_pressed("emote"):
+		wave()
+	if Input.is_action_just_pressed("photo"):
+		photo_requested.emit()
+
+
+## "Beni takip et!": the two nearest bots follow; pressed again, they stop.
+func call_followers() -> void:
+	var following := get_tree().get_nodes_in_group("bots").filter(func(b: Node) -> bool: return b.leader == self)
+	if not following.is_empty():
+		for bot: Node in following:
+			bot.follow(null)
+		get_tree().call_group("hud", "add_note", "Takım: kendi başınıza")
+		return
+	var near := get_tree().get_nodes_in_group("bots").filter(func(b: Node3D) -> bool:
+		return b.alive and b.global_position.distance_to(global_position) < 30.0)
+	near.sort_custom(func(a: Node3D, b: Node3D) -> bool:
+		return a.global_position.distance_to(global_position) < b.global_position.distance_to(global_position))
+	for bot: Node in near.slice(0, 2):
+		bot.follow(self)
+	get_tree().call_group("hud", "add_note", "Beni takip edin!" if not near.is_empty() else "Yakında kimse yok")
+
+
+## Waves hello: bots nearby wave back.
+func wave() -> void:
+	for bot: Node3D in get_tree().get_nodes_in_group("bots"):
+		if bot.alive and bot.global_position.distance_to(global_position) < 20.0:
+			bot.wave_back()
+
+
+func use_item(id: String) -> void:
+	if items.get(id, 0) <= 0 or not alive:
+		return
+	match id:
+		"parachute":
+			if is_on_floor():
+				return
+			_chute = CHUTE_TIME
+		"bandage":
+			if health >= max_health:
+				return
+			health = minf(health + BANDAGE_HEAL, max_health)
+			health_changed.emit(health, max_health)
+		"hook":
+			var from := _camera.global_position
+			var query := PhysicsRayQueryParameters3D.create(from, from - _camera.global_basis.z * HOOK_RANGE, 1 | 2, [get_rid()])
+			var hit := get_world_3d().direct_space_state.intersect_ray(query)
+			if hit.is_empty():
+				return
+			_hook_point = hit.position
+			_hook_time = 1.4
+	items[id] -= 1
+	items_changed.emit(items)
+	get_tree().call_group("sound", "play", "click", null, 0.0, 0.7)
+
+
+## Standing by a badly hurt bot for a moment patches it up (and earns points).
+func _help_teammates(delta: float) -> void:
+	if _help_target and (not is_instance_valid(_help_target) or not _help_target.alive \
+			or _help_target.global_position.distance_to(global_position) > 2.2):
+		_help_target = null
+		_help_time = 0.0
+	if _help_target == null:
+		for bot: Node3D in get_tree().get_nodes_in_group("bots"):
+			if bot.alive and bot.health < 35.0 and bot.global_position.distance_to(global_position) < 2.0:
+				_help_target = bot
+				break
+		return
+	_help_time += delta
+	if _help_time >= HELP_TIME:
+		_help_target.heal(HELP_HEAL)
+		bonus_points += HELP_POINTS
+		helped.emit(_help_target.display_name)
+		_help_target = null
+		_help_time = 0.0
 
 
 ## Walking into something knee-high (a chair, rubble, a step) hops over it, as in
@@ -357,7 +605,23 @@ func _process(delta: float) -> void:
 	if not alive:
 		_follow_bot(delta)
 		return
+	_eye = lerpf(_eye, CROUCH_EYE if _crouching else EYE_HEIGHT, minf(delta * 12.0, 1.0))
 	_place_camera(delta)
+	_canopy.visible = _chute > 0.0
+	_hook_mesh.clear_surfaces()
+	if _hook_time > 0.0:
+		_hook_mesh.surface_begin(Mesh.PRIMITIVE_LINES)
+		_hook_mesh.surface_add_vertex(global_position + Vector3.UP * 1.2)
+		_hook_mesh.surface_add_vertex(_hook_point)
+		_hook_mesh.surface_end()
+	# Right stick of a gamepad turns the view.
+	var stick := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+	if stick.length() > 0.18:
+		add_look(stick * 2.8 * delta * Settings.sensitivity)
+	if Settings.gyro and not use_mouse:
+		var turn := Gyro.read()
+		if turn != Vector2.ZERO:
+			add_look(turn)
 	var surface := _water_level if Engine.get_physics_frames() - _water_frame <= 1 else SEA_LEVEL
 	_underwater_tint.visible = _camera.global_position.y < surface
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0
@@ -371,7 +635,7 @@ func _place_camera(delta: float) -> void:
 	var t := _shake_time * 22.0
 	var shake := maxf(_quake, _rumble) * SHAKE_AMOUNT
 	var body := _prev_pos.lerp(global_position, Engine.get_physics_interpolation_fraction())
-	_head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0)), body + Vector3.UP * EYE_HEIGHT)
+	_head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0)), body + Vector3.UP * _eye)
 	_camera.h_offset = (sin(t) + sin(t * 2.3 + 1.7)) * 0.5 * shake
 	# Head bob follows distance walked, so it matches the stride at any speed.
 	# Not on touch screens: there it only makes aiming harder.
@@ -403,9 +667,21 @@ func _follow_bot(delta: float) -> void:
 	var back := _spectate.global_transform.basis.z
 	back = Vector3(back.x, 0, back.z).normalized()
 	var eye := target + back * 4.0 + Vector3.UP * 1.8
+	var aim := target
+	# Not through walls and floors: stop short of the first thing in the way;
+	# with no room behind (a stairwell), look through the bot's own eyes.
+	var query := PhysicsRayQueryParameters3D.create(target, eye, 1 | 2, [_spectate.get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		var room := target.distance_to(hit.position)
+		if room < 1.6:
+			eye = target + Vector3.UP * 0.2 - back * 0.2
+			aim = eye - back * 6.0
+		else:
+			eye = target + (hit.position - target).normalized() * (room - 0.4)
 	var follow := minf(delta * 4.0, 1.0)
 	_head.global_position = _head.global_position.lerp(eye, follow)
-	var look := _head.global_transform.looking_at(target, Vector3.UP)
+	var look := _head.global_transform.looking_at(aim, Vector3.UP)
 	_head.global_basis = _head.global_basis.slerp(look.basis, follow)
 	_camera.h_offset = 0.0
 	_camera.v_offset = 0.0
@@ -466,7 +742,7 @@ func _update_breath(delta: float) -> void:
 
 
 func take_damage(amount: float) -> void:
-	if not alive or amount <= 0.0:
+	if not alive or amount <= 0.0 or rescued:
 		return
 	damage_taken += minf(amount, health)
 	health = maxf(health - amount, 0.0)
@@ -493,6 +769,14 @@ func respawn(pos: Vector3) -> void:
 	health = max_health
 	max_height = 0.0
 	damage_taken = 0.0
+	bonus_points = 0
+	rescued = false
+	_chute = 0.0
+	_hook_time = 0.0
+	_mantle = 0.0
+	items = {"parachute": 1 if Profile.has("parachute") else 0, "bandage": 2 if Profile.has("bandage") else 0,
+			"hook": 3 if Profile.has("hook") else 0}
+	items_changed.emit(items)
 	alive = true
 	_body.visible = true
 	health_changed.emit(health, max_health)

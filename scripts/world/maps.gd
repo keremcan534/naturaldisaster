@@ -11,6 +11,7 @@ const Quality := preload("res://scripts/core/quality.gd")
 
 const BASE_COUNT := 6
 const COUNT := BASE_COUNT + MapsExtra.COUNT
+const BASE_NAMES := ["Gökdelen", "Bahçeli Ev", "Apartman", "Mahalle", "AVM", "Liman"]
 const PLAZA_COLOR := Color(0.72, 0.7, 0.66)
 const TRAMPOLINE_COLOR := Color(0.15, 0.45, 0.95)
 ## Clutter: how weakly it holds (it should fly first), how much per meter of map.
@@ -56,6 +57,11 @@ static var _roads: Array[Array] = []
 ## buildings: building footprints (world XZ), to keep away from in quakes.
 static var refuges: Array[Dictionary] = []
 static var buildings: Array[Rect2] = []
+
+
+## A map's name without building it (map votes).
+static func map_name(index: int) -> String:
+	return BASE_NAMES[index] if index < BASE_COUNT else MapsExtra.NAMES[index - BASE_COUNT]
 
 
 ## Builds map `index` under root and returns {name, size, spawn}.

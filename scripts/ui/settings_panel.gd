@@ -9,8 +9,10 @@ signal closed
 const Quality := preload("res://scripts/core/quality.gd")
 const Settings := preload("res://scripts/core/settings.gd")
 const Ui := preload("res://scripts/ui/ui.gd")
+const Gyro := preload("res://scripts/core/gyro.gd")
 
 const QUALITY_NAMES := ["Otomatik", "Düşük", "Orta", "Yüksek"]
+const BOT_LEVELS := ["Kolay", "Normal", "Zor"]
 
 ## The touch controls, or null on desktop.
 var controls: Node
@@ -24,10 +26,19 @@ func _ready() -> void:
 	grow_vertical = Control.GROW_DIRECTION_BOTH
 	custom_minimum_size = Vector2(660, 0)
 	add_theme_stylebox_override("panel", Ui.panel_style())
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 12)
+	add_child(outer)
+	outer.add_child(Ui.title("Ayarlar", 30))
+	# Everything but the title and the close button scrolls (short screens).
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(640, 500)
+	outer.add_child(scroll)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
-	add_child(box)
-	box.add_child(Ui.title("Ayarlar", 30))
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
 
 	box.add_child(_slider_row("Bakış hassasiyeti", 0.3, 3.0, Settings.sensitivity, func(v: float) -> void:
 		Settings.sensitivity = v))
@@ -56,6 +67,26 @@ func _ready() -> void:
 			controls.start_editing())
 		box.add_child(place)
 
+	if controls and Gyro.available():
+		box.add_child(_toggle("Jiroskopla nişan (telefonu çevirerek bak)", Settings.gyro, func(on: bool) -> void:
+			Settings.gyro = on
+			if on:
+				Gyro.start()))
+	box.add_child(Ui.text("Bot seviyesi", 20))
+	var bots := HBoxContainer.new()
+	bots.add_theme_constant_override("separation", 8)
+	var bot_group := ButtonGroup.new()
+	for k in BOT_LEVELS.size():
+		var choice := Ui.button(BOT_LEVELS[k], 20)
+		choice.toggle_mode = true
+		choice.button_group = bot_group
+		choice.button_pressed = Settings.bot_level == k
+		choice.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		choice.pressed.connect(func() -> void:
+			Settings.bot_level = k
+			Settings.save_settings())
+		bots.add_child(choice)
+	box.add_child(bots)
 	box.add_child(_toggle("Performans bilgisi göster (takılma olursa ekran görüntüsü at)", Settings.perf_overlay, func(on: bool) -> void:
 		Settings.perf_overlay = on))
 	box.add_child(Ui.text("Grafik kalitesi (takılıyorsa düşür)", 20))
@@ -75,7 +106,7 @@ func _ready() -> void:
 
 	var close := Ui.button("Kapat", 24, true)
 	close.pressed.connect(func() -> void: closed.emit())
-	box.add_child(close)
+	outer.add_child(close)
 	visibility_changed.connect(_sync)
 	_sync()
 

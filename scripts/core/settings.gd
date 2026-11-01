@@ -19,6 +19,11 @@ static var volume := 0.8
 static var music := 0.6
 ## Frame times, draw calls and physics load under the FPS readout.
 static var perf_overlay := false
+## Game mode (DisasterManager.MODES index) and how good the bots are (0..2).
+static var game_mode := 0
+static var bot_level := 1
+## Turning the phone turns the view (web: device motion).
+static var gyro := false
 
 
 static func load_settings() -> void:
@@ -34,6 +39,9 @@ static func load_settings() -> void:
 	volume = config.get_value("touch", "volume", 0.8)
 	music = config.get_value("touch", "music", 0.6)
 	perf_overlay = config.get_value("touch", "perf_overlay", false)
+	game_mode = config.get_value("touch", "game_mode", 0)
+	bot_level = config.get_value("touch", "bot_level", 1)
+	gyro = config.get_value("touch", "gyro", false)
 
 
 static func save_settings() -> void:
@@ -48,6 +56,9 @@ static func save_settings() -> void:
 	config.set_value("touch", "volume", volume)
 	config.set_value("touch", "music", music)
 	config.set_value("touch", "perf_overlay", perf_overlay)
+	config.set_value("touch", "game_mode", game_mode)
+	config.set_value("touch", "bot_level", bot_level)
+	config.set_value("touch", "gyro", gyro)
 	config.save(PATH)
 
 

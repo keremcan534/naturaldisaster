@@ -24,6 +24,12 @@ const ITEMS := [
 			"desc": "Her tura 125 canla başla"},
 	{"id": "runner", "kind": "perk", "name": "Koşu ayakkabısı", "price": 600,
 			"desc": "%10 daha hızlı koş"},
+	{"id": "parachute", "kind": "item", "name": "Paraşüt", "price": 350,
+			"desc": "Her tur 1 kez: düşerken aç, süzülerek in"},
+	{"id": "bandage", "kind": "item", "name": "Sargı bezi", "price": 250,
+			"desc": "Her tur 2 tane: anında +40 can"},
+	{"id": "hook", "kind": "item", "name": "Kanca", "price": 800,
+			"desc": "Her tur 3 atış: baktığın yere kendini çek"},
 	{"id": "blue", "kind": "skin", "name": "Mavi", "price": 0, "color": Color(0.2, 0.5, 0.95)},
 	{"id": "red", "kind": "skin", "name": "Kırmızı", "price": 150, "color": Color(0.85, 0.2, 0.2)},
 	{"id": "green", "kind": "skin", "name": "Yeşil", "price": 150, "color": Color(0.25, 0.7, 0.3)},
@@ -31,6 +37,12 @@ const ITEMS := [
 	{"id": "purple", "kind": "skin", "name": "Mor", "price": 250, "color": Color(0.55, 0.3, 0.85)},
 	{"id": "black", "kind": "skin", "name": "Gece", "price": 400, "color": Color(0.12, 0.12, 0.14)},
 	{"id": "gold", "kind": "skin", "name": "Altın", "price": 1500, "color": Color(1.0, 0.78, 0.2)},
+	# Event outfits: in the shop only during their week (events.gd).
+	{"id": "wave", "kind": "skin", "name": "Dalga (etkinlik)", "price": 600, "color": Color(0.1, 0.75, 0.85), "event": true},
+	{"id": "comet", "kind": "skin", "name": "Kuyruklu yıldız (etkinlik)", "price": 600, "color": Color(0.95, 0.35, 0.1), "event": true},
+	{"id": "storm", "kind": "skin", "name": "Fırtına (etkinlik)", "price": 600, "color": Color(0.35, 0.38, 0.6), "event": true},
+	{"id": "chaos", "kind": "skin", "name": "Kaos (etkinlik)", "price": 600, "color": Color(0.85, 0.1, 0.45), "event": true},
+	{"id": "frost", "kind": "skin", "name": "Ayaz (etkinlik)", "price": 600, "color": Color(0.75, 0.9, 1.0), "event": true},
 ]
 
 static var player_name := "Sen"
@@ -119,8 +131,8 @@ static func claim_gift() -> int:
 
 
 ## After every round: the player's points become coins and records.
-static func add_round(points: int, survived: bool, session_score: int) -> int:
-	var earned := points / POINTS_PER_COIN
+static func add_round(points: int, survived: bool, session_score: int, multiplier := 1) -> int:
+	var earned := points / POINTS_PER_COIN * multiplier
 	coins += earned
 	rounds_played += 1
 	if survived:
