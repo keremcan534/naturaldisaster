@@ -261,6 +261,8 @@ func load_next_map(choice := -1) -> void:
 	get_tree().call_group("hazards", "clear")
 	RenderingServer.global_shader_parameter_set("hole", Vector4.ZERO)
 	RenderingServer.global_shader_parameter_set("ash_cover", 0.0)
+	RenderingServer.global_shader_parameter_set("cracks", 0.0)
+	get_tree().call_group("effects", "clear")
 	Structure.awake = 0
 	Structure.fires = 0
 	if forced_map >= 0:

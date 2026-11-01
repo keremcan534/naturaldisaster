@@ -9,6 +9,9 @@ const EXPLOSION_SLOTS := 8
 const DUST_SLOTS := 10
 ## Big rolling clouds when a whole part of a building comes down.
 const CLOUD_SLOTS := 3
+## Burn marks left on the ground (a ring buffer, cleared with the map).
+const SCORCH_SLOTS := 32
+const SCORCH_SHADER := preload("res://shaders/scorch.gdshader")
 
 var _explosions: Array[Node3D] = []
 var _dusts: Array[CPUParticles3D] = []
@@ -16,6 +19,8 @@ var _next_explosion := 0
 var _next_dust := 0
 var _clouds: Array[CPUParticles3D] = []
 var _next_cloud := 0
+var _scorch: MultiMeshInstance3D
+var _next_scorch := 0
 
 
 func _ready() -> void:
@@ -35,6 +40,45 @@ func _ready() -> void:
 		var cloud := _cloud()
 		add_child(cloud)
 		_clouds.append(cloud)
+	var quad := QuadMesh.new()
+	quad.orientation = PlaneMesh.FACE_Y
+	var marks := MultiMesh.new()
+	marks.transform_format = MultiMesh.TRANSFORM_3D
+	marks.use_custom_data = true
+	marks.mesh = quad
+	marks.instance_count = SCORCH_SLOTS
+	marks.visible_instance_count = 0
+	var material := ShaderMaterial.new()
+	material.shader = SCORCH_SHADER
+	material.set_shader_parameter("noise", Look.noise_texture())
+	_scorch = MultiMeshInstance3D.new()
+	_scorch.multimesh = marks
+	_scorch.material_override = material
+	_scorch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_scorch.custom_aabb = AABB(Vector3(-400, -50, -400), Vector3(800, 150, 800))
+	add_child(_scorch)
+
+
+## New map: the burn marks go.
+func clear() -> void:
+	_scorch.multimesh.visible_instance_count = 0
+	_next_scorch = 0
+
+
+## A burn mark on whatever is right under pos (ground or a roof), radius in m.
+func scorch(pos: Vector3, radius: float) -> void:
+	var query := PhysicsRayQueryParameters3D.create(pos + Vector3.UP * 1.0, pos + Vector3.DOWN * 4.0, 1 | 2)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty() or hit.normal.y < 0.6:
+		return
+	var up: Vector3 = hit.normal
+	var side := up.cross(Vector3.FORWARD).normalized()
+	var basis := Basis(side, up, side.cross(up)).rotated(up, randf() * TAU).scaled(Vector3.ONE * radius * 2.0)
+	var marks := _scorch.multimesh
+	marks.set_instance_transform(_next_scorch, Transform3D(basis, hit.position + up * (0.02 + _next_scorch * 0.0004)))
+	marks.set_instance_custom_data(_next_scorch, Color(randf(), 0, 0, 0))
+	_next_scorch = (_next_scorch + 1) % SCORCH_SLOTS
+	marks.visible_instance_count = maxi(marks.visible_instance_count, _next_scorch if _next_scorch > 0 else SCORCH_SLOTS)
 
 
 func explosion(pos: Vector3, radius: float) -> void:
@@ -45,6 +89,7 @@ func explosion(pos: Vector3, radius: float) -> void:
 	get_tree().call_group("sound", "play", "boom", pos, 4.0)
 	for emitter: CPUParticles3D in slot.get_children():
 		emitter.restart()
+	scorch(pos, clampf(radius * 0.7, 1.2, 5.0))
 
 
 ## A collapse: a cloud of dust rolling out low from where it came down.

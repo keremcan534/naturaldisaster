@@ -129,6 +129,16 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   warning on; moods are tinted by the time of day. Rain wets the ground (puddles via
   the `wetness` global), storms throw lightning bolts, rain ends in a rainbow, clear
   nights get stars and an aurora, and a lens flare follows the sun.
+- Lens and screen effects (player.gd, tint layer): `shaders/underwater.gdshader` (depth fog,
+  light shafts) and `screen_drops.gdshader` / `_lite` (rain on the lens out in the open,
+  water running off after surfacing; the lite one skips refraction on Düşük). Quakes open
+  ground cracks (global `cracks`, ground shader), `effects.scorch()` leaves burn marks
+  (explosions, lightning; one MultiMesh, cleared with the map), `weather.power_flicker()`
+  flickers lamps during power-hitting disasters, strong wind blows leaves past the camera.
+  Third person (`Settings.third_person`, V) puts the camera over the shoulder and shows the
+  player's avatar (placed every frame like the camera); first-person hands appear only
+  while climbing, mantling, gliding or hooking. Avatars have a mouth that opens in panic and
+  extras (`set_extras`: glasses, cap, backpack; shop cosmetics, random on bots).
 - `scripts/world/ambience.gd`: ships sailing around the island and seagulls
   (`shaders/birds.gdshader`, moved entirely in the shader).
 - `scripts/core/sound.gd`: all audio is generated in code at startup (no files), one sound
@@ -221,6 +231,6 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
 (`--fast`, `--log`, `--perf`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
-`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`, `--mode=<i>`, `--rescue`; `--perf` also prints
+`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`, `--mode=<i>`, `--rescue`, `--third`; `--perf` also prints
 the number of burning pieces). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

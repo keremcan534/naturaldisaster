@@ -15,8 +15,15 @@ const SHADERS := [
 const INSTANCED := [
 	preload("res://shaders/tornado_dust.gdshader"),
 	preload("res://shaders/flame.gdshader"),
+	preload("res://shaders/scorch.gdshader"),
 ]
-const SHIMMER := preload("res://shaders/heat_shimmer.gdshader")
+## Full-screen canvas shaders: heat haze, under water, drops on the lens.
+const CANVAS := [
+	preload("res://shaders/heat_shimmer.gdshader"),
+	preload("res://shaders/underwater.gdshader"),
+	preload("res://shaders/screen_drops.gdshader"),
+	preload("res://shaders/screen_drops_lite.gdshader"),
+]
 const FRAMES := 4
 
 var _left := FRAMES
@@ -77,15 +84,15 @@ func run(camera: Camera3D) -> void:
 	puff.lifetime = 1.0
 	puff.gravity = Vector3.ZERO
 	add_child(puff)
-	# The heat haze: a full-screen canvas shader.
 	var layer := CanvasLayer.new()
 	layer.layer = -10
-	var rect := ColorRect.new()
-	rect.size = Vector2(2, 2)
-	var shimmer := ShaderMaterial.new()
-	shimmer.shader = SHIMMER
-	rect.material = shimmer
-	layer.add_child(rect)
+	for shader: Shader in CANVAS:
+		var rect := ColorRect.new()
+		rect.size = Vector2(2, 2)
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		rect.material = mat
+		layer.add_child(rect)
 	add_child(layer)
 
 

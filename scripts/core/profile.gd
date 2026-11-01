@@ -30,6 +30,9 @@ const ITEMS := [
 			"desc": "Her tur 2 tane: anında +40 can"},
 	{"id": "hook", "kind": "item", "name": "Kanca", "price": 800,
 			"desc": "Her tur 3 atış: baktığın yere kendini çek"},
+	{"id": "glasses", "kind": "extra", "name": "Güneş gözlüğü", "price": 300, "desc": "Havalı görün"},
+	{"id": "cap", "kind": "extra", "name": "Şapka", "price": 350, "desc": "Kıyafet renginde kep"},
+	{"id": "backpack", "kind": "extra", "name": "Sırt çantası", "price": 450, "desc": "Kıyafet renginde çanta"},
 	{"id": "blue", "kind": "skin", "name": "Mavi", "price": 0, "color": Color(0.2, 0.5, 0.95)},
 	{"id": "red", "kind": "skin", "name": "Kırmızı", "price": 150, "color": Color(0.85, 0.2, 0.2)},
 	{"id": "green", "kind": "skin", "name": "Yeşil", "price": 150, "color": Color(0.25, 0.7, 0.3)},
@@ -52,6 +55,8 @@ static var rounds_played := 0
 static var rounds_survived := 0
 static var owned: Array = ["blue"]
 static var skin := "blue"
+## Extras (glasses, cap, backpack) the player has on.
+static var wearing: Array = []
 ## Day number (days since 1970) of the last daily gift.
 static var gift_day := -1
 
@@ -67,6 +72,7 @@ static func load_profile() -> void:
 	rounds_survived = config.get_value("profile", "rounds_survived", 0)
 	owned = config.get_value("profile", "owned", owned)
 	skin = config.get_value("profile", "skin", skin)
+	wearing = config.get_value("profile", "wearing", [])
 	gift_day = config.get_value("profile", "gift_day", -1)
 
 
@@ -81,6 +87,7 @@ static func save_profile() -> void:
 	config.set_value("profile", "rounds_survived", rounds_survived)
 	config.set_value("profile", "owned", owned)
 	config.set_value("profile", "skin", skin)
+	config.set_value("profile", "wearing", wearing)
 	config.set_value("profile", "gift_day", gift_day)
 	config.save(PATH)
 
@@ -104,8 +111,19 @@ static func buy(id: String) -> bool:
 	owned.append(id)
 	if entry.kind == "skin":
 		skin = id
+	elif entry.kind == "extra":
+		wearing.append(id)
 	save_profile()
 	return true
+
+
+## Puts an owned extra on or takes it off.
+static func toggle_extra(id: String) -> void:
+	if id in wearing:
+		wearing.erase(id)
+	elif has(id):
+		wearing.append(id)
+	save_profile()
 
 
 static func skin_color() -> Color:

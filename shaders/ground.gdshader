@@ -9,6 +9,8 @@ global uniform float wetness;
 global uniform vec4 hole;
 // Volcanic ash settled on everything, 0..1.
 global uniform float ash_cover;
+// 0..1: earthquake cracks across the ground (they stay until the next map).
+global uniform float cracks;
 
 uniform vec3 tint : source_color = vec3(0.4, 0.6, 0.3);
 uniform sampler2D noise : filter_linear_mipmap, repeat_enable;
@@ -116,6 +118,17 @@ void fragment() {
 			NORMAL = normalize(mix(NORMAL, (VIEW_MATRIX * vec4(n, 0.0)).xyz, puddle));
 			rough = mix(rough, 0.03, puddle);
 		}
+	}
+	if (cracks > 0.001 && !vertical) {
+		// Cracks follow one contour line of a smooth noise (long winding lines),
+		// made jagged by a finer one; they widen as the quake goes on.
+		float wide = texture(noise, p * 0.021 + vec2(0.21, 0.67)).r;
+		float jag = texture(noise, p * 0.33 + vec2(0.4, 0.9)).r - 0.5;
+		float edge = abs(wide - 0.5 + jag * 0.035);
+		float w = 0.002 + 0.007 * cracks;
+		float crack = 1.0 - smoothstep(w * 0.4, w, edge);
+		float rim = (1.0 - smoothstep(w, w * 2.2, edge)) * 0.35;
+		col *= 1.0 - clamp(crack * 0.92 + rim, 0.0, 1.0) * smoothstep(0.0, 0.25, cracks);
 	}
 	ALBEDO = col;
 	if (ash_cover > 0.001 && !vertical) {

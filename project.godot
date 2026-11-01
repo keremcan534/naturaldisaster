@@ -136,3 +136,7 @@ ash_cover={
 "type": "float",
 "value": 0.0
 }
+cracks={
+"type": "float",
+"value": 0.0
+}

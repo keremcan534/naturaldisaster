@@ -103,7 +103,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ "Beni takip et" (F / "Takip"): en yakın iki bot peşinden gelir, tekrar basınca bırakır
 - ✅ Yaralı bota yardım: canı azalan bot "Yardım edin!" der, yanında durunca iyileşir (+25 puan)
 - ✅ Bot seviyeleri (Ayarlar: Kolay / Normal / Zor)
-- 💡 Bot kıyafetleri ve şapkaları çeşitlensin
+- ✅ Bot kıyafetleri: rastgele baret, kep, gözlük, sırt çantası
 
 ## 5. Grafik ve atmosfer
 - ✅ Bulutlu gökyüzü, gün saatleri, yıldız, aurora, gökkuşağı, yağmur, şimşek
@@ -111,19 +111,19 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ İçi görünen camlar, mobilyalı odalar
 - ✅ Kırılma, toz, enkaz, alevler, duman
 - ✅ Gemiler, martılar
-- 💡 ⭐ Ekranda yağmur damlaları / su efekti (dalgaya yakalanınca)
+- ✅ ⭐ Ekranda yağmur damlaları (açıktayken), sudan çıkınca akan su
 - ✅ ⭐ Felaket öncesi ipuçları (kuşlar kaçar, deniz çekilir)
 - ✅ Çöken binadan yuvarlanan toz bulutu, parçalar un gibi ufalanır
-- 💡 Islak zeminde yansıma, ıslak duvarlar
-- 💡 Gece sokak lambaları ve ev ışıkları felakette sönüp yanıp söner
-- 💡 Rüzgârda sallanan ağaçlar, savrulan yapraklar
-- 💡 Zemin çatlakları (depremde)
-- 💡 Kirlenen / yanmış zemin izleri
-- 💡 Su altı sis ve ışık huzmeleri
-- 💡 Daha detaylı karakter (yüz ifadeleri, saç, kıyafet modelleri)
-- 💡 Birinci şahıs eller / kollar
-- 💡 Üçüncü şahıs kamera seçeneği
-- 💡 Yüksek kalite: SSAO, daha iyi gölgeler, volumetrik sis (sadece güçlü cihazlar)
+- ✅ Islak zemin: koyulaşır, parlar, su birikintileri gökyüzünü yansıtır
+- ✅ Deprem, fırtına, hortum, UFO...: sokak lambaları ve pencereler titreyip söner
+- ✅ Rüzgârda sallanan ağaçlar, fırtınada savrulan yapraklar
+- ✅ Zemin çatlakları: deprem boyunca açılır, tur boyunca kalır
+- ✅ Yanık izleri: patlama, meteor, lav ve yıldırım yere is bırakır
+- ✅ Su altı: derinleştikçe koyulaşan sis, ışık huzmeleri, süzülen tortu
+- ✅ Karakter: kaş, korkunca açılan ağız; şapka, gözlük, çanta
+- ✅ Birinci şahıs eller: merdiven, tırmanma, paraşüt ve kancada görünür
+- ✅ Üçüncü şahıs kamera (V / "Kamera" tuşu / Ayarlar), duvar arkasına girmez
+- 🚧 Yüksek kalite: daha iyi gölgeler ve parlama var; SSAO ve volumetrik sis web'in grafik modunda (WebGL) yok
 
 ## 6. Ses ve müzik
 - ✅ Siren, patlama, gök gürültüsü, çökme, deprem, rüzgâr, dalga, yağmur, ateş, arayüz sesleri
@@ -158,7 +158,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 
 ## 9. Ekonomi ve mağaza
 - ✅ Coin, güçlendirmeler, kıyafet renkleri, günlük hediye
-- 💡 ⭐ Şapkalar, gözlükler, sırt çantaları, iz efektleri (kozmetik)
+- ✅ ⭐ Şapka, güneş gözlüğü, sırt çantası (mağazada, tak/çıkar); iz efektleri ileride
 - 💡 ⭐ Günlük giriş serisi (7 gün üst üste → büyük ödül)
 - 💡 Sezon kartı (ücretsiz + premium yol)
 - 💡 Reklam izle → 2 kat coin (web portalı SDK'sı ile)

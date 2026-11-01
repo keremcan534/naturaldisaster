@@ -87,6 +87,7 @@ func show_main(spawn: Vector3) -> void:
 	_preview.visible = true
 	_preview.set_colors(Profile.skin_color(), Avatar.PANTS[0], Avatar.SKIN_TONES[0])
 	_preview.set_hat(Profile.has("helmet"))
+	_preview.set_extras(Profile.wearing, Profile.skin_color().darkened(0.25))
 	_open(_main)
 
 
@@ -430,6 +431,10 @@ func _refresh_shop() -> void:
 	for entry: Dictionary in Profile.ITEMS:
 		if entry.kind == "item":
 			_shop_list.add_child(_shop_row(entry))
+	_shop_list.add_child(Ui.text("Aksesuarlar (tak / çıkar)", 22, Ui.ACCENT))
+	for entry: Dictionary in Profile.ITEMS:
+		if entry.kind == "extra":
+			_shop_list.add_child(_shop_row(entry))
 	_shop_list.add_child(Ui.text("Kıyafetler", 22, Ui.ACCENT))
 	var event_skin: String = Events.current().skin
 	for entry: Dictionary in Profile.ITEMS:
@@ -467,6 +472,13 @@ func _shop_row(entry: Dictionary) -> Control:
 			Profile.skin = entry.id
 			Profile.save_profile()
 			_preview.set_colors(Profile.skin_color(), Avatar.PANTS[0], Avatar.SKIN_TONES[0])
+			_preview.set_extras(Profile.wearing, Profile.skin_color().darkened(0.25))
+			_refresh_shop())
+	elif entry.kind == "extra" and owned:
+		action.text = "ÇIKAR" if entry.id in Profile.wearing else "TAK"
+		action.pressed.connect(func() -> void:
+			Profile.toggle_extra(entry.id)
+			_preview.set_extras(Profile.wearing, Profile.skin_color().darkened(0.25))
 			_refresh_shop())
 	elif owned:
 		action.text = "ALINDI"
@@ -478,6 +490,7 @@ func _shop_row(entry: Dictionary) -> Control:
 			if Profile.buy(entry.id):
 				_preview.set_colors(Profile.skin_color(), Avatar.PANTS[0], Avatar.SKIN_TONES[0])
 				_preview.set_hat(Profile.has("helmet"))
+				_preview.set_extras(Profile.wearing, Profile.skin_color().darkened(0.25))
 			_refresh_shop())
 	row.add_child(action)
 	return row

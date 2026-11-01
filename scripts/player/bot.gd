@@ -136,6 +136,7 @@ var _dead_time := 0.0
 var _panic := 0.0
 var _skill_roll := 0.5
 var _cheer := 0.0
+var _face := -1.0
 var _wave := 0.0
 
 
@@ -189,7 +190,13 @@ func _ready() -> void:
 	_avatar = Avatar.new()
 	_avatar.set_colors(tint, Avatar.PANTS[_rng.randi() % Avatar.PANTS.size()],
 			Avatar.SKIN_TONES[_rng.randi() % Avatar.SKIN_TONES.size()])
-	_avatar.set_hat(_rng.randf() < 0.25)
+	_avatar.set_hat(_rng.randf() < 0.2)
+	# A random mix of extras, so the team doesn't look like clones.
+	var extras: Array = []
+	for id: String in Avatar.EXTRAS:
+		if _rng.randf() < 0.3:
+			extras.append(id)
+	_avatar.set_extras(extras, SHIRTS[_rng.randi() % SHIRTS.size()].darkened(0.2))
 	_avatar.visibility_range_end = 80.0
 	add_child(_avatar)
 
@@ -309,6 +316,10 @@ func _physics_process(delta: float) -> void:
 
 	_cheer -= delta
 	_wave -= delta
+	var face := 1.0 if _panic > 0.0 and _hurry and _cheer <= 0.0 else 0.0
+	if face != _face:
+		_face = face
+		_avatar.set_scared(face)
 	if _cheer > 0.0 and is_on_floor() and _path.is_empty():
 		velocity.y = JUMP_VELOCITY * 0.8
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0

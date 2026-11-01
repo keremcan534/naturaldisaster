@@ -8,7 +8,8 @@ extends CanvasLayer
 ## - Right thumb: drag anywhere outside the stick area to look; a big jump button
 ##   where the thumb rests, which can also be dragged to look.
 ## - A menu button (top left) opens the pause menu (settings, main menu); next
-##   to it "Takip" (the nearest bots follow) and "Selam" (wave).
+##   to it "Takip" (the nearest bots follow), "Selam" (wave) and "Kamera"
+##   (first / third person).
 ## - Small buttons around the jump button: crouch (a toggle) and the items
 ##   bought in the shop, each with what is left this round.
 ## Movement goes through the regular input actions (analog strengths), so the
@@ -143,7 +144,8 @@ func _around_jump(spot: Vector2) -> Vector2:
 func _small_buttons() -> Array:
 	var list := [["crouch", _around_jump(CROUCH_SPOT), "Çömel"],
 			["follow", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() + 14.0, 0), "Takip"],
-			["wave", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() * 3.0 + 26.0, 0), "Selam"]]
+			["wave", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() * 3.0 + 26.0, 0), "Selam"],
+			["camera", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() * 5.0 + 38.0, 0), "Kamera"]]
 	var slot := 0
 	for id: String in ITEM_IDS:
 		if _items.get(id, 0) > 0:
@@ -165,6 +167,8 @@ func _press_small(id: String) -> void:
 			player.call_followers()
 		"wave":
 			player.wave()
+		"camera":
+			player.toggle_camera()
 		_:
 			player.use_item(id)
 	_canvas.queue_redraw()

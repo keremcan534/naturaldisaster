@@ -191,6 +191,12 @@ var _flare_check := 0.0
 var _sun_clear := true
 var _flare_enabled := true
 var _sea: MeshInstance3D
+## Leaves and bits blown past in strong wind, around the camera.
+var _leaves: CPUParticles3D
+## Disasters that hit the power grid make lamps and windows flicker.
+var _flicker := false
+var _power_on := true
+var _power_time := 0.0
 
 
 func _ready() -> void:
@@ -254,6 +260,8 @@ func _ready() -> void:
 
 	_rain = _make_rain()
 	add_child(_rain)
+	_leaves = _make_leaves()
+	add_child(_leaves)
 	_splashes = _make_splashes()
 	add_child(_splashes)
 	_bolt_mesh = ImmediateMesh.new()
@@ -411,7 +419,19 @@ func _process(delta: float) -> void:
 	RenderingServer.global_shader_parameter_set("sun_color", (_now.sun as Color) * minf(energy, 1.5))
 	_sky.set_shader_parameter("flash", flicker * 1.5)
 
+	if _flicker:
+		_power_time -= delta
+		if _power_time <= 0.0:
+			# Mostly on, with short drops and the odd longer blackout.
+			_power_on = not _power_on
+			_power_time = randf_range(0.4, 2.5) if _power_on else randf_range(0.04, 0.5)
+			Look.set_lamps(_now.rooms if _power_on else 0.0)
+
 	var camera := get_viewport().get_camera_3d()
+	var windy: bool = _now.get("wind", 0.0) > 0.75
+	_leaves.emitting = windy
+	if camera and windy:
+		_leaves.global_position = camera.global_position + Vector3(-6.0, 1.0, 0.0)
 	if camera:
 		if raining:
 			var ahead := -camera.global_basis.z
@@ -466,9 +486,28 @@ func drain_sea(drop: float) -> void:
 
 
 ## A bolt down to a given spot, with the sky flash (the lightning storm aims these).
+## Earthquakes, storms and the like: the street lamps flicker until the round ends.
+func power_flicker(on: bool) -> void:
+	_flicker = on
+	_power_on = true
+	_power_time = randf_range(0.5, 2.0)
+	if not on and not _now.is_empty():
+		Look.set_lamps(_now.rooms)
+
+
+func raining() -> bool:
+	return _rain.emitting
+
+
+## How hard it rains on the camera lens (storms harder).
+func rain_strength() -> float:
+	return 1.0 if MOODS[_mood].lightning else 0.6
+
+
 func strike_at(ground: Vector3) -> void:
 	_flash = 1.0
 	_draw_bolt(ground)
+	get_tree().call_group("effects", "scorch", ground, 1.6)
 
 
 func _draw_bolt(ground: Vector3) -> void:
@@ -606,6 +645,40 @@ func _make_rain() -> CPUParticles3D:
 	p.initial_velocity_min = 24.0
 	p.initial_velocity_max = 28.0
 	p.gravity = Vector3.ZERO
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
+
+
+## Leaves, twigs and paper whirling past on the wind (a few dozen quads).
+func _make_leaves() -> CPUParticles3D:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.09, 0.07)
+	var leaf := StandardMaterial3D.new()
+	leaf.vertex_color_use_as_albedo = true
+	leaf.cull_mode = BaseMaterial3D.CULL_DISABLED
+	leaf.roughness = 0.9
+	quad.material = leaf
+	var p := CPUParticles3D.new()
+	p.mesh = quad
+	p.emitting = false
+	p.amount = 40
+	p.lifetime = 2.6
+	p.local_coords = false
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(2, 3, 9)
+	p.direction = Vector3(1, 0.15, 0.2)
+	p.spread = 20.0
+	p.initial_velocity_min = 7.0
+	p.initial_velocity_max = 12.0
+	p.gravity = Vector3(0, -1.2, 0)
+	p.angular_velocity_min = -400.0
+	p.angular_velocity_max = 400.0
+	p.particle_flag_rotate_y = true
+	var colors := Gradient.new()
+	colors.set_color(0, Color(0.35, 0.5, 0.18))
+	colors.set_color(1, Color(0.55, 0.38, 0.15))
+	colors.add_point(0.6, Color(0.75, 0.6, 0.25))
+	p.color_initial_ramp = colors
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
 

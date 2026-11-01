@@ -67,6 +67,11 @@ func _ready() -> void:
 			controls.start_editing())
 		box.add_child(place)
 
+	box.add_child(_toggle("Üçüncü şahıs kamera (V)", Settings.third_person, func(on: bool) -> void:
+		Settings.third_person = on
+		for p: Node in get_tree().get_nodes_in_group("player"):
+			if not p.is_bot:
+				p.apply_camera_mode()))
 	if controls and Gyro.available():
 		box.add_child(_toggle("Jiroskopla nişan (telefonu çevirerek bak)", Settings.gyro, func(on: bool) -> void:
 			Settings.gyro = on

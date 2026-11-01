@@ -66,6 +66,8 @@ const MODES := [
 	{"id": "last", "name": "Son Kalan", "desc": "Ölen geri dönmez; en son kalan kazanır"},
 ]
 const WATER_DISASTERS := [2, 5, 10, 12, 18, 20, 21]
+## These knock the power about: lamps and windows flicker while they last.
+const POWER_KINDS := ["earthquake", "tornado", "hurricane", "lightning", "ufo", "blackhole", "sinkhole"]
 ## Son Kalan: the last one standing gets this bonus.
 const LAST_BONUS := 150
 ## Rescue helicopter: how often it comes, and when (fraction of the disaster).
@@ -124,6 +126,7 @@ func start(keep_map := false) -> void:
 func stop() -> void:
 	set_process(false)
 	get_tree().call_group("rescue", "leave")
+	get_tree().call_group("weather", "power_flicker", false)
 	vote_options = []
 	for d: Node in [_current, _extra]:
 		if d:
@@ -253,6 +256,7 @@ func _enter(state: State) -> void:
 			_extra = null
 			_rescue_time = INF
 			get_tree().call_group("rescue", "leave")
+			get_tree().call_group("weather", "power_flicker", false)
 			_time_left = results_time * time_scale
 			status_changed.emit(_results_text())
 			get_tree().call_group("bots", "celebrate")
@@ -318,6 +322,8 @@ func _omens(warning: bool) -> void:
 	# Shaking and gales jam the lifts wherever they are.
 	if not warning and _current.kind in ["earthquake", "hurricane", "tornado"]:
 		get_tree().call_group("elevators", "jam")
+	if not warning and (_current.kind in POWER_KINDS or (_extra and _extra.kind in POWER_KINDS)):
+		get_tree().call_group("weather", "power_flicker", true)
 	if _current.kind == "volcano":
 		get_tree().call_group("ambience", "volcano_smoke", Vector3(0, 0, -world.map_size * 0.5 - 6.0), warning)
 

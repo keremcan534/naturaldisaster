@@ -24,6 +24,8 @@ static var game_mode := 0
 static var bot_level := 1
 ## Turning the phone turns the view (web: device motion).
 static var gyro := false
+## The camera behind the character instead of its eyes.
+static var third_person := false
 
 
 static func load_settings() -> void:
@@ -42,6 +44,7 @@ static func load_settings() -> void:
 	game_mode = config.get_value("touch", "game_mode", 0)
 	bot_level = config.get_value("touch", "bot_level", 1)
 	gyro = config.get_value("touch", "gyro", false)
+	third_person = config.get_value("touch", "third_person", false)
 
 
 static func save_settings() -> void:
@@ -59,6 +62,7 @@ static func save_settings() -> void:
 	config.set_value("touch", "game_mode", game_mode)
 	config.set_value("touch", "bot_level", bot_level)
 	config.set_value("touch", "gyro", gyro)
+	config.set_value("touch", "third_person", third_person)
 	config.save(PATH)
 
 

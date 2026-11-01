@@ -1,7 +1,9 @@
 extends MeshInstance3D
 ## A blocky character 1.75 m tall, facing -Z, feet at the origin: shirt, pants,
-## skin, shoes, hair and an optional hard hat. One shared mesh; each avatar has
-## its own small material for its colors and pose (see shaders/avatar.gdshader).
+## skin, shoes, hair, a mouth that opens in fear, and optional extras (hard hat,
+## cap, glasses, backpack: shop cosmetics, random on bots). One shared mesh; each
+## avatar has its own small material for its colors and pose (see
+## shaders/avatar.gdshader).
 
 const SHADER := preload("res://shaders/avatar.gdshader")
 
@@ -9,8 +11,10 @@ const SKIN_TONES := [Color(0.96, 0.8, 0.66), Color(0.87, 0.67, 0.5), Color(0.7, 
 const PANTS := [Color(0.16, 0.18, 0.26), Color(0.25, 0.22, 0.2), Color(0.12, 0.12, 0.13), Color(0.3, 0.35, 0.45)]
 
 ## Limb ids and color slots, matching the shader.
-enum Part { BODY, LEFT_LEG, RIGHT_LEG, LEFT_ARM, RIGHT_ARM, HAT }
-enum Slot { SHIRT, PANTS, SKIN, DARK, HAT }
+enum Part { BODY, LEFT_LEG, RIGHT_LEG, LEFT_ARM, RIGHT_ARM, HAT, MOUTH, GLASSES, PACK, CAP }
+enum Slot { SHIRT, PANTS, SKIN, DARK, HAT, EXTRA }
+## Extras the shop sells (Profile ids) and what they switch on.
+const EXTRAS := {"glasses": "glasses_on", "backpack": "pack_on", "cap": "cap_on"}
 
 static var _mesh: ArrayMesh
 
@@ -35,6 +39,18 @@ func set_colors(shirt: Color, pants: Color, skin: Color) -> void:
 
 func set_hat(on: bool) -> void:
 	_material.set_shader_parameter("hat_on", 1.0 if on else 0.0)
+
+
+## Cosmetic extras by id (see EXTRAS), and the color of the backpack and cap.
+func set_extras(ids: Array, color := Color(0.85, 0.3, 0.2)) -> void:
+	for id: String in EXTRAS:
+		_material.set_shader_parameter(EXTRAS[id], 1.0 if id in ids else 0.0)
+	_material.set_shader_parameter("extra", color)
+
+
+## 0..1: wide-eyed, mouth open (panicking).
+func set_scared(amount: float) -> void:
+	_material.set_shader_parameter("scared", amount)
 
 
 ## Call every frame: speed in m/s on the ground (0 in the air or standing),
@@ -69,6 +85,18 @@ static func _get_mesh() -> ArrayMesh:
 	# A hard hat (hidden unless set_hat): dome and brim.
 	_box(st, Vector3(0, 1.82, 0.0), Vector3(0.38, 0.12, 0.38), Part.HAT, Slot.HAT)
 	_box(st, Vector3(0, 1.77, -0.04), Vector3(0.44, 0.03, 0.48), Part.HAT, Slot.HAT)
+	# Mouth (opens when scared) and eyebrows.
+	_box(st, Vector3(0, 1.505, -0.163), Vector3(0.1, 0.025, 0.02), Part.MOUTH, Slot.DARK)
+	for side: float in [-1.0, 1.0]:
+		_box(st, Vector3(side * 0.07, 1.655, -0.163), Vector3(0.07, 0.018, 0.02), Part.BODY, Slot.DARK)
+	# Extras, hidden unless worn: glasses, backpack, cap.
+	for side: float in [-1.0, 1.0]:
+		_box(st, Vector3(side * 0.075, 1.6, -0.172), Vector3(0.1, 0.08, 0.02), Part.GLASSES, Slot.DARK)
+	_box(st, Vector3(0, 1.6, -0.172), Vector3(0.06, 0.02, 0.02), Part.GLASSES, Slot.DARK)
+	_box(st, Vector3(0, 1.12, 0.22), Vector3(0.38, 0.46, 0.17), Part.PACK, Slot.EXTRA)
+	_box(st, Vector3(0, 1.0, 0.315), Vector3(0.28, 0.16, 0.03), Part.PACK, Slot.DARK)
+	_box(st, Vector3(0, 1.79, 0.0), Vector3(0.35, 0.1, 0.35), Part.CAP, Slot.EXTRA)
+	_box(st, Vector3(0, 1.75, -0.24), Vector3(0.3, 0.025, 0.18), Part.CAP, Slot.EXTRA)
 	_mesh = st.commit()
 	return _mesh
 

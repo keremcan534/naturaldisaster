@@ -31,7 +31,6 @@ func begin() -> void:
 	layer.add_child(_overlay)
 	add_child(layer)
 	Look.set_lamps(0.0)
-	RenderingServer.global_shader_parameter_set("rooms", 0.0)
 
 
 func _hazard_frame(delta: float) -> void:

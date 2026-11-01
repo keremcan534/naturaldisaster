@@ -24,6 +24,13 @@ signal rescued_now
 const Settings := preload("res://scripts/core/settings.gd")
 const Profile := preload("res://scripts/core/profile.gd")
 const Gyro := preload("res://scripts/core/gyro.gd")
+const Quality := preload("res://scripts/core/quality.gd")
+const UNDERWATER_SHADER := preload("res://shaders/underwater.gdshader")
+const DROPS_SHADER := preload("res://shaders/screen_drops.gdshader")
+const DROPS_LITE_SHADER := preload("res://shaders/screen_drops_lite.gdshader")
+## Third person: the camera this far behind the head, a little to the right.
+const THIRD_DISTANCE := 3.4
+const THIRD_SIDE := 0.45
 const Avatar := preload("res://scripts/player/avatar.gd")
 
 ## Human scale: a brisk walk, a run, and a jump of about 1.3 m.
@@ -174,6 +181,23 @@ var _water_current := Vector3.ZERO
 var _water_frame := -10
 var _underwater_time := 0.0
 var _underwater_tint: ColorRect
+var _underwater_mat: ShaderMaterial
+## Water on the lens: rain while out in the open, streaks after surfacing.
+var _drops: ColorRect
+var _drops_mat: ShaderMaterial
+var _lens := 0.0
+var _lens_splash := 0.0
+var _was_under := false
+var _roof_check := 0.0
+var _under_roof := false
+## Waving (emote): arms up for a moment (seen in third person and the shadow).
+var _wave_time := 0.0
+## First-person hands, shown only while climbing, mantling, gliding or hooking.
+var _hands: Node3D
+var _hand_l: Node3D
+var _hand_r: Node3D
+var _hands_up := 0.0
+var _hand_phase := 0.0
 
 
 func _ready() -> void:
@@ -218,6 +242,9 @@ func _ready() -> void:
 
 	# Our own character: only its shadow shows (first person).
 	_body = Avatar.new()
+	# Placed every frame at the drawn (interpolated) position, like the camera,
+	# so in third person it doesn't stutter against it.
+	_body.top_level = true
 	add_child(_body)
 
 	# Slightly larger than the capsule so falling debris registers before it rests on us.
@@ -255,12 +282,22 @@ func _ready() -> void:
 	var tint_layer := CanvasLayer.new()
 	tint_layer.layer = -1
 	_underwater_tint = ColorRect.new()
-	_underwater_tint.color = Color(0.05, 0.25, 0.32, 0.65)
+	_underwater_mat = ShaderMaterial.new()
+	_underwater_mat.shader = UNDERWATER_SHADER
+	_underwater_tint.material = _underwater_mat
 	_underwater_tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_underwater_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_underwater_tint.visible = false
 	tint_layer.add_child(_underwater_tint)
+	_drops = ColorRect.new()
+	_drops_mat = ShaderMaterial.new()
+	_drops.material = _drops_mat
+	_drops.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_drops.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_drops.visible = false
+	tint_layer.add_child(_drops)
 	add_child(tint_layer)
+	_build_hands()
 
 	apply_perks()
 	_prev_pos = global_position
@@ -324,6 +361,8 @@ func apply_perks() -> void:
 	display_name = Profile.player_name
 	_body.set_colors(tint, Avatar.PANTS[0], Avatar.SKIN_TONES[0])
 	_body.set_hat(Profile.has("helmet"))
+	_body.set_extras(Profile.wearing, Profile.skin_color().darkened(0.25))
+	apply_camera_mode()
 
 
 func _physics_process(delta: float) -> void:
@@ -506,6 +545,20 @@ func _use_items() -> void:
 		wave()
 	if Input.is_action_just_pressed("photo"):
 		photo_requested.emit()
+	if Input.is_action_just_pressed("camera"):
+		toggle_camera()
+
+
+## First / third person (V, the touch "Kamera" button, settings).
+func toggle_camera() -> void:
+	Settings.third_person = not Settings.third_person
+	Settings.save_settings()
+	apply_camera_mode()
+
+
+func apply_camera_mode() -> void:
+	_body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if Settings.third_person \
+			else GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 
 
 ## "Beni takip et!": the two nearest bots follow; pressed again, they stop.
@@ -527,6 +580,7 @@ func call_followers() -> void:
 
 ## Waves hello: bots nearby wave back.
 func wave() -> void:
+	_wave_time = 1.8
 	for bot: Node3D in get_tree().get_nodes_in_group("bots"):
 		if bot.alive and bot.global_position.distance_to(global_position) < 20.0:
 			bot.wave_back()
@@ -623,9 +677,105 @@ func _process(delta: float) -> void:
 		if turn != Vector2.ZERO:
 			add_look(turn)
 	var surface := _water_level if Engine.get_physics_frames() - _water_frame <= 1 else SEA_LEVEL
-	_underwater_tint.visible = _camera.global_position.y < surface
+	var under := _camera.global_position.y < surface
+	_underwater_tint.visible = under
+	if under:
+		_underwater_mat.set_shader_parameter("depth", surface - _camera.global_position.y)
+	_update_lens(delta, under)
+	_update_hands(delta)
+	_wave_time -= delta
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0
-	_body.animate(delta, ground_speed, 1.0 if _ladder > 0.0 else 0.0)
+	_body.animate(delta, ground_speed, 1.0 if _ladder > 0.0 or _wave_time > 0.0 or _chute > 0.0 else 0.0)
+
+
+## Rain on the lens out in the open (nothing overhead), and water running off
+## it right after coming up from under water.
+func _update_lens(delta: float, under: bool) -> void:
+	var weather := get_tree().get_first_node_in_group("weather")
+	var raining: bool = weather != null and weather.raining()
+	_roof_check -= delta
+	if raining and _roof_check <= 0.0:
+		_roof_check = 0.3
+		var from := _camera.global_position
+		var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.UP * 40.0, 1 | 2, [get_rid()])
+		_under_roof = not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+	var target: float = weather.rain_strength() if raining and not _under_roof and not under else 0.0
+	_lens = move_toward(_lens, target, delta * (0.4 if target > _lens else 0.2))
+	if under:
+		_was_under = true
+		_lens_splash = 0.0
+	elif _was_under:
+		_was_under = false
+		_lens_splash = 1.0
+	_lens_splash = maxf(_lens_splash - delta * 0.35, 0.0)
+	_drops.visible = _lens > 0.01 or _lens_splash > 0.01
+	if _drops.visible:
+		var shader := DROPS_SHADER if Quality.level >= 1 else DROPS_LITE_SHADER
+		if _drops_mat.shader != shader:
+			_drops_mat.shader = shader
+		_drops_mat.set_shader_parameter("amount", _lens)
+		_drops_mat.set_shader_parameter("splash", _lens_splash)
+
+
+## Two forearms at the bottom of the view, raised only while doing something
+## with the hands: climbing (in turns), pulling up a ledge, holding the
+## parachute's lines or the hook's rope.
+func _build_hands() -> void:
+	_hands = Node3D.new()
+	_camera.add_child(_hands)
+	var sleeve := BoxMesh.new()
+	sleeve.size = Vector3(0.09, 0.09, 0.32)
+	var hand := BoxMesh.new()
+	hand.size = Vector3(0.08, 0.08, 0.1)
+	var skin := StandardMaterial3D.new()
+	skin.albedo_color = Avatar.SKIN_TONES[0]
+	var cloth := StandardMaterial3D.new()
+	cloth.albedo_color = Profile.skin_color()
+	for side: float in [-1.0, 1.0]:
+		var arm := Node3D.new()
+		var s := MeshInstance3D.new()
+		s.mesh = sleeve
+		s.material_override = cloth
+		s.position.z = 0.1
+		s.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		arm.add_child(s)
+		var h := MeshInstance3D.new()
+		h.mesh = hand
+		h.material_override = skin
+		h.position.z = -0.1
+		h.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		arm.add_child(h)
+		_hands.add_child(arm)
+		if side < 0.0:
+			_hand_l = arm
+		else:
+			_hand_r = arm
+	_hands.visible = false
+
+
+func _update_hands(delta: float) -> void:
+	var climbing := _ladder > 0.0 and not is_on_floor()
+	var busy := climbing or _mantle > 0.0 or _chute > 0.0 or _hook_time > 0.0
+	_hands_up = move_toward(_hands_up, 1.0 if busy and not Settings.third_person else 0.0, delta * 5.0)
+	_hands.visible = _hands_up > 0.01
+	if not _hands.visible:
+		return
+	(_hand_l.get_child(0).material_override as StandardMaterial3D).albedo_color = tint
+	_hand_phase += delta * (7.0 if climbing else 0.0)
+	var low := Vector3(0, -0.55, -0.35)
+	for k in 2:
+		var arm := _hand_l if k == 0 else _hand_r
+		var side := -1.0 if k == 0 else 1.0
+		var reach := Vector3(side * 0.2, -0.16, -0.42)
+		if climbing:
+			# Hand over hand.
+			reach.y += sin(_hand_phase + k * PI) * 0.12
+		elif _chute > 0.0:
+			reach = Vector3(side * 0.24, 0.12, -0.32)
+		elif _hook_time > 0.0 and k == 1:
+			reach = Vector3(0.1, -0.08, -0.5)
+		arm.position = low.lerp(reach, _hands_up)
+		arm.rotation.x = lerpf(-0.9, 0.35 if _chute > 0.0 else 0.0, _hands_up)
 
 
 ## The eye where the body is between the last two physics steps, plus a smooth
@@ -635,7 +785,16 @@ func _place_camera(delta: float) -> void:
 	var t := _shake_time * 22.0
 	var shake := maxf(_quake, _rumble) * SHAKE_AMOUNT
 	var body := _prev_pos.lerp(global_position, Engine.get_physics_interpolation_fraction())
-	_head.global_transform = Transform3D(Basis.from_euler(Vector3(_pitch, _yaw, 0)), body + Vector3.UP * _eye)
+	var view := Basis.from_euler(Vector3(_pitch, _yaw, 0))
+	var eye := body + Vector3.UP * _eye
+	if Settings.third_person:
+		# Over the shoulder, pulled in where a wall or ceiling is in the way.
+		var want := eye + view * Vector3(THIRD_SIDE, 0.25, THIRD_DISTANCE)
+		var query := PhysicsRayQueryParameters3D.create(eye, want, 1 | 2, [get_rid()])
+		var hit := get_world_3d().direct_space_state.intersect_ray(query)
+		eye = want if hit.is_empty() else eye + (hit.position - eye) * 0.85
+	_head.global_transform = Transform3D(view, eye)
+	_body.global_transform = Transform3D(Basis(Vector3.UP, _yaw), body)
 	_camera.h_offset = (sin(t) + sin(t * 2.3 + 1.7)) * 0.5 * shake
 	# Head bob follows distance walked, so it matches the stride at any speed.
 	# Not on touch screens: there it only makes aiming harder.

@@ -19,6 +19,7 @@ const ACTIONS := {
 	"follow": [KEY_F],
 	"emote": [KEY_G],
 	"photo": [KEY_P],
+	"camera": [KEY_V],
 }
 ## Gamepad: left stick moves (via the same actions), A jumps, B crouches, the
 ## left stick press sprints, X uses/enters, shoulder buttons fire items; the
@@ -32,6 +33,8 @@ const PAD_BUTTONS := {
 	"item_parachute": JOY_BUTTON_LEFT_SHOULDER,
 	"item_bandage": JOY_BUTTON_RIGHT_SHOULDER,
 	"item_hook": JOY_BUTTON_DPAD_UP,
+	"emote": JOY_BUTTON_DPAD_DOWN,
+	"camera": JOY_BUTTON_RIGHT_STICK,
 }
 const PAD_AXES := {
 	"move_left": [JOY_AXIS_LEFT_X, -1.0],
