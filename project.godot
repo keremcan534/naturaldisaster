@@ -25,7 +25,7 @@ window/handheld/orientation=4
 
 [input_devices]
 
-pointing/emulate_mouse_from_touch=false
+pointing/emulate_mouse_from_touch=true
 
 [layer_names]
 
@@ -36,11 +36,108 @@ pointing/emulate_mouse_from_touch=false
 
 [physics]
 
+common/physics_interpolation=true
 3d/physics_engine="Jolt Physics"
+jolt_physics_3d/simulation/velocity_steps=6
+jolt_physics_3d/simulation/position_steps=1
+jolt_physics_3d/simulation/use_enhanced_internal_edge_removal=false
+jolt_physics_3d/simulation/sleep_velocity_threshold=0.08
+jolt_physics_3d/simulation/sleep_time_threshold=0.3
 common/physics_ticks_per_second=60
+common/max_physics_steps_per_frame=2
 
 [rendering]
 
 renderer/rendering_method="mobile"
 renderer/rendering_method.web="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=1
+
+[shader_globals]
+
+sky_top={
+"type": "color",
+"value": Color(0.18, 0.38, 0.72, 1)
+}
+sky_horizon={
+"type": "color",
+"value": Color(0.66, 0.76, 0.86, 1)
+}
+sea_haze={
+"type": "color",
+"value": Color(0.32, 0.48, 0.62, 1)
+}
+wave_height={
+"type": "float",
+"value": 0.5
+}
+island_half={
+"type": "float",
+"value": 25.0
+}
+sun_dir={
+"type": "vec3",
+"value": Vector3(0.4, 0.67, 0.6)
+}
+sun_color={
+"type": "color",
+"value": Color(1, 0.94, 0.84, 1)
+}
+cloud_cover={
+"type": "float",
+"value": 0.42
+}
+cloud_light={
+"type": "color",
+"value": Color(1, 0.98, 0.95, 1)
+}
+cloud_dark={
+"type": "color",
+"value": Color(0.6, 0.66, 0.74, 1)
+}
+wind={
+"type": "float",
+"value": 0.3
+}
+night={
+"type": "float",
+"value": 0.0
+}
+stars={
+"type": "float",
+"value": 0.0
+}
+aurora={
+"type": "float",
+"value": 0.0
+}
+rainbow={
+"type": "float",
+"value": 0.0
+}
+wetness={
+"type": "float",
+"value": 0.0
+}
+player_pos={
+"type": "vec3",
+"value": Vector3(0, -100, 0)
+}
+quality={
+"type": "float",
+"value": 2.0
+}
+hole={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+ash_cover={
+"type": "float",
+"value": 0.0
+}
+cracks={
+"type": "float",
+"value": 0.0
+}

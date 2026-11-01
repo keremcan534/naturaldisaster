@@ -1,0 +1,94 @@
+# Builds an Android APK (debug-signed, for testing on a phone) and attaches it
+# to the run as an artifact. Run it by hand (Actions > Build Android APK > Run
+# workflow, once this file is on the default branch); it also runs by itself when
+# this file or the export presets change. A Google Play release needs a release
+# keystore (see ROADMAP.md).
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/android.yml
+      - export_presets.cfg
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: 4.7.2
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Cache Godot and Android export templates
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-android
+
+      - name: Download Godot and Android export templates
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          base=https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable
+          templates=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mkdir -p ~/godot "$templates"
+          cd ~/godot
+          wget -q "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip
+          mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 godot
+          wget -q "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q -j Godot_v${GODOT_VERSION}-stable_export_templates.tpz \
+            'templates/android_*' 'templates/version.txt' -d "$templates"
+          rm -f *.zip *.tpz
+
+      - name: Debug keystore and editor settings
+        run: |
+          keytool -genkeypair -v -keystore ~/debug.keystore -storepass android -alias androiddebugkey \
+            -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p ~/.config/godot
+          for name in editor_settings-4.tres editor_settings-4.7.tres; do
+            cat > ~/.config/godot/$name <<SETTINGS
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_SDK_ROOT"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$HOME/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          SETTINGS
+            sed -i 's/^          //' ~/.config/godot/$name
+          done
+
+      - name: Stamp version label
+        run: |
+          stamp="$(git rev-parse --short HEAD) $(TZ=Europe/Istanbul date '+%d.%m %H:%M')"
+          sed -i "s|^const VERSION := .*|const VERSION := \"$stamp\"|" scripts/core/build_info.gd
+
+      - name: Export APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: /home/runner/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          mkdir -p build/android
+          ~/godot/godot --headless --import
+          ~/godot/godot --headless --export-debug "Android" build/android/dogal-afet.apk
+          test -f build/android/dogal-afet.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dogal-afet-apk
+          path: build/android/dogal-afet.apk
