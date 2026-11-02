@@ -69,12 +69,10 @@ var _vignette: TextureRect
 var _challenge: Label
 var _pop: Label
 var _pop_time := 0.0
-## Active power-ups with their seconds left, a blue glow at the screen's edge
-## while the shield is up (first person), and a big "KIL PAYI!" for near misses.
+## Active power-ups with their seconds left, and a blue glow at the screen's edge
+## while the shield is up (first person).
 var _powers: Label
 var _shield_glow: TextureRect
-var _near: Label
-var _near_tween: Tween
 
 const POWER_NAMES := {"speed": "HIZ", "jump": "ZIPLAMA", "shield": "KALKAN", "balloon": "BALON"}
 const POWER_POPS := {"speed": "SÜPER HIZ!", "jump": "SÜPER ZIPLAMA!", "shield": "KALKAN!",
@@ -270,15 +268,6 @@ func _ready() -> void:
 	_powers.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_powers.offset_top = 174
 	_powers.add_theme_color_override("font_color", Color(0.75, 0.95, 1.0))
-	_near = _label(46)
-	_near.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	_near.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_near.grow_vertical = Control.GROW_DIRECTION_BOTH
-	_near.offset_top = 40
-	_near.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
-	_near.add_theme_color_override("font_outline_color", Color(0.35, 0.1, 0.0))
-	_near.add_theme_constant_override("outline_size", 12)
-	_near.visible = false
 	# Desktop: what the number keys hold this round.
 	_items = _label(18)
 	_items.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
@@ -358,7 +347,6 @@ func bind(manager: Node, player: Node) -> void:
 			_pop.add_theme_color_override("font_color", Ui.COIN if kind == "coin" else Color(0.5, 1.0, 0.55))
 			_pop_time = 0.9
 		_pop.visible = true)
-	player.near_missed.connect(_show_near_miss)
 	player.helped.connect(func(bot_name: String) -> void:
 		toast(Lang.t("%s ayağa kalktı! +25 puan") % bot_name, 0))
 	player.rescued_now.connect(func() -> void:
@@ -383,21 +371,6 @@ func _show_powers() -> void:
 			parts.append("%s %d" % [tr(POWER_NAMES.get(kind, kind)), ceili(_player.powers[kind])])
 	_powers.text = "  ·  ".join(parts)
 	_shield_glow.visible = _player.alive and _player.powers.has("shield") and not Settings.third_person
-
-
-func _show_near_miss(points: int) -> void:
-	_near.text = Lang.t("KIL PAYI! +%d") % points
-	_near.visible = true
-	_near.pivot_offset = _near.get_combined_minimum_size() * 0.5
-	_near.scale = Vector2.ONE * 1.6
-	_near.modulate.a = 1.0
-	if _near_tween:
-		_near_tween.kill()
-	_near_tween = create_tween()
-	_near_tween.tween_property(_near, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	_near_tween.tween_interval(0.7)
-	_near_tween.tween_property(_near, "modulate:a", 0.0, 0.4)
-	_near_tween.tween_callback(func() -> void: _near.visible = false)
 
 
 ## The ranking after a disaster: total score, this round's points, and the coins

@@ -162,11 +162,8 @@ func _physics_process(delta: float) -> void:
 			continue
 		var at := p.global_position + Vector3.UP
 		p.push(_force_at(at) * delta)
-		var gap := Vector2(at.x - _pos.x, at.z - _pos.z).length()
-		if gap < CORE_RADIUS:
+		if Vector2(at.x - _pos.x, at.z - _pos.z).length() < CORE_RADIUS:
 			p.take_damage(CORE_DAMAGE_PER_SEC * delta)
-		elif gap < CORE_RADIUS + 5.0:
-			p.near_miss()
 
 	_field_timer -= delta
 	if _field_timer <= 0.0:

@@ -146,11 +146,10 @@ const EN := {
 	"Kar fırtınası! Dışarıda donarsın: kapalı bir yere gir!": "Blizzard! You'll freeze outside: get indoors!",
 	"Gökyüzünde bir kara delik açılıyor! Her şeyi çekiyor: uzaklaş, sağlam bir yere tutun!": "A black hole is opening in the sky! It pulls everything: get away, hold on to something solid!",
 	"Gökyüzünde bir UFO! Işığına yakalanma, saklan!": "A UFO in the sky! Don't get caught in its beam, hide!",
-	# Power-ups, near misses, the daily wheel.
+	# Power-ups, the daily wheel.
 	"HIZ": "SPEED", "ZIPLAMA": "JUMP", "KALKAN": "SHIELD", "BALON": "BALLOON",
 	"SÜPER HIZ!": "SUPER SPEED!", "SÜPER ZIPLAMA!": "SUPER JUMP!", "KALKAN!": "SHIELD!",
 	"BALON! Zıplamayı basılı tut, uç": "BALLOON! Hold jump to float up",
-	"KIL PAYI! +%d": "CLOSE CALL! +%d",
 	"ŞANS ÇARKI": "LUCKY WHEEL", "ŞANS ÇARKI!": "LUCKY WHEEL!", "Her gün bir kez bedava!": "Free once a day!",
 	"ÇEVİR!": "SPIN!", "HEDİYE": "PRIZE", "Yeni kıyafet: %s!": "New outfit: %s!", "+%d coin!": "+%d coins!",
 }

@@ -23,8 +23,6 @@ signal photo_requested
 signal rescued_now
 ## Grabbed a pickup: "coin" (value: points) or "kit" (value: health).
 signal picked(kind: String, value: int)
-## Got out of the way of something by a hair (a blast, a falling block, the wave's crest).
-signal near_missed(points: int)
 ## Fast and airborne after a blast or a wave: tumbling through the air.
 signal tumbled
 
@@ -47,10 +45,6 @@ const POWER_SPEED := 1.6
 const POWER_JUMP := 1.75
 const BALLOON_FALL := 1.6
 const BALLOON_RISE := 3.2
-## Near misses: bonus points, seconds between two, and at most this many a round.
-const NEAR_MISS_POINTS := 10
-const NEAR_MISS_GAP := 5.0
-const NEAR_MISS_MAX := 4
 ## Thrown faster than this (m/s) and off the ground: tumbling.
 const TUMBLE_SPEED := 11.0
 
@@ -156,7 +150,6 @@ var helps_round := 0
 var voting := false
 ## Active power-ups: kind -> seconds left (a balloon at 0 still holds you until you land).
 var powers := {}
-var near_misses := 0
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _body: Avatar
@@ -232,9 +225,6 @@ var _stride := 0.0
 var _muffled := false
 var _balloon: Node3D
 var _shield: MeshInstance3D
-var _near_cool := 0.0
-## A near miss waits this long to be sure nothing hit us after all.
-var _near_pending := 0.0
 var _tumble := 0.0
 var _spin := 0.0
 
@@ -428,7 +418,6 @@ func _physics_process(delta: float) -> void:
 	_use_items()
 	_help_teammates(delta)
 	_tick_powers(delta)
-	_update_near(delta)
 
 	var in_water := _in_water()
 	if controls_enabled and Input.is_action_just_pressed("jump"):
@@ -558,26 +547,6 @@ func _tick_powers(delta: float) -> void:
 func _show_powers() -> void:
 	_balloon.visible = powers.has("balloon")
 	_shield.visible = powers.has("shield") and Settings.third_person
-
-
-## Something just missed us: points and a "KIL PAYI!" (a short wait first, in
-## case it hit us after all; a few a round at most).
-func near_miss() -> void:
-	if not alive or rescued or _near_cool > 0.0 or _near_pending > 0.0 or near_misses >= NEAR_MISS_MAX:
-		return
-	_near_pending = 0.3
-
-
-func _update_near(delta: float) -> void:
-	_near_cool -= delta
-	if _near_pending <= 0.0:
-		return
-	_near_pending -= delta
-	if _near_pending <= 0.0 and alive:
-		_near_cool = NEAR_MISS_GAP
-		near_misses += 1
-		bonus_points += NEAR_MISS_POINTS
-		near_missed.emit(NEAR_MISS_POINTS)
 
 
 ## Thrown fast through the air (a blast, the wave, the tornado): the body spins
@@ -1043,17 +1012,8 @@ func _follow_bot(delta: float) -> void:
 ## Something heavy crashed down at pos (energy: mass times speed lost): the
 ## closer, the more the view trembles (only the view; the ground isn't moving).
 func rumble(pos: Vector3, energy: float) -> void:
-	var dist := global_position.distance_to(pos)
-	var near := 1.0 - clampf(dist / 20.0, 0.0, 1.0)
+	var near := 1.0 - clampf(global_position.distance_to(pos) / 20.0, 0.0, 1.0)
 	_rumble = maxf(_rumble, clampf(energy / 400.0, 0.0, 0.35) * near * near)
-	# A heavy block came down right next to us.
-	if energy > 250.0 and dist < 3.5:
-		near_miss()
-
-
-## The camera is under water (sound muffled).
-func hears_underwater() -> bool:
-	return _muffled
 
 
 func set_icy(on: bool) -> void:
@@ -1071,9 +1031,6 @@ func explode_at(pos: Vector3, radius: float, damage: float) -> void:
 	var offset := global_position - pos
 	var dist := offset.length()
 	if dist >= radius:
-		# Just outside the blast.
-		if dist < radius + 3.0:
-			near_miss()
 		return
 	var falloff := 1.0 - dist / radius
 	take_damage(damage * falloff)
@@ -1109,8 +1066,6 @@ func _update_breath(delta: float) -> void:
 func take_damage(amount: float) -> void:
 	if not alive or amount <= 0.0 or rescued or powers.has("shield"):
 		return
-	# It did hit us: no near miss.
-	_near_pending = 0.0
 	damage_taken += minf(amount, health)
 	health = maxf(health - amount, 0.0)
 	health_changed.emit(health, max_health)
@@ -1143,9 +1098,6 @@ func respawn(pos: Vector3) -> void:
 	coins_round = 0
 	kits_round = 0
 	helps_round = 0
-	near_misses = 0
-	_near_pending = 0.0
-	_near_cool = 0.0
 	powers.clear()
 	_show_powers()
 	_tumble = 0.0

@@ -84,7 +84,6 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Her tura bir görev (3 altın topla, 8 m'den yüksekte bitir, hiç hasar alma...): +60 puan
 - ✅ Sürpriz felaket: felaketin ortasında bir tane daha gelebilir
 - ✅ Güçlendirici küreler: süper hız, süper zıplama, koruma kalkanı, uçan balon (zıplamayı basılı tut); botlar da alır
-- ✅ "KIL PAYI!": patlamanın, düşen bloğun, dalga tepesinin, hortumun hemen yanından kurtulunca +10 puan ve kısa ağır çekim
 - ✅ Savrulma: patlama/dalga/hortumla havaya fırlayan takla atar, uçan enkaz çarptığı kişiyi iter
 - ✅ Tur sonunda hayatta kalana konfeti
 - ✅ ⭐ Günlük görevler: her gün 3 yeni görev → coin
@@ -116,7 +115,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Yaralı bota yardım: canı azalan bot "Yardım edin!" der, yanında durunca iyileşir (+25 puan)
 - ✅ Bot seviyeleri (Ayarlar: Kolay / Normal / Zor)
 - ✅ Bot kıyafetleri: rastgele baret, kep, gözlük, sırt çantası
-- ✅ Turlar arasında trambolinde zıplarlar, güç alınca bağırırlar, kıl payı kurtulunca ve havaya uçunca tepki verirler
+- ✅ Turlar arasında trambolinde zıplarlar, güç alınca ve havaya uçunca bağırırlar
 
 ## 5. Grafik ve atmosfer
 - ✅ Bulutlu gökyüzü, gün saatleri, yıldız, aurora, gökkuşağı, yağmur, şimşek

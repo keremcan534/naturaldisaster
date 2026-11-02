@@ -27,7 +27,6 @@ const GREETINGS := ["Selam!", "Merhaba!", "Naber?", "Hey!"]
 const DODGES := ["Çekil!", "Kaçın!", "Ohaa!", "Uzak durun!"]
 const COLLAPSES := ["Bina çöktü!", "Eyvah!", "Dikkat, enkaz!", "Çok yakındı!", "Gördün mü onu?!"]
 const BOUNCY := ["Trambolin!", "Zıp zıp!", "Bakın ne kadar yükseğe!", "Vuhuuu!"]
-const CLOSE_CALLS := ["Kıl payı!", "Ucuz atlattık!", "Az kalsın!", "Hoppala!"]
 const TUMBLES := ["Aaaaa!", "Uçuyorummm!", "İmdaaat!", "Vuhuuu!"]
 const POWER_LINES := {"speed": "Süper hız!", "jump": "Zıp zıp!", "shield": "Kalkan!", "balloon": "Balon!"}
 const WAITING := ["Dayanın!", "Az kaldı!", "Burada güvendeyiz.", "Herkes iyi mi?", "Kıpırdamayın!"]
@@ -980,12 +979,6 @@ func _show_powers() -> void:
 	_shield.visible = powers.has("shield")
 
 
-## Something just missed us.
-func near_miss() -> void:
-	if alive and _bubble_time <= 0.0 and _rng.randf() < 0.3:
-		_say(CLOSE_CALLS[_rng.randi() % CLOSE_CALLS.size()], 1.8)
-
-
 ## Thrown fast through the air: spin head over heels (and yell) until landing.
 func _update_tumble(delta: float, in_water: bool) -> void:
 	var flying := not is_on_floor() and not in_water and _ladder <= 0.0 \
@@ -1038,8 +1031,6 @@ func explode_at(pos: Vector3, radius: float, damage: float) -> void:
 	var offset := global_position - pos
 	var dist := offset.length()
 	if dist >= radius:
-		if dist < radius + 3.0:
-			near_miss()
 		return
 	var falloff := 1.0 - dist / radius
 	take_damage(damage * falloff)

@@ -49,10 +49,7 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   balloon) around the map and on roofs; anyone walking into one gets it (`collected()` /
   `power_up(kind, seconds)` on players and bots; `powers` holds what is running, the
   balloon and bubble come from `scripts/player/power_gear.gd`, `shaders/shield.gdshader`).
-  Near misses (`near_miss()` on players and bots, called just outside blasts in
-  `explode_at`, next to heavy impacts in `rumble`, by the tsunami crest and the tornado)
-  give +10, a "KIL PAYI!" and a short slow motion (main `_slow_motion`, `Engine.time_scale`,
-  reset in `show_menu`). Thrown fast through the air, players and bots tumble head over
+  Thrown fast through the air, players and bots tumble head over
   heels; flying debris shoves them (`_knock`). Survivors get confetti
   (`effects.confetti`), bots bounce on trampolines between rounds (`Maps.trampolines`),
   and the menu has a daily lucky wheel (`scripts/ui/wheel.gd`, `Profile.spin_wheel`).

@@ -132,7 +132,6 @@ func _ready() -> void:
 		elif arg == "--log":
 			manager.status_changed.connect(func(text: String) -> void: print("[%.1fs] %s" % [_elapsed, text]))
 			var player: Node = manager.world._player
-			player.near_missed.connect(func(points: int) -> void: print("[%.1fs] KIL PAYI +%d" % [_elapsed, points]))
 			player.picked.connect(func(kind: String, value: int) -> void: print("[%.1fs] aldı: %s %d" % [_elapsed, kind, value]))
 			player.tumbled.connect(func() -> void: print("[%.1fs] savruldu" % _elapsed))
 		elif arg.begins_with("--run-for="):

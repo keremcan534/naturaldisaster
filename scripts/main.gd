@@ -77,10 +77,6 @@ var _nav_dirty := false
 ## still costs a draw call every frame, so it is hidden once its last particle
 ## is gone (whoever starts it shows it again). [emitter, seconds idle]
 var _emitters: Array = []
-## Near misses slow the whole game down for a moment (real milliseconds left).
-const SLOWMO_SCALE := 0.35
-const SLOWMO_TIME := 0.6
-var _slowmo_until := 0
 var _player: Player
 var _hud: Hud
 var _controls: TouchControls
@@ -139,7 +135,6 @@ func _ready() -> void:
 	_player.helped.connect(func(_name: String) -> void: Profile.count("helps"))
 	_player.rescued_now.connect(func() -> void: Profile.count("rescues"))
 	_player.died.connect(func() -> void: get_tree().call_group("sound", "play", "lose", null, -2.0))
-	_player.near_missed.connect(func(_points: int) -> void: _slow_motion(SLOWMO_TIME))
 
 	_hud = Hud.new()
 	_hud.touch_mode = _touch
@@ -226,7 +221,6 @@ func play(from_menu := true) -> void:
 func show_menu() -> void:
 	var was_playing := _playing
 	_playing = false
-	_end_slow_motion()
 	_manager.stop()
 	_set_controls(false)
 	_hud.visible = false
@@ -409,27 +403,7 @@ func _apply_quality() -> void:
 	_weather.apply_quality(Quality.current())
 
 
-## Everything (physics, disasters, sound loops' callers) runs at a third of the
-## speed for `seconds` of real time, with the sound muffled.
-func _slow_motion(seconds: float) -> void:
-	if not _playing:
-		return
-	Engine.time_scale = SLOWMO_SCALE
-	_slowmo_until = Time.get_ticks_msec() + int(seconds * 1000.0)
-	get_tree().call_group("sound", "muffle", true)
-
-
-func _end_slow_motion() -> void:
-	if _slowmo_until == 0:
-		return
-	_slowmo_until = 0
-	Engine.time_scale = 1.0
-	get_tree().call_group("sound", "muffle", _player.hears_underwater())
-
-
 func _process(delta: float) -> void:
-	if _slowmo_until > 0 and Time.get_ticks_msec() >= _slowmo_until:
-		_end_slow_motion()
 	for entry: Array in _emitters:
 		var p: CPUParticles3D = entry[0]
 		if p.emitting:

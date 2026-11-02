@@ -163,9 +163,6 @@ func _affect_players() -> void:
 				p.take_damage(crest_damage)
 				p.push(_dir * 18.0 + Vector3.UP * 5.0)
 			p.set_water(crest_height, _dir * 20.0)
-		elif s > _front - crest_depth and p.global_position.y < crest_height + 2.5 and not _hit_players.has(p):
-			# The crest passed just under our feet.
-			p.near_miss()
 		elif _level > 0.0:
 			p.set_water(_level, _dir * CURRENT_FORCE)
 	# Boats float on whatever water is there.
