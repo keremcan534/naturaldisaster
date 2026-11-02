@@ -74,11 +74,10 @@ var _pop_time := 0.0
 var _powers: Label
 var _shield_glow: TextureRect
 
-const POWER_NAMES := {"speed": "HIZ", "jump": "ZIPLAMA", "shield": "KALKAN", "balloon": "BALON"}
-const POWER_POPS := {"speed": "SÜPER HIZ!", "jump": "SÜPER ZIPLAMA!", "shield": "KALKAN!",
-		"balloon": "BALON! Zıplamayı basılı tut, uç"}
+const POWER_NAMES := {"speed": "HIZ", "jump": "ZIPLAMA", "shield": "KALKAN"}
+const POWER_POPS := {"speed": "SÜPER HIZ!", "jump": "SÜPER ZIPLAMA!", "shield": "KALKAN!"}
 const POWER_COLORS := {"speed": Color(1.0, 0.8, 0.2), "jump": Color(0.4, 1.0, 0.45),
-		"shield": Color(0.45, 0.8, 1.0), "balloon": Color(1.0, 0.5, 0.8)}
+		"shield": Color(0.45, 0.8, 1.0)}
 
 
 func _ready() -> void:

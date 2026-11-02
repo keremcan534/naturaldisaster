@@ -25,7 +25,7 @@ extends Node
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
 ##   --botlog            prints every bot's plan, position and health each second
 ##   --power=<kind>      every round the player gets this power-up (speed, jump,
-##                       shield, balloon) and each bot a random one
+##                       shield) and each bot a random one
 ##   --pos=x,y,z         puts the player there on the first frame
 ##   --yaw=<deg>         with --pos, turns the player
 ##   --pitch=<deg>       with --pos, looks up (positive) or down
@@ -133,13 +133,12 @@ func _ready() -> void:
 			manager.status_changed.connect(func(text: String) -> void: print("[%.1fs] %s" % [_elapsed, text]))
 			var player: Node = manager.world._player
 			player.picked.connect(func(kind: String, value: int) -> void: print("[%.1fs] aldı: %s %d" % [_elapsed, kind, value]))
-			player.tumbled.connect(func() -> void: print("[%.1fs] savruldu" % _elapsed))
 		elif arg.begins_with("--run-for="):
 			_run_for = arg.get_slice("=", 1).to_float()
 
 
 func _give_powers(kind: String) -> void:
-	var kinds := ["speed", "jump", "shield", "balloon"]
+	var kinds := ["speed", "jump", "shield"]
 	manager.world._player.power_up(kind, 30.0)
 	for bot: Node in get_tree().get_nodes_in_group("bots"):
 		bot.power_up(kinds.pick_random(), 30.0)

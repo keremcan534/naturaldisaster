@@ -2,7 +2,7 @@ extends Node3D
 const Prof := preload("res://scripts/core/prof.gd")
 ## Things to grab during a round: gold coins (round points) all over the
 ## island, many of them up on roofs and out in the open where the danger is,
-## first-aid kits, and power-up orbs (speed, super jump, shield, balloon; see
+## first-aid kits, and power-up orbs (speed, super jump, shield; see
 ## POWERS). A few appear while waiting for the disaster and more keep coming
 ## while it lasts; whoever walks into one (player or bot) gets it. They spin and
 ## bob; all of them are three MultiMeshes. The manager switches phases.
@@ -23,7 +23,6 @@ const POWERS := {
 	"speed": [Color(1.0, 0.75, 0.1), 12.0],
 	"jump": [Color(0.3, 1.0, 0.35), 12.0],
 	"shield": [Color(0.3, 0.7, 1.0), 8.0],
-	"balloon": [Color(1.0, 0.45, 0.8), 10.0],
 }
 
 ## [position, kind ("coin"/"kit"), age]

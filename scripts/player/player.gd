@@ -23,8 +23,6 @@ signal photo_requested
 signal rescued_now
 ## Grabbed a pickup: "coin" (value: points) or "kit" (value: health).
 signal picked(kind: String, value: int)
-## Fast and airborne after a blast or a wave: tumbling through the air.
-signal tumbled
 
 const Settings := preload("res://scripts/core/settings.gd")
 const Profile := preload("res://scripts/core/profile.gd")
@@ -39,14 +37,9 @@ const THIRD_SIDE := 0.45
 const Avatar := preload("res://scripts/player/avatar.gd")
 const PowerGear := preload("res://scripts/player/power_gear.gd")
 
-## Power-ups (pickups.gd): speed and jump multipliers, how slowly the balloon
-## lets you fall and how fast holding jump lifts you.
+## Power-ups (pickups.gd): speed and jump multipliers.
 const POWER_SPEED := 1.6
 const POWER_JUMP := 1.75
-const BALLOON_FALL := 1.6
-const BALLOON_RISE := 3.2
-## Thrown faster than this (m/s) and off the ground: tumbling.
-const TUMBLE_SPEED := 11.0
 
 ## Human scale: a brisk walk, a run, and a jump of about 1.3 m.
 const SPEED := 4.5
@@ -148,7 +141,7 @@ var kits_round := 0
 var helps_round := 0
 ## Map votes are open: the number keys vote instead of using items (hud.gd).
 var voting := false
-## Active power-ups: kind -> seconds left (a balloon at 0 still holds you until you land).
+## Active power-ups: kind -> seconds left.
 var powers := {}
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -223,10 +216,7 @@ var _hand_phase := 0.0
 ## Footsteps: distance walked since the last one, and whether the view is muffled.
 var _stride := 0.0
 var _muffled := false
-var _balloon: Node3D
 var _shield: MeshInstance3D
-var _tumble := 0.0
-var _spin := 0.0
 
 
 func _ready() -> void:
@@ -275,9 +265,7 @@ func _ready() -> void:
 	# so in third person it doesn't stutter against it.
 	_body.top_level = true
 	add_child(_body)
-	# Power-up looks, hidden until picked up (children of the body, so they follow it).
-	_balloon = PowerGear.balloon()
-	_body.add_child(_balloon)
+	# The shield's bubble, hidden until picked up (a child of the body, so it follows it).
 	_shield = PowerGear.bubble()
 	_body.add_child(_shield)
 
@@ -425,7 +413,7 @@ func _physics_process(delta: float) -> void:
 	_jump_buffer -= delta
 	_coyote = COYOTE_TIME if is_on_floor() else _coyote - delta
 	if is_on_floor():
-		# Super jump boots and the balloon land softly.
+		# Super jump boots land softly.
 		if _fall_speed > _fall_damage_speed and not powers.has("jump"):
 			take_damage((_fall_speed - _fall_damage_speed) * 6.0)
 		_fall_speed = 0.0
@@ -436,14 +424,6 @@ func _physics_process(delta: float) -> void:
 		velocity.y = _jump_velocity * (POWER_JUMP if powers.has("jump") else 1.0)
 		_jump_buffer = 0.0
 		_coyote = 0.0
-	if powers.has("balloon") and not in_water:
-		# Holding jump floats up; otherwise a slow drift down.
-		var rising: bool = controls_enabled and Input.is_action_pressed("jump") and powers.balloon > 0.0
-		if rising and velocity.y < BALLOON_RISE:
-			velocity.y = minf(velocity.y + (_gravity + 14.0) * delta, BALLOON_RISE)
-		elif velocity.y < -BALLOON_FALL:
-			velocity.y = move_toward(velocity.y, -BALLOON_FALL, 30.0 * delta)
-		_fall_speed = 0.0
 
 	var drag := PUSH_DRAG_GROUND if is_on_floor() else PUSH_DRAG_AIR
 	if in_water:
@@ -498,7 +478,6 @@ func _physics_process(delta: float) -> void:
 	velocity.z = _walk.z + _push.z
 	move_and_slide()
 	_touch_pieces()
-	_update_tumble(delta, in_water)
 	max_height = maxf(max_height, global_position.y)
 	# Grass and flowers bend away from the player's legs.
 	RenderingServer.global_shader_parameter_set("player_pos", global_position)
@@ -537,38 +516,13 @@ func _tick_powers(delta: float) -> void:
 		return
 	for kind: String in powers.keys():
 		powers[kind] = maxf(powers[kind] - delta, 0.0)
-		# A balloon that runs out up in the air still lowers us to the ground.
-		var holding: bool = kind == "balloon" and not is_on_floor() and not _in_water()
-		if powers[kind] <= 0.0 and not holding:
+		if powers[kind] <= 0.0:
 			powers.erase(kind)
 			_show_powers()
 
 
 func _show_powers() -> void:
-	_balloon.visible = powers.has("balloon")
 	_shield.visible = powers.has("shield") and Settings.third_person
-
-
-## Thrown fast through the air (a blast, the wave, the tornado): the body spins
-## (third person) and the view rolls a little, until we land.
-func _update_tumble(delta: float, in_water: bool) -> void:
-	var flying := not is_on_floor() and not in_water and _ladder <= 0.0 and _hook_time <= 0.0 \
-			and velocity.length() > TUMBLE_SPEED and _push.length() > 5.0
-	if flying:
-		if _tumble <= 0.0:
-			tumbled.emit()
-		_tumble = 0.5
-	elif is_on_floor() or in_water:
-		_tumble = minf(_tumble, 0.0)
-	_tumble -= delta
-	if _tumble > 0.0:
-		_spin += delta * 9.0
-	elif _spin != 0.0:
-		# Land upright: finish the turn quickly.
-		var upright := roundf(_spin / TAU) * TAU
-		_spin = move_toward(_spin, upright, delta * 14.0)
-		if _spin == upright:
-			_spin = 0.0
 
 
 ## A bot patched us up.
@@ -938,8 +892,7 @@ func _place_camera(delta: float) -> void:
 	var t := _shake_time * 22.0
 	var shake := maxf(_quake, _rumble) * SHAKE_AMOUNT
 	var body := _prev_pos.lerp(global_position, Engine.get_physics_interpolation_fraction())
-	# Tumbling: the view rolls a little as the body spins.
-	var view := Basis.from_euler(Vector3(_pitch, _yaw, sin(_spin) * 0.22))
+	var view := Basis.from_euler(Vector3(_pitch, _yaw, 0))
 	var eye := body + Vector3.UP * _eye
 	if Settings.third_person:
 		# Over the shoulder, pulled in where a wall or ceiling is in the way.
@@ -948,13 +901,7 @@ func _place_camera(delta: float) -> void:
 		var hit := get_world_3d().direct_space_state.intersect_ray(query)
 		eye = want if hit.is_empty() else eye + (hit.position - eye) * 0.85
 	_head.global_transform = Transform3D(view, eye)
-	var facing := Basis(Vector3.UP, _yaw)
-	if _spin == 0.0:
-		_body.global_transform = Transform3D(facing, body)
-	else:
-		# Head over heels around the middle of the body.
-		var turn := facing * Basis(Vector3.RIGHT, -_spin)
-		_body.global_transform = Transform3D(turn, body + Vector3.UP * 0.9 - turn * Vector3.UP * 0.9)
+	_body.global_transform = Transform3D(Basis(Vector3.UP, _yaw), body)
 	_camera.h_offset = (sin(t) + sin(t * 2.3 + 1.7)) * 0.5 * shake
 	# Head bob follows distance walked, so it matches the stride at any speed.
 	# Not on touch screens: there it only makes aiming harder.
@@ -1100,8 +1047,6 @@ func respawn(pos: Vector3) -> void:
 	helps_round = 0
 	powers.clear()
 	_show_powers()
-	_tumble = 0.0
-	_spin = 0.0
 	_chute = 0.0
 	_hook_time = 0.0
 	_mantle = 0.0

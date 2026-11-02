@@ -45,15 +45,13 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   sometimes flies to the highest refuge roof mid-disaster; reaching its ladder calls
   `rescue()` on players/bots (no more damage that round, bonus points).
 - Round spice: `scripts/world/pickups.gd` (group "pickups", phases from the manager) puts gold
-  coins (round points), first-aid kits and power orbs (`POWERS`: speed, jump, shield,
-  balloon) around the map and on roofs; anyone walking into one gets it (`collected()` /
+  coins (round points), first-aid kits and power orbs (`POWERS`: speed, jump, shield)
+  around the map and on roofs; anyone walking into one gets it (`collected()` /
   `power_up(kind, seconds)` on players and bots; `powers` holds what is running, the
-  balloon and bubble come from `scripts/player/power_gear.gd`, `shaders/shield.gdshader`).
-  Thrown fast through the air, players and bots tumble head over
-  heels; flying debris shoves them (`_knock`). Survivors get confetti
-  (`effects.confetti`), bots bounce on trampolines between rounds (`Maps.trampolines`),
-  and the menu has a daily lucky wheel (`scripts/ui/wheel.gd`, `Profile.spin_wheel`).
-  Each round has a goal for the
+  shield's bubble comes from `scripts/player/power_gear.gd`, `shaders/shield.gdshader`).
+  Flying debris shoves whoever it hits (`_knock`). The user finds cute/childish touches
+  (balloons, confetti, lucky wheels, slow-motion "close call" moments) boring: keep the
+  game intense and grown-up. Each round has a goal for the
   player (`DisasterManager.CHALLENGES`, bonus points, HUD line), and halfway through a
   disaster another may join it (`_surprise()`, `SURPRISE_CHANCE` per mode).
 - Player extras: crouch, mantling ledges, items bought in the shop (`items`, parachute /

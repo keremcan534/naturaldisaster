@@ -28,7 +28,6 @@ const BuildInfo := preload("res://scripts/core/build_info.gd")
 const Avatar := preload("res://scripts/player/avatar.gd")
 const Ui := preload("res://scripts/ui/ui.gd")
 const SettingsPanel := preload("res://scripts/ui/settings_panel.gd")
-const Wheel := preload("res://scripts/ui/wheel.gd")
 
 ## Set before adding: the world (3D nodes go there) and the touch controls (or null).
 var world: Node3D
@@ -42,8 +41,6 @@ var _settings_back: Control
 var _coins: Ui.CoinLabel
 var _stats: Label
 var _gift: Button
-var _wheel_button: Button
-var _wheel: Wheel
 var _shop_list: VBoxContainer
 var _shop_coins: Ui.CoinLabel
 var _level: Label
@@ -88,9 +85,6 @@ func _ready() -> void:
 	_settings.controls = controls
 	_settings.closed.connect(func() -> void: _open(_settings_back))
 	add_child(_settings)
-	_wheel = Wheel.new()
-	_wheel.closed.connect(func() -> void: _open(_main))
-	add_child(_wheel)
 	hide_all()
 
 
@@ -115,12 +109,11 @@ func hide_all() -> void:
 
 
 func is_open() -> bool:
-	return _main.visible or _shop.visible or _pause.visible or _settings.visible or _goals.visible or _tutorial.visible \
-			or _wheel.visible
+	return _main.visible or _shop.visible or _pause.visible or _settings.visible or _goals.visible or _tutorial.visible
 
 
 func _open(screen: Control) -> void:
-	for s: Control in [_main, _shop, _pause, _settings, _goals, _tutorial, _wheel]:
+	for s: Control in [_main, _shop, _pause, _settings, _goals, _tutorial]:
 		s.visible = s == screen
 	if screen == _main:
 		_refresh_main()
@@ -206,15 +199,6 @@ func _build_main() -> Control:
 	column.add_child(_gift)
 	root.add_child(column)
 
-	# Once a day: the lucky wheel (bottom left, above the records).
-	_wheel_button = Ui.button("ŞANS ÇARKI!", 24, true)
-	_wheel_button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	_wheel_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_wheel_button.offset_left = 40
-	_wheel_button.offset_bottom = -62
-	_wheel_button.pressed.connect(func() -> void: _open(_wheel))
-	root.add_child(_wheel_button)
-
 	_stats = Ui.text("", 18, Color(1, 1, 1, 0.85))
 	_stats.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	_stats.grow_vertical = Control.GROW_DIRECTION_BEGIN
@@ -235,7 +219,6 @@ func _build_main() -> Control:
 func _refresh_main() -> void:
 	_coins.set_amount(Profile.coins)
 	_gift.visible = Profile.gift_ready()
-	_wheel_button.visible = Profile.wheel_ready()
 	_gift.text = Lang.t("GÜNLÜK HEDİYE (%d. gün / 7): +%d") % [Profile.next_streak_day(), Profile.gift_amount()]
 	_stats.text = Lang.t("En yüksek puan: %d     Hayatta kalınan tur: %d / %d") % [
 			Profile.best_score, Profile.rounds_survived, Profile.rounds_played]

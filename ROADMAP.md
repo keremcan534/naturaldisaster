@@ -83,9 +83,8 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Tur içinde toplanan altınlar (çatılarda ve tehlikeli yerlerde de) ve sağlık kitleri
 - ✅ Her tura bir görev (3 altın topla, 8 m'den yüksekte bitir, hiç hasar alma...): +60 puan
 - ✅ Sürpriz felaket: felaketin ortasında bir tane daha gelebilir
-- ✅ Güçlendirici küreler: süper hız, süper zıplama, koruma kalkanı, uçan balon (zıplamayı basılı tut); botlar da alır
-- ✅ Savrulma: patlama/dalga/hortumla havaya fırlayan takla atar, uçan enkaz çarptığı kişiyi iter
-- ✅ Tur sonunda hayatta kalana konfeti
+- ✅ Güçlendirici küreler: süper hız, süper zıplama, koruma kalkanı; botlar da alır
+- ✅ Uçan enkaz çarptığı kişiyi iter
 - ✅ ⭐ Günlük görevler: her gün 3 yeni görev → coin
 - ✅ ⭐ Seviye / XP sistemi, seviye atlayınca ödül
 - ✅ ⭐ Başarımlar: Kaptan, İtfaiyeci, Fırtına Avcısı, Durdurulamaz… (12 tane)
@@ -115,7 +114,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Yaralı bota yardım: canı azalan bot "Yardım edin!" der, yanında durunca iyileşir (+25 puan)
 - ✅ Bot seviyeleri (Ayarlar: Kolay / Normal / Zor)
 - ✅ Bot kıyafetleri: rastgele baret, kep, gözlük, sırt çantası
-- ✅ Turlar arasında trambolinde zıplarlar, güç alınca ve havaya uçunca bağırırlar
+- ✅ Güç alınca söylerler
 
 ## 5. Grafik ve atmosfer
 - ✅ Bulutlu gökyüzü, gün saatleri, yıldız, aurora, gökkuşağı, yağmur, şimşek
@@ -172,7 +171,6 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Coin, güçlendirmeler, kıyafet renkleri, günlük hediye
 - ✅ ⭐ Şapka, güneş gözlüğü, sırt çantası (mağazada, tak/çıkar); iz efektleri ileride
 - ✅ ⭐ Günlük giriş serisi: her gün artan hediye, 7. gün 1000 coin
-- ✅ Günlük şans çarkı (ana menüde): coin ya da henüz alınmamış bir kıyafet
 - 🚧 Sezon kartı: aylık ücretsiz yol var (10 kademe, sonunda özel kıyafet); 🔒 premium yol ödeme sistemi ister
 - 🔒 Reklam izle → 2 kat coin: oyun tarafı hazır (sayfada showRewardedAd varsa tuş çıkar); bir oyun portalı hesabı ve SDK'sı lazım
 - 🔒 Coin paketleri, reklamsız paket: Google Play geliştirici hesabı ve ödeme ayarı lazım

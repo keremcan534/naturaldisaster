@@ -296,7 +296,6 @@ func _on_round_scored(board: Array) -> void:
 	get_tree().call_group("sound", "music", "calm")
 	if _player.is_in_group("player") and _player.alive:
 		get_tree().call_group("sound", "play", "win", null, -2.0)
-		get_tree().call_group("effects", "confetti", _player.global_position)
 	for toast: Array in toasts:
 		_hud.toast(toast[0], toast[1])
 
