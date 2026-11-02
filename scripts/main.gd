@@ -93,7 +93,7 @@ func _ready() -> void:
 	# the player's own camera (interpolated by hand), stays as drawn.
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	InputSetup.register()
-	var args := OS.get_cmdline_user_args()
+	var args := DebugTools.args()
 	# Tablets can report a desktop OS in the browser; a touchscreen settles it.
 	_touch = OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios") \
 			or (OS.has_feature("web") and DisplayServer.is_touchscreen_available()) \

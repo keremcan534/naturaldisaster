@@ -1,4 +1,5 @@
 extends Node3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## A breakable structure made of box pieces: a building (walls, floor tiles,
 ## ramps) or props (trees, fences, cars).
 ##
@@ -571,6 +572,7 @@ func _link(i: int, j: int) -> void:
 
 ## Earthquake tick; intensity is 0..1.
 func quake(intensity: float) -> void:
+	var _p := Prof.begin()
 	var expected := intensity * intensity * QUAKE_PIECES_PER_TICK / strength
 	var count := int(expected) + (1 if randf() < expected - floorf(expected) else 0)
 	var broke := false
@@ -592,6 +594,7 @@ func quake(intensity: float) -> void:
 			# Loose things hop and slide around while the ground heaves.
 			var push := Vector3(randf_range(-1, 1), randf_range(0.1, 0.6), randf_range(-1, 1))
 			rb.apply_central_impulse(push * rb.mass * intensity * 3.0)
+	Prof.end("quake", _p)
 
 
 func damage_sphere(center: Vector3, radius: float, force: float) -> void:
@@ -618,7 +621,9 @@ func damage_sphere(center: Vector3, radius: float, force: float) -> void:
 ## force_at.call(global_pos) returns. Intact pieces tear loose when the force beats
 ## their hold. Meant to be called on a fixed tick of length delta.
 func apply_field(region: AABB, force_at: Callable, delta: float) -> void:
+	var _p := Prof.begin()
 	if not AABB(_bounds.position + global_position, _bounds.size).intersects(region):
+		Prof.end("field", _p)
 		return
 	var hold := HOLD_FORCE * strength
 	var broke := false
@@ -646,12 +651,15 @@ func apply_field(region: AABB, force_at: Callable, delta: float) -> void:
 		rb.apply_central_impulse(force * rb.mass * delta)
 	if broke:
 		_settle()
+	Prof.end("field", _p)
 
 
 ## A falling piece (or anything) hit something hard at pos: intact pieces right
 ## there may be knocked loose, so collapses spread.
 func impact(pos: Vector3, energy: float) -> void:
+	var _p := Prof.begin()
 	if not AABB(_bounds.position + global_position, _bounds.size).grow(1.0).has_point(pos):
+		Prof.end("impact", _p)
 		return
 	var chance := energy / (IMPACT_HOLD * strength)
 	var broke := false
@@ -664,12 +672,15 @@ func impact(pos: Vector3, energy: float) -> void:
 			broke = true
 	if broke:
 		_settle()
+	Prof.end("impact", _p)
 
 
 ## Loose pieces stay in their batch: its instance follows the body (only while
 ## it moves, plus once when it comes to rest).
 func _process(_delta: float) -> void:
+	var _p := Prof.begin()
 	if _loose_list.is_empty():
+		Prof.end("structures", _p)
 		return
 	var k := 0
 	while k < _loose_list.size():
@@ -687,18 +698,22 @@ func _process(_delta: float) -> void:
 				t = Transform3D(t.basis * Basis.from_scale(_sizes[i]), t.origin)
 			_batches[_batch_of[i]].set_instance_transform(_slot_of[i], t)
 			_was_awake[i] = 1 if moving else 0
+	Prof.end("structures", _p)
 
 
 func _physics_process(delta: float) -> void:
+	var _p := Prof.begin()
 	if not _burning.is_empty():
 		_fire_timer -= delta
 		if _fire_timer <= 0.0:
 			_fire_timer = FIRE_TICK
 			_fire_tick()
 	if _moving.is_empty():
+		Prof.end("structures_phys", _p)
 		return
 	_impact_timer -= delta
 	if _impact_timer > 0.0:
+		Prof.end("structures_phys", _p)
 		return
 	_impact_timer = IMPACT_TICK
 	var k := 0
@@ -729,6 +744,7 @@ func _physics_process(delta: float) -> void:
 		# Landing hard, it breaks apart (walls crumble, slabs crack up).
 		if randf() < clampf((lost - IMPACT_DV) / 6.0, 0.55, 0.95):
 			_shatter(i, pos + Vector3.DOWN, clampf(lost * 0.35, 2.0, 9.0))
+	Prof.end("structures_phys", _p)
 
 
 func _release(i: int) -> void:
@@ -841,6 +857,7 @@ func _dust(pos: Vector3) -> void:
 ## Drops every intact piece that can't trace support back to the ground.
 ## Moving up through a resting contact resets the span; each sideways step costs one.
 func _settle() -> void:
+	var _p := Prof.begin()
 	var n := _pieces.size()
 	var span := PackedInt32Array()
 	span.resize(n)
@@ -874,6 +891,7 @@ func _settle() -> void:
 	if dropped >= 6:
 		var at := where / dropped
 		get_tree().call_group("effects", "cloud", Vector3(at.x, maxf(at.y * 0.4, 1.0), at.z), sqrt(float(dropped)) * 1.5)
+	Prof.end("settle", _p)
 
 
 ## How likely a piece is to break up instead of coming off whole: slabs (wide

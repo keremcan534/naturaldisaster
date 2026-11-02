@@ -1,4 +1,5 @@
 extends CharacterBody3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## First-person player: movement, camera, health and damage from debris, falls and blasts.
 ##
 ## The camera is drawn where the body is between two physics steps (interpolated),
@@ -376,8 +377,10 @@ func apply_perks() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var _p := Prof.begin()
 	_prev_pos = global_position
 	if not alive:
+		Prof.end("player_phys", _p)
 		return
 	if _mantle > 0.0:
 		# Pulling up over a ledge: a short scripted move, no physics.
@@ -386,6 +389,7 @@ func _physics_process(delta: float) -> void:
 		global_position = _mantle_from.lerp(_mantle_to, smoothstep(0.0, 1.0, t))
 		velocity = Vector3.ZERO
 		_fall_speed = 0.0
+		Prof.end("player_phys", _p)
 		return
 	_update_crouch()
 	_use_items()
@@ -468,6 +472,7 @@ func _physics_process(delta: float) -> void:
 			# Safe this round, but not falling forever.
 			teleport(Vector3(0, 30, 0))
 		take_damage(MAX_HEALTH)
+	Prof.end("player_phys", _p)
 
 
 ## Walked into a pickup (pickups.gd): coins are already counted in bonus_points.
@@ -684,11 +689,13 @@ func _auto_jump(dir: Vector3) -> void:
 
 
 func _process(delta: float) -> void:
+	var _p := Prof.begin()
 	_shake_time += delta
 	_quake = move_toward(_quake, 0.0, delta * 2.0)
 	_rumble = move_toward(_rumble, 0.0, delta * 3.0)
 	if not alive:
 		_follow_bot(delta)
+		Prof.end("player", _p)
 		return
 	_eye = lerpf(_eye, CROUCH_EYE if _crouching else EYE_HEIGHT, minf(delta * 12.0, 1.0))
 	_place_camera(delta)
@@ -721,6 +728,7 @@ func _process(delta: float) -> void:
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0
 	_body.animate(delta, ground_speed, 1.0 if _ladder > 0.0 or _wave_time > 0.0 or _chute > 0.0 else 0.0)
 	_footsteps(delta, ground_speed)
+	Prof.end("player", _p)
 
 
 ## A step sound every stride: soft on earth and grass, sharper on floors and

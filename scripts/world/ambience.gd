@@ -1,4 +1,5 @@
 extends Node3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## Life around the island between disasters: cargo ships sailing slow circles
 ## out at sea, rocking on the swell, and seagulls circling overhead (moved by
 ## their shader). Rebuilt for each map's size; the birds leave at night.
@@ -107,6 +108,7 @@ func _flee(to: float, seconds: float) -> void:
 
 
 func _process(delta: float) -> void:
+	var _p := Prof.begin()
 	_time += delta
 	_calls(delta)
 	if _barks > 0:
@@ -127,6 +129,7 @@ func _process(delta: float) -> void:
 		var heading := -angle - PI * 0.5 if route.z > 0.0 else -angle + PI * 0.5
 		var rock := Basis.from_euler(Vector3(sin(_time * 0.5 + i) * 0.04, 0, sin(_time * 0.37 + i * 2.0) * 0.025))
 		_ships[i].transform = Transform3D(Basis(Vector3.UP, heading) * rock, pos)
+	Prof.end("ambience", _p)
 
 
 ## Birds and crickets, only while the weather is calm (they go quiet in rain

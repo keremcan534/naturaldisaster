@@ -1,4 +1,5 @@
 extends CharacterBody3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## An AI teammate. It runs around like a player and, a moment after a disaster
 ## is announced, heads for safety the way a person would: up the stairs or a
 ## ladder for floods, open ground for quakes, inside for meteors, away from
@@ -252,6 +253,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var _p := Prof.begin()
 	if _bubble_time > 0.0:
 		_bubble_time -= delta
 		if _bubble_time <= 0.0:
@@ -261,6 +263,7 @@ func _physics_process(delta: float) -> void:
 		_avatar.rotation.x = move_toward(_avatar.rotation.x, -PI * 0.5, delta * 6.0)
 		if _dead_time > 3.0:
 			_avatar.visible = false
+		Prof.end("bots", _p)
 		return
 
 	_think -= delta
@@ -348,6 +351,7 @@ func _physics_process(delta: float) -> void:
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0
 	var arms := 1.0 if _ladder > 0.0 or (_panic > 0.0 and _hurry) or _cheer > 0.0 or _wave > 0.0 else 0.0
 	_avatar.animate(delta, ground_speed, arms)
+	Prof.end("bots", _p)
 
 
 func _touch_pieces() -> void:

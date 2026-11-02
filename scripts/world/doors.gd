@@ -1,4 +1,5 @@
 extends Node3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## Sliding glass doors in the buildings' front doorways: they slide open when
 ## anyone (player or bot) comes near and close behind them, and shatter when the
 ## wall holding them breaks. Every panel is drawn by one MultiMesh (one draw
@@ -76,7 +77,9 @@ func add_map() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var _p := Prof.begin()
 	if _doors.is_empty():
+		Prof.end("doors", _p)
 		return
 	_tick -= delta
 	if _tick <= 0.0:
@@ -87,13 +90,16 @@ func _physics_process(delta: float) -> void:
 			continue
 		door.open = move_toward(door.open, door.want, delta * SPEED)
 		door.body.global_position = door.closed + door.slide * smoothstep(0.0, 1.0, door.open)
+	Prof.end("doors", _p)
 
 
 func _process(_delta: float) -> void:
+	var _p := Prof.begin()
 	for k in _doors.size():
 		var door: Dictionary = _doors[k]
 		if not door.broken and (door.open > 0.0 or door.want > 0.0):
 			_draw(k)
+	Prof.end("doors", _p)
 
 
 ## Who is near each door, and whether its wall still stands.

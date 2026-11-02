@@ -1,4 +1,5 @@
 extends Node3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## Things to grab during a round: gold coins (round points) all over the
 ## island, many of them up on roofs and out in the open where the danger is,
 ## and first-aid kits. A few appear while waiting for the disaster and more keep
@@ -128,7 +129,9 @@ func _floor_under(p: Vector3) -> bool:
 
 
 func _physics_process(delta: float) -> void:
+	var _p := Prof.begin()
 	if _items.is_empty() and not _spawning:
+		Prof.end("pickups", _p)
 		return
 	if _spawning:
 		_spawn_timer -= delta
@@ -137,6 +140,7 @@ func _physics_process(delta: float) -> void:
 			_spawn("kit" if _rng.randf() < 0.2 else "coin")
 	_tick -= delta
 	if _tick > 0.0:
+		Prof.end("pickups", _p)
 		return
 	_tick = TICK
 	var k := 0
@@ -159,6 +163,7 @@ func _physics_process(delta: float) -> void:
 			_items.remove_at(k)
 		else:
 			k += 1
+	Prof.end("pickups", _p)
 
 
 func _give(p: Node3D, item: Array) -> void:
@@ -172,10 +177,13 @@ func _give(p: Node3D, item: Array) -> void:
 
 
 func _process(delta: float) -> void:
+	var _p := Prof.begin()
 	if _items.is_empty() and _coins.visible_instance_count == 0 and _kits.visible_instance_count == 0:
+		Prof.end("pickups", _p)
 		return
 	_time += delta
 	_redraw()
+	Prof.end("pickups", _p)
 
 
 ## Spinning, bobbing, and blinking out in their last seconds.

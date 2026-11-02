@@ -1,4 +1,5 @@
 extends Node
+const Prof := preload("res://scripts/core/prof.gd")
 ## Every sound in the game, made from code (no audio files): noise shaped into
 ## rumbles, wind, surf, rain and fire, a siren, booms and crashes, and UI blips.
 ## They are generated a few per frame after startup (in the menu), then played
@@ -83,6 +84,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	var _p := Prof.begin()
 	_time += delta
 	if not _pending.is_empty() and not _building:
 		var name: String = _pending.pop_front()
@@ -105,6 +107,7 @@ func _process(delta: float) -> void:
 			player.volume_db = linear_to_db(entry[1])
 		elif player.playing:
 			player.stop()
+	Prof.end("sound", _p)
 
 
 ## Muffled (under water) or clear.

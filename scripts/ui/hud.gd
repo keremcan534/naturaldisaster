@@ -1,4 +1,5 @@
 extends CanvasLayer
+const Prof := preload("res://scripts/core/prof.gd")
 ## Round status, countdown, health bar, death message, score and coins, how many
 ## are still alive, and the scoreboard after every disaster.
 
@@ -253,6 +254,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	var _p := Prof.begin()
 	_worst = maxf(_worst, delta * 1000.0)
 	_frame_sum += delta * 1000.0
 	_frames += 1
@@ -289,6 +291,7 @@ func _process(delta: float) -> void:
 	_hurt.modulate.a = maxf(_hurt_amount, pulse)
 	# Full-screen layers cost phones a pass over every pixel: draw them only when seen.
 	_hurt.visible = _hurt.modulate.a > 0.004
+	Prof.end("hud", _p)
 
 
 func bind(manager: Node, player: Node) -> void:

@@ -1,4 +1,5 @@
 extends Node3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## Draws fire wherever structures burn (see Structure.ignite) and hurts whoever
 ## stands in it: flames on the burning pieces nearest the camera (one MultiMesh,
 ## one draw call), smoke columns over the biggest blazes, and a flickering
@@ -63,20 +64,25 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	var _p := Prof.begin()
 	_time += delta
 	for i in _lights.size():
 		if _lights[i].visible:
 			_lights[i].light_energy = 1.1 + sin(_time * 13.0 + i * 2.0) * 0.25 + sin(_time * 29.0 + i) * 0.15
+	Prof.end("flames", _p)
 
 
 func _physics_process(delta: float) -> void:
+	var _p := Prof.begin()
 	_timer -= delta
 	if _timer > 0.0:
+		Prof.end("flames_phys", _p)
 		return
 	_timer = TICK
 	if Structure.fires <= 0:
 		if _flame_instance.visible:
 			_hide_all()
+		Prof.end("flames_phys", _p)
 		return
 	_points.clear()
 	for s: Node in get_tree().get_nodes_in_group("structures"):
@@ -84,6 +90,7 @@ func _physics_process(delta: float) -> void:
 			s.collect_fire(_points)
 	if _points.is_empty():
 		_hide_all()
+		Prof.end("flames_phys", _p)
 		return
 	_burn_players()
 	_draw_flames()
@@ -93,6 +100,7 @@ func _physics_process(delta: float) -> void:
 		var nearest := Vector3(p.x, p.y, p.z).distance_to(camera.global_position)
 		get_tree().call_group("sound", "loop", "fire", 1.0 - clampf(nearest / 30.0, 0.0, 1.0))
 	_place_smoke_and_lights()
+	Prof.end("flames_phys", _p)
 
 
 ## Burning spots (x, y, z, how far gone), refreshed every tick.

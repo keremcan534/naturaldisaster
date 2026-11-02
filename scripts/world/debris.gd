@@ -1,4 +1,5 @@
 extends Node3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## Pooled chunks a structure piece breaks into when it is hit hard: a wall turns
 ## into a heap of blocks, a window into glass shards. All bodies exist from
 ## _ready(); a break takes the oldest ones. Chunks live a while, then shrink away.
@@ -132,6 +133,7 @@ func clear() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	var _p := Prof.begin()
 	_time += delta
 	for i in _bodies.size():
 		if _born[i] < 0.0:
@@ -139,10 +141,12 @@ func _physics_process(delta: float) -> void:
 		var age := _time - _born[i]
 		if age > LIFETIME or _bodies[i].global_position.y < -30.0:
 			_park(i)
+	Prof.end("debris_phys", _p)
 
 
 ## Every frame: each live chunk's batch instance follows its body.
 func _process(_delta: float) -> void:
+	var _p := Prof.begin()
 	for i in _bodies.size():
 		if _born[i] < 0.0:
 			continue
@@ -152,6 +156,7 @@ func _process(_delta: float) -> void:
 		var t := body.get_global_transform_interpolated()
 		var mm := _shards if _glass[i] else _solid
 		mm.set_instance_transform(i, Transform3D(t.basis * Basis.from_scale(_sizes[i] * shrink), t.origin))
+	Prof.end("debris", _p)
 
 
 func _spawn(xform: Transform3D, size: Vector3, glass: bool, color: Color, velocity: Vector3) -> void:

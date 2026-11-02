@@ -63,8 +63,20 @@ var _test_check := -1.0
 var _test_warnings: Array = []
 
 
+## Command line options, plus on the web the page address's query
+## (?play&perf&map=3 means --play --perf --map=3), so a phone can run them too.
+static func args() -> PackedStringArray:
+	var list := OS.get_cmdline_user_args()
+	if OS.has_feature("web"):
+		var query: Variant = JavaScriptBridge.eval("window.location.search", true)
+		if typeof(query) == TYPE_STRING and (query as String).length() > 1:
+			for part: String in (query as String).substr(1).split("&", false):
+				list.append("--" + part.uri_decode())
+	return list
+
+
 func _ready() -> void:
-	for arg in OS.get_cmdline_user_args():
+	for arg in args():
 		if arg == "--fast":
 			manager.time_scale = 0.3
 		elif arg.begins_with("--shots="):
@@ -109,6 +121,7 @@ func _ready() -> void:
 			_start_pitch = deg_to_rad(arg.get_slice("=", 1).to_float())
 		elif arg == "--perf":
 			_perf = true
+			preload("res://scripts/core/prof.gd").on = true
 		elif arg == "--botlog":
 			_bot_log = true
 		elif arg == "--log":
@@ -202,12 +215,14 @@ func _process(delta: float) -> void:
 		_perf_timer -= delta
 		if _perf_timer <= 0.0:
 			_perf_timer = 1.0
-			print("[%.1fs] fps %d, process %.2f ms, physics %.2f ms, draw calls %d, primitives %d, fires %d" % [_elapsed,
+			print("[perf %.0fs] fps %d | process %.1f ms physics %.1f ms | draws %d prims %d objects %d | moving %d fires %d | %s" % [_elapsed,
 					Engine.get_frames_per_second(),
 					Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
 					Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
-					Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME), Structure.fires])
+					Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+					Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME),
+					Structure.awake, Structure.fires, preload("res://scripts/core/prof.gd").report()])
 	if _bot_log:
 		_bot_timer -= delta
 		if _bot_timer <= 0.0:

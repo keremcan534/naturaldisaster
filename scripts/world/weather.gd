@@ -1,4 +1,5 @@
 extends Node3D
+const Prof := preload("res://scripts/core/prof.gd")
 ## Sky, sun, sea and the mood they set. Each round picks a time of day (TIMES);
 ## disasters pick a mood (MOODS) that the weather blends into over a few seconds
 ## and back to "clear" between rounds. A mood's colors are tinted by the time of
@@ -382,6 +383,7 @@ func _compose(mood: String, time_key: String) -> Dictionary:
 
 
 func _process(delta: float) -> void:
+	var _p := Prof.begin()
 	if _blend < 1.0:
 		_blend = minf(_blend + delta / BLEND_TIME, 1.0)
 		var k := smoothstep(0.0, 1.0, _blend)
@@ -438,6 +440,7 @@ func _process(delta: float) -> void:
 			_rain.global_position = camera.global_position + Vector3(ahead.x * 8.0, 14.0, ahead.z * 8.0)
 			_splashes.global_position = camera.global_position + Vector3(ahead.x * 4.0, -1.55, ahead.z * 4.0)
 		_update_flare(camera, delta)
+	Prof.end("weather", _p)
 
 
 func _apply(v: Dictionary) -> void:
