@@ -38,7 +38,10 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   First play shows a tutorial (menu.gd) while the round clock waits.
 - Modes (`DisasterManager.MODES`, picked with the menu's MOD button, `Settings.game_mode`):
   Klasik, Kaos (double every round), Zor (all Kıyamet), Sadece Su, Son Kalan (the fallen stay
-  out until one is left). `scripts/core/events.gd`: the week's event (from the week number)
+  out until one is left), Dayanıklılık (one life; health carries over with +30 between
+  rounds; severity climbs per round, always double from round 4, power past Kıyamet up to
+  `ENDURANCE_MAX_POWER`; when the player falls `run_ended` fires and `Profile.add_run`
+  keeps the top 10 runs, shown under GÖREVLER; the next round starts a new run). `scripts/core/events.gd`: the week's event (from the week number)
   favors some disasters, doubles coins for surviving them and sells an event outfit.
   Results open a map vote (`vote_started`, HUD buttons or keys 1-3; bots vote too) and
   `load_next_map(choice)` takes the winner. `scripts/world/rescue_heli.gd` (group "rescue")

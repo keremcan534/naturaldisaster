@@ -228,7 +228,9 @@ func _refresh_main() -> void:
 	_level_bar.value = progress.x
 	var mode: Dictionary = DisasterManager.MODES[clampi(Settings.game_mode, 0, DisasterManager.MODES.size() - 1)]
 	_mode.text = Lang.t("MOD: %s  >") % Lang.t(mode.name)
-	_mode_desc.text = mode.desc
+	_mode_desc.text = Lang.t(mode.desc)
+	if mode.id == "endurance":
+		_mode_desc.text += "\n" + Lang.t("Rekorun: %d tur") % Profile.best_run()
 	var event := Events.current()
 	_event.text = Lang.t("HAFTANIN ETKİNLİĞİ: %s (%d gün)\n%s") % [Lang.t(event.name), Events.days_left(), Lang.t(event.desc)]
 
@@ -318,6 +320,15 @@ func _refresh_goals() -> void:
 		var done: bool = id in Progress.missions_done
 		var value: int = mini(Progress.mission_progress.get(id, 0), m.goal)
 		_goals_list.add_child(_goal_row(m.text, "TAMAM" if done else "%d / %d" % [value, m.goal], m.reward, done, float(value) / m.goal))
+	# Dayanıklılık: the best runs.
+	_goals_list.add_child(Ui.text("Dayanıklılık rekorları", 22, Ui.ACCENT))
+	if Profile.runs.is_empty():
+		_goals_list.add_child(Ui.text("Henüz deneme yok: MOD tuşundan Dayanıklılık'ı seç.", 18, Color(1, 1, 1, 0.7)))
+	for k in Profile.runs.size():
+		var run: Dictionary = Profile.runs[k]
+		var date := Time.get_date_string_from_unix_time(int(run.day) * 86400)
+		_goals_list.add_child(Ui.text(Lang.t("%d.  %d tur  ·  %d puan  ·  %s") % [k + 1, run.rounds, run.score, date], 18,
+				Ui.COIN if k == 0 else Color.WHITE))
 	_goals_list.add_child(Ui.text("Başarımlar", 22, Ui.ACCENT))
 	for a: Dictionary in Progress.ACHIEVEMENTS:
 		var got: bool = a.id in Progress.unlocked

@@ -63,6 +63,9 @@ static var wearing: Array = []
 ## row it was claimed (day 7 pays the big one, then it starts over).
 static var gift_day := -1
 static var login_streak := 0
+## Dayanıklılık runs, best first (at most RUNS_KEPT): {"rounds", "score", "day"}.
+static var runs: Array = []
+const RUNS_KEPT := 10
 ## Lifetime numbers for the statistics screen: per disaster kind [played,
 ## survived], best streak, coins earned, rescues by helicopter, teammates helped.
 static var stats := {}
@@ -82,6 +85,7 @@ static func load_profile() -> void:
 	wearing = config.get_value("profile", "wearing", [])
 	gift_day = config.get_value("profile", "gift_day", -1)
 	login_streak = config.get_value("profile", "login_streak", 0)
+	runs = config.get_value("profile", "runs", [])
 	stats = config.get_value("profile", "stats", {})
 
 
@@ -99,6 +103,7 @@ static func save_profile() -> void:
 	config.set_value("profile", "wearing", wearing)
 	config.set_value("profile", "gift_day", gift_day)
 	config.set_value("profile", "login_streak", login_streak)
+	config.set_value("profile", "runs", runs)
 	config.set_value("profile", "stats", stats)
 	config.save(PATH)
 
@@ -172,6 +177,22 @@ static func claim_gift() -> int:
 	coins += amount
 	save_profile()
 	return amount
+
+
+## Most rounds survived in one Dayanıklılık run.
+static func best_run() -> int:
+	return runs[0].rounds if not runs.is_empty() else 0
+
+
+## Records a finished run; true when it beats every earlier one.
+static func add_run(rounds: int, score: int) -> bool:
+	var record := rounds > best_run()
+	runs.append({"rounds": rounds, "score": score, "day": _today()})
+	runs.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return a.rounds > b.rounds or (a.rounds == b.rounds and a.score > b.score))
+	runs = runs.slice(0, RUNS_KEPT)
+	save_profile()
+	return record and rounds > 0
 
 
 ## Adds to a lifetime counter (rescues, helps...).

@@ -132,6 +132,8 @@ func _ready() -> void:
 		elif arg == "--log":
 			manager.status_changed.connect(func(text: String) -> void: print("[%.1fs] %s" % [_elapsed, text]))
 			var player: Node = manager.world._player
+			manager.run_ended.connect(func(rounds: int, best: int, record: bool) -> void:
+				print("[%.1fs] DENEME BİTTİ: %d tur (rekor %d%s)" % [_elapsed, rounds, best, ", YENİ" if record else ""]))
 			player.picked.connect(func(kind: String, value: int) -> void: print("[%.1fs] aldı: %s %d" % [_elapsed, kind, value]))
 		elif arg.begins_with("--run-for="):
 			_run_for = arg.get_slice("=", 1).to_float()

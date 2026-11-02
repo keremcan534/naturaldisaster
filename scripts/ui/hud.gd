@@ -330,6 +330,11 @@ func bind(manager: Node, player: Node) -> void:
 			_center.text = Lang.t("Elendin! Son kalan belirlenince döneceksin")
 			_center.visible = true)
 	manager.vote_started.connect(_open_vote)
+	manager.run_ended.connect(func(rounds: int, best: int, record: bool) -> void:
+		_show_card(Lang.t("YENİ REKOR!") if record else Lang.t("DENEME BİTTİ"),
+				Lang.t("%d tur dayandın · Rekor: %d tur\nSonraki turda yeni deneme başlıyor") % [rounds, best])
+		if record:
+			get_tree().call_group("sound", "play", "win", null, 0.0))
 	manager.challenge_set.connect(func(text: String) -> void:
 		_challenge.text = Lang.t("Tur görevi: %s") % text)
 	manager.challenge_done.connect(func(text: String, points: int) -> void:

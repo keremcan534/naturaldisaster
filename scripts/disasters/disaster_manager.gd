@@ -13,11 +13,14 @@ signal vote_started(options: Array)
 ## This round's extra goal for the player, and when it was met (bonus points).
 signal challenge_set(text: String)
 signal challenge_done(text: String, points: int)
+## Dayanıklılık: the player's run ended (rounds survived, best ever, a new best?).
+signal run_ended(rounds: int, best: int, record: bool)
 
 const Settings := preload("res://scripts/core/settings.gd")
 const Events := preload("res://scripts/core/events.gd")
 const Maps := preload("res://scripts/world/maps.gd")
 const Lang := preload("res://scripts/core/lang.gd")
+const Profile := preload("res://scripts/core/profile.gd")
 
 ## Round points: surviving, plus half the health left, plus a bonus for every
 ## round survived in a row before this one, plus a team bonus for every other
@@ -68,7 +71,13 @@ const MODES := [
 	{"id": "hard", "name": "Zor", "desc": "Hepsi Kıyamet şiddetinde, molalar kısa"},
 	{"id": "water", "name": "Sadece Su", "desc": "Tsunami, sel, kasırga, çamur ve çığ"},
 	{"id": "last", "name": "Son Kalan", "desc": "Ölen geri dönmez; en son kalan kazanır"},
+	{"id": "endurance", "name": "Dayanıklılık", "desc": "Tek can, can turlar arası az dolar, her tur daha ağır: kaç tur dayanırsın?"},
 ]
+## Dayanıklılık: health back between rounds, and how fast it gets worse (power
+## per round past the fourth, on top of Kıyamet, up to a cap).
+const ENDURANCE_HEAL := 30.0
+const ENDURANCE_RAMP := 0.07
+const ENDURANCE_MAX_POWER := 2.5
 const WATER_DISASTERS := [2, 5, 10, 12, 18, 20, 21]
 ## These knock the power about: lamps and windows flicker while they last.
 const POWER_KINDS := ["earthquake", "tornado", "hurricane", "lightning", "ufo", "blackhole", "sinkhole"]
@@ -78,7 +87,7 @@ const LAST_BONUS := 150
 const RESCUE_AT := 0.45
 ## A surprise second disaster halfway through (when none came with the first),
 ## per mode.
-const SURPRISE_CHANCE := {"classic": 0.35, "hard": 0.5, "last": 0.35}
+const SURPRISE_CHANCE := {"classic": 0.35, "hard": 0.5, "last": 0.35, "endurance": 0.5}
 const SURPRISE_AT := 0.5
 ## Each round's extra goal for the player.
 const CHALLENGES := [
@@ -120,10 +129,31 @@ var _rescue_time := INF
 var _surprise_time := -INF
 var challenge := {}
 var rescue_chance := 0.4
+## Dayanıklılık: the run ended at the last results; the next round starts a new one.
+var _run_over := false
 
 
 func mode_id() -> String:
 	return MODES[clampi(Settings.game_mode, 0, MODES.size() - 1)].id
+
+
+## The person playing (not a bot), or null in the menu.
+func _human() -> Node:
+	for p: Node in get_tree().get_nodes_in_group("player"):
+		if not p.is_bot:
+			return p
+	return null
+
+
+## Dayanıklılık: the run ends with `survived` rounds (the player fell, or left
+## for the menu); it goes on the record list.
+func _end_run(survived: int) -> void:
+	_run_over = true
+	if _rounds == 0:
+		return
+	var player := _human()
+	var record := Profile.add_run(maxi(survived, 0), player.score if player else 0)
+	run_ended.emit(maxi(survived, 0), Profile.best_run(), record)
 
 
 func _ready() -> void:
@@ -138,12 +168,16 @@ func start(keep_map := false) -> void:
 		p.round_points = 0
 	_keep_map = keep_map
 	_rounds = 0
+	_run_over = false
 	set_process(true)
 	_enter(State.INTERMISSION)
 
 
 ## Ends the session (back to the menu): the disaster stops where it is.
 func stop() -> void:
+	# Leaving a run halfway still counts what was survived.
+	if mode_id() == "endurance" and not _run_over:
+		_end_run(_rounds - 1 if _state in [State.WARNING, State.ACTIVE] else _rounds)
 	set_process(false)
 	get_tree().call_group("pickups", "phase", "off")
 	get_tree().call_group("rescue", "leave")
@@ -245,15 +279,39 @@ func _enter(state: State) -> void:
 			world.set_mood("clear")
 			# Son Kalan: the fallen stay out until one (or nobody) is left.
 			var everyone := mode_id() != "last" or _alive_count() <= 1
+			# Dayanıklılık: a fallen player starts a new run; a living one keeps
+			# most of the damage taken.
+			var carry := -1.0
+			if mode_id() == "endurance":
+				if _run_over:
+					_run_over = false
+					_rounds = 0
+					for p: Node in get_tree().get_nodes_in_group("player"):
+						p.score = 0
+						p.streak = 0
+				elif _human() and _rounds > 0:
+					carry = _human().health
 			for p: Node in get_tree().get_nodes_in_group("player"):
 				if everyone or p.alive:
 					p.respawn(world.spawn_point)
-			_time_left = (9.0 if mode_id() == "hard" else intermission_time) * time_scale
+			if carry >= 0.0:
+				var player := _human()
+				player.health = minf(carry + ENDURANCE_HEAL, player.max_health)
+				player.health_changed.emit(player.health, player.max_health)
+			var pause := intermission_time
+			if mode_id() == "hard":
+				pause = 9.0
+			elif mode_id() == "endurance":
+				pause = maxf(7.0, intermission_time - _rounds)
+			_time_left = pause * time_scale
 			round_started.emit()
 			challenge = CHALLENGES.pick_random()
 			challenge_set.emit(Lang.t(challenge.text))
 			get_tree().call_group("pickups", "phase", "wait")
-			status_changed.emit(Lang.t("Harita: %s - sonraki felakete hazırlan") % Lang.t(world.map_name))
+			if mode_id() == "endurance":
+				status_changed.emit(Lang.t("Dayanıklılık · Tur %d · Rekor %d · %s") % [_rounds + 1, Profile.best_run(), Lang.t(world.map_name)])
+			else:
+				status_changed.emit(Lang.t("Harita: %s - sonraki felakete hazırlan") % Lang.t(world.map_name))
 		State.WARNING:
 			_current = _pick_disaster()
 			# Below the dam, a flood or a wave means the dam is bursting.
@@ -262,7 +320,8 @@ func _enter(state: State) -> void:
 				_current.warning = "Baraj çatlıyor! Dev su seli vadiden geliyor: hemen yükseğe çık!"
 			var combo: float = Events.current().get("combo", COMBO_CHANCE)
 			_extra = null
-			if mode_id() == "chaos" or (_rounds > 0 and randf() < combo and mode_id() != "water"):
+			var always_double := mode_id() == "chaos" or (mode_id() == "endurance" and _rounds >= 3)
+			if always_double or (_rounds > 0 and randf() < combo and mode_id() != "water"):
 				_extra = _pick_partner()
 			_rounds += 1
 			world.set_mood(_current.mood)
@@ -314,6 +373,8 @@ func _enter(state: State) -> void:
 			status_changed.emit(_results_text())
 			get_tree().call_group("bots", "celebrate")
 			round_scored.emit(_score_round())
+			if mode_id() == "endurance" and _human() and not _human().alive:
+				_end_run(_rounds - 1)
 			_start_vote()
 
 
@@ -343,7 +404,12 @@ func _pick_disaster() -> Node:
 			disaster.severity = 3
 		"chaos":
 			disaster.severity = maxi(disaster.severity, 2)
+		"endurance":
+			disaster.severity = 1 if _rounds < 1 else (2 if _rounds < 3 else 3)
 	disaster.power = SEVERITY_POWER[disaster.severity - 1]
+	if mode_id() == "endurance" and _rounds > 3:
+		# Past Kıyamet: every round a little worse still.
+		disaster.power = minf(disaster.power * (1.0 + ENDURANCE_RAMP * (_rounds - 3)), ENDURANCE_MAX_POWER)
 	# Stronger waves reach higher (they scale with the square root of power).
 	disaster.safe_height *= sqrt(disaster.power)
 	return disaster
