@@ -200,6 +200,14 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   them breaks; one MultiMesh for all. `scripts/world/boat.gd`: a lifeboat by the spawn
   (`main._place_boat`) that water disasters float (`set_water`, group "boats") and the
   player drives by standing in it and pushing forward.
+- Tension: quakes die down to a false calm (random moment) and then an aftershock hits
+  (`earthquake.gd` `_lull`/`_after`); after a quake round the break may get a short
+  aftershock too (`AFTERSHOCK_CHANCE`, `_start_aftershock`, HUD `alert()` card). Below
+  40% health the player hears a quickening heartbeat and the colors drain
+  (`weather.set_hurt`, Orta/Yüksek only); a big blast close by rings the ears and muffles
+  the world for a few seconds (player `_deaf`). Game sounds play on the "World" bus (the
+  under-water/deaf low-pass lives there); `sound.ears(name)` plays "heart"/"ring" on the
+  master bus, unmuffled. `player.clear_senses()` resets it all.
 - Omens (`DisasterManager._omens`): the sea draws back before a tsunami
   (`weather.drain_sea`), the gulls flee before a quake or an eruption (`ambience.scatter`).
 - Severity: every disaster rolls Şiddetli / Felaket / Kıyamet (`power` 1.15 / 1.4 / 1.7,

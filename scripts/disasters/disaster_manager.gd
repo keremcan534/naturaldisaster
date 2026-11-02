@@ -89,6 +89,8 @@ const RESCUE_AT := 0.45
 ## per mode.
 const SURPRISE_CHANCE := {"classic": 0.35, "hard": 0.5, "last": 0.35, "endurance": 0.5}
 const SURPRISE_AT := 0.5
+## How often a quake round is followed by an aftershock in the break.
+const AFTERSHOCK_CHANCE := 0.6
 ## Each round's extra goal for the player.
 const CHALLENGES := [
 	{"id": "coins", "text": "Bu tur 3 altın topla"},
@@ -131,6 +133,10 @@ var challenge := {}
 var rescue_chance := 0.4
 ## Dayanıklılık: the run ended at the last results; the next round starts a new one.
 var _run_over := false
+## After an earthquake: maybe an aftershock during the break (seconds left on
+## the break clock when it hits, or -1), and the running one.
+var _aftershock_at := -1.0
+var _aftershock: Node
 
 
 func mode_id() -> String:
@@ -173,8 +179,30 @@ func start(keep_map := false) -> void:
 	_enter(State.INTERMISSION)
 
 
+## A short sharp quake in the break after an earthquake round.
+func _start_aftershock() -> void:
+	_aftershock = DISASTERS[0].new()
+	_aftershock.world = world
+	_aftershock.aftershock_only = true
+	_aftershock.duration = 5.0
+	_aftershock.power = 1.15
+	add_child(_aftershock)
+	_aftershock.begin()
+	status_changed.emit(Lang.t("ARTÇI SARSINTI! Binalardan uzak dur"))
+	get_tree().call_group("hud", "alert", "ARTÇI SARSINTI!", "Bitti sanma: binalardan uzak dur!")
+
+
+func _stop_aftershock() -> void:
+	if _aftershock:
+		_aftershock.end()
+		_aftershock.queue_free()
+		_aftershock = null
+
+
 ## Ends the session (back to the menu): the disaster stops where it is.
 func stop() -> void:
+	_stop_aftershock()
+	_aftershock_at = -1.0
 	# Leaving a run halfway still counts what was survived.
 	if mode_id() == "endurance" and not _run_over:
 		_end_run(_rounds - 1 if _state in [State.WARNING, State.ACTIVE] else _rounds)
@@ -255,6 +283,11 @@ func _process(delta: float) -> void:
 		_surprise()
 	if _state == State.RESULTS:
 		_bot_votes()
+	if _state == State.INTERMISSION and _aftershock_at > 0.0 and _time_left < _aftershock_at:
+		_aftershock_at = -1.0
+		_start_aftershock()
+	if _aftershock and _aftershock._elapsed > _aftershock.duration:
+		_stop_aftershock()
 	if _time_left > 0.0:
 		return
 	match _state:
@@ -308,11 +341,17 @@ func _enter(state: State) -> void:
 			challenge = CHALLENGES.pick_random()
 			challenge_set.emit(Lang.t(challenge.text))
 			get_tree().call_group("pickups", "phase", "wait")
+			# After a quake the ground is not done: maybe an aftershock in the break.
+			_aftershock_at = -1.0
+			if "earthquake" in last_round.get("kinds", []) and randf() < AFTERSHOCK_CHANCE:
+				_aftershock_at = randf_range(3.0, maxf(_time_left - 3.0, 3.5))
 			if mode_id() == "endurance":
 				status_changed.emit(Lang.t("Dayanıklılık · Tur %d · Rekor %d · %s") % [_rounds + 1, Profile.best_run(), Lang.t(world.map_name)])
 			else:
 				status_changed.emit(Lang.t("Harita: %s - sonraki felakete hazırlan") % Lang.t(world.map_name))
 		State.WARNING:
+			_stop_aftershock()
+			_aftershock_at = -1.0
 			_current = _pick_disaster()
 			# Below the dam, a flood or a wave means the dam is bursting.
 			if world.dam != Vector3.INF and _current.display_name in ["Tsunami", "Sel", "Dalga Serisi", "Dev Tsunami"]:

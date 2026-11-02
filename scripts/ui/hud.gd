@@ -636,6 +636,11 @@ func watch_bots(bots: Array) -> void:
 
 
 ## A line in the feed (rescues, team calls).
+## A sudden warning in the big card, without the siren (aftershocks).
+func alert(title: String, hint: String) -> void:
+	_show_card(Lang.t(title), Lang.t(hint))
+
+
 func add_note(text: String) -> void:
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_END

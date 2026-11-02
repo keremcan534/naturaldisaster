@@ -162,6 +162,9 @@ const BLENDED := ["top", "horizon", "haze", "sun", "energy", "ambient", "fog", "
 var forced_time := ""
 
 var _env: Environment
+## The mood's saturation, and how much the player's wounds drain it (0..1).
+var _saturation := 1.0
+var _hurt := 0.0
 var _sky: ShaderMaterial
 var _sun: DirectionalLight3D
 var _rain: CPUParticles3D
@@ -473,9 +476,16 @@ func _apply(v: Dictionary) -> void:
 	# at night the neutral part goes moonlit blue.
 	var neutral := Color(0.72, 0.7, 0.66).lerp(Color(0.32, 0.4, 0.62), v.night)
 	_env.ambient_light_color = neutral.lerp((v.top as Color).lerp(v.horizon, 0.6), 0.4)
-	_env.adjustment_saturation = v.saturation
+	_saturation = v.saturation
+	_env.adjustment_saturation = _saturation * (1.0 - 0.7 * _hurt)
 	_env.tonemap_exposure = _exposure_base * v.exposure
 	_rain_material.albedo_color = MOODS[_mood].get("rain_color", Color(0.75, 0.8, 0.85, 0.35).lerp(Color(0.4, 0.45, 0.55, 0.25), v.night))
+
+
+## Badly hurt: the colors drain (amount 0..1).
+func set_hurt(amount: float) -> void:
+	_hurt = amount
+	_env.adjustment_saturation = _saturation * (1.0 - 0.7 * _hurt)
 
 
 ## A jagged bolt from the clouds to somewhere around the camera, with a branch.

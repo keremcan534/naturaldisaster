@@ -226,6 +226,7 @@ func show_menu() -> void:
 	_set_controls(false)
 	_hud.visible = false
 	_player.remove_from_group("player")
+	_player.clear_senses()
 	_player.process_mode = Node.PROCESS_MODE_DISABLED
 	_player.visible = false
 	if was_playing:

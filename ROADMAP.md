@@ -17,6 +17,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Hortum (shader'lı huni, bulut duvarı, uçan enkaz)
 - ✅ Volkan (yükselen dağ, lav akıntısı, lav bombaları)
 - ✅ Yangın (parça parça yayılır, kömürleşir, çöker)
+- ✅ Deprem ortasında sahte sakinlik, sonra artçı sarsıntı; deprem turundan sonraki molada da artçı gelebilir
 
 ### Yeni felaketler
 - ✅ ⭐ Yıldırım fırtınası: en yüksek noktalara ve açıkta kalanlara yıldırım düşer, yere önce ışık halkası, yangın çıkarır
@@ -138,6 +139,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - 🚧 Yüksek kalite: daha iyi gölgeler ve parlama var; SSAO ve volumetrik sis web'in grafik modunda (WebGL) yok
 
 ## 6. Ses ve müzik
+- ✅ Düşük canda hızlanan kalp atışı (renkler de solar), yakın patlamadan sonra kulak çınlaması ve boğuk dünya
 - ✅ Siren, patlama, gök gürültüsü, çökme, deprem, rüzgâr, dalga, yağmur, ateş, arayüz sesleri
 - ✅ ⭐ Müzik: menüde sakin tema, felakette gerilimli tema (kodla üretildi)
 - ✅ Hayatta kalınca zafer melodisi, ölünce hüzünlü kısa melodi

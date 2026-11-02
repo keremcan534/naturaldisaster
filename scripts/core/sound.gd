@@ -19,7 +19,10 @@ const HEARING := 45.0
 const LOOPS := {"rumble": 2.0, "wind": 2.5, "fire": 2.0, "surf": 2.5, "rain": 2.0, "crickets": 3.0}
 const SHOTS := {"siren": 3.0, "boom": 1.4, "crash": 0.5, "splash": 0.8, "click": 0.05, "coin": 0.4, "bark": 0.6,
 		"win": 1.6, "lose": 1.8, "step": 0.12, "glass": 0.6, "metal": 0.9, "wood": 0.4, "scream": 0.9, "shout": 0.35,
-		"chirp": 0.5, "gull": 0.7}
+		"chirp": 0.5, "gull": 0.7, "heart": 0.7, "ring": 3.0}
+## Heard inside the head, never muffled: the heartbeat at low health and the
+## ringing in the ears after a blast close by.
+const EARS := ["heart", "ring"]
 ## Under water everything sounds muffled: a low-pass on the master bus.
 const MUFFLE_HZ := 600.0
 ## Music loops: a calm one for the menu and between disasters, a tense one while
@@ -50,35 +53,52 @@ var _music_mode := ""
 var _music_level := 0.0
 var _building := false
 var _muffle_index := -1
+## The game's sounds go through the "World" bus (which muffles); the ears'
+## own sounds go straight to the master bus.
+var _world_bus := 0
+var _ears: Array[AudioStreamPlayer] = []
 
 
 func _ready() -> void:
 	add_to_group("sound")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_pending = ["click", "calm", "siren", "boom", "crash", "rumble", "wind", "fire", "surf", "rain", "splash", "coin", "bark",
-			"step", "glass", "metal", "wood", "win", "lose", "scream", "shout", "chirp", "gull", "crickets", "tense"]
+			"step", "glass", "metal", "wood", "win", "lose", "scream", "shout", "chirp", "gull", "crickets", "heart", "ring",
+			"tense"]
+	AudioServer.add_bus()
+	_world_bus = AudioServer.bus_count - 1
+	AudioServer.set_bus_name(_world_bus, "World")
+	AudioServer.set_bus_send(_world_bus, "Master")
 	var muffle := AudioEffectLowPassFilter.new()
 	muffle.cutoff_hz = MUFFLE_HZ
-	AudioServer.add_bus_effect(0, muffle)
-	_muffle_index = AudioServer.get_bus_effect_count(0) - 1
-	AudioServer.set_bus_effect_enabled(0, _muffle_index, false)
+	AudioServer.add_bus_effect(_world_bus, muffle)
+	_muffle_index = AudioServer.get_bus_effect_count(_world_bus) - 1
+	AudioServer.set_bus_effect_enabled(_world_bus, _muffle_index, false)
 	_music = AudioStreamPlayer.new()
 	_music.volume_db = -80.0
+	_music.bus = "World"
 	add_child(_music)
+	for i in EARS.size():
+		var ear := AudioStreamPlayer.new()
+		add_child(ear)
+		_ears.append(ear)
 	for i in ONE_SHOT_PLAYERS:
 		var p := AudioStreamPlayer3D.new()
 		p.unit_size = 8.0
 		p.max_distance = HEARING * 1.5
 		p.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+		p.bus = "World"
 		add_child(p)
 		_players.append(p)
 	for i in 3:
 		var p := AudioStreamPlayer.new()
+		p.bus = "World"
 		add_child(p)
 		_flat.append(p)
 	for name: String in LOOPS:
 		var p := AudioStreamPlayer.new()
 		p.volume_db = -80.0
+		p.bus = "World"
 		add_child(p)
 		_loops[name] = [p, 0.0, 0.0, -10.0]
 
@@ -110,10 +130,21 @@ func _process(delta: float) -> void:
 	Prof.end("sound", _p)
 
 
-## Muffled (under water) or clear.
+## Muffled (under water, or deafened by a blast) or clear.
 func muffle(on: bool) -> void:
-	if _muffle_index >= 0 and AudioServer.is_bus_effect_enabled(0, _muffle_index) != on:
-		AudioServer.set_bus_effect_enabled(0, _muffle_index, on)
+	if _muffle_index >= 0 and AudioServer.is_bus_effect_enabled(_world_bus, _muffle_index) != on:
+		AudioServer.set_bus_effect_enabled(_world_bus, _muffle_index, on)
+
+
+## A sound inside the head ("heart", "ring"): not muffled, not placed.
+func ears(name: String, volume_db := 0.0) -> void:
+	var k := EARS.find(name)
+	if k < 0 or not _streams.has(name):
+		return
+	var ear := _ears[k]
+	ear.stream = _streams[name]
+	ear.volume_db = volume_db
+	ear.play()
 
 
 ## "calm", "tense" or "" (silence): fades out what plays and into the new one.
@@ -176,14 +207,15 @@ func loop(name: String, level: float, pitch := 1.0) -> void:
 ## Loudest sample of each sound after normalizing.
 const PEAKS := {"bark": 0.7, "siren": 0.45, "boom": 0.95, "crash": 0.7, "splash": 0.6, "click": 0.5, "coin": 0.35,
 		"rumble": 0.85, "wind": 0.6, "fire": 0.6, "surf": 0.75, "rain": 0.4, "crickets": 0.25, "win": 0.45, "lose": 0.45,
-		"step": 0.35, "glass": 0.55, "metal": 0.5, "wood": 0.65, "scream": 0.5, "shout": 0.45, "chirp": 0.3, "gull": 0.35}
+		"step": 0.35, "glass": 0.55, "metal": 0.5, "wood": 0.65, "scream": 0.5, "shout": 0.45, "chirp": 0.3, "gull": 0.35,
+		"heart": 0.9, "ring": 0.16}
 
 
 ## Builds one sound: float samples from a tight loop per kind, normalized, then
 ## turned into a WAV in memory (the float-to-PCM conversion is native).
 func _make(name: String) -> AudioStreamWAV:
 	var seconds: float = LOOPS.get(name, SHOTS.get(name, 1.0))
-	var rate := HI_RATE if name in ["click", "coin", "glass", "chirp", "win", "lose", "metal"] else RATE
+	var rate := HI_RATE if name in ["click", "coin", "glass", "chirp", "win", "lose", "metal", "ring"] else RATE
 	var n := int(seconds * rate)
 	var looped := LOOPS.has(name)
 	# Loops get extra samples to crossfade their end into their start.
@@ -454,6 +486,20 @@ func _samples(name: String, count: int, seconds: float, rate: int) -> PackedFloa
 				phase += TAU * (1250.0 - 500.0 * t / seconds) * dt
 				var rough := 1.0 + 0.4 * sin(TAU * 45.0 * t)
 				x[i] = (sin(phase) + 0.5 * sin(phase * 2.0)) * rough * minf(t * 20.0, 1.0) * exp(-t * 3.0)
+		"heart":
+			# Lub-dub: two low thumps.
+			for i in count:
+				var t := i * dt
+				var lub := sin(TAU * 52.0 * t) * exp(-t * 28.0) * minf(t * 400.0, 1.0)
+				var t2 := maxf(t - 0.2, 0.0)
+				var dub := sin(TAU * 64.0 * t2) * exp(-t2 * 34.0) * minf(t2 * 400.0, 1.0) * (0.7 if t > 0.2 else 0.0)
+				x[i] = lub + dub
+		"ring":
+			# Ringing ears: a thin high tone with a slow beat, fading away.
+			for i in count:
+				var t := i * dt
+				var env := minf(t * 30.0, 1.0) * exp(-t * 1.1)
+				x[i] = (sin(TAU * 3300.0 * t) + 0.6 * sin(TAU * 3318.0 * t)) * env
 		"crickets":
 			# Night: pulsing high chirps, slightly out of step with each other.
 			for i in count:

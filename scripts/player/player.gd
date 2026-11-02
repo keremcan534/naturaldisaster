@@ -248,6 +248,11 @@ var _wall_jumps := 0
 var _air_lock := 0.0
 var _roll_window := 0.0
 var _crouch_held := false
+## Deafened by a blast (seconds left: muffled world, ringing ears), the
+## heartbeat's clock at low health, and how drained the colors are.
+var _deaf := 0.0
+var _heart := 0.0
+var _drained := 0.0
 var _roll := 0.0
 
 
@@ -903,9 +908,12 @@ func _process(delta: float) -> void:
 		_underwater_mat.set_shader_parameter("depth", surface - _camera.global_position.y)
 	_update_lens(delta, under)
 	_update_hands(delta)
-	if under != _muffled:
-		_muffled = under
-		get_tree().call_group("sound", "muffle", under)
+	_deaf -= delta
+	var muffled := under or _deaf > 0.0
+	if muffled != _muffled:
+		_muffled = muffled
+		get_tree().call_group("sound", "muffle", muffled)
+	_update_heart(delta)
 	_wave_time -= delta
 	# Sliding: no steps (and no stride on the avatar).
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() and _slide <= 0.0 else 0.0
@@ -1116,6 +1124,33 @@ func rumble(pos: Vector3, energy: float) -> void:
 	_rumble = maxf(_rumble, clampf(energy / 400.0, 0.0, 0.35) * near * near)
 
 
+## Low health: a heartbeat that quickens as health drops, and the colors drain
+## (weather.set_hurt; only where the color pass is on).
+func _update_heart(delta: float) -> void:
+	var k := 0.0
+	if alive and controls_enabled:
+		k = clampf(1.0 - health / (max_health * 0.4), 0.0, 1.0)
+	if k > 0.0:
+		_heart -= delta
+		if _heart <= 0.0:
+			_heart = lerpf(1.0, 0.55, k)
+			get_tree().call_group("sound", "ears", "heart", linear_to_db(0.45 + 0.55 * k))
+	var drained := snappedf(k, 0.05)
+	if drained != _drained:
+		_drained = drained
+		get_tree().call_group("weather", "set_hurt", drained)
+
+
+## Back to normal hearing and colors (death, respawn, the menu).
+func clear_senses() -> void:
+	_deaf = 0.0
+	_drained = 0.0
+	get_tree().call_group("weather", "set_hurt", 0.0)
+	if _muffled:
+		_muffled = false
+		get_tree().call_group("sound", "muffle", false)
+
+
 func set_icy(on: bool) -> void:
 	_icy = on
 
@@ -1130,6 +1165,13 @@ func explode_at(pos: Vector3, radius: float, damage: float) -> void:
 		return
 	var offset := global_position - pos
 	var dist := offset.length()
+	# A big blast close by leaves the ears ringing and the world muffled.
+	if radius >= 3.0 and dist < radius * 1.6:
+		var close := 1.0 - dist / (radius * 1.6)
+		var seconds := 0.8 + close * 2.4
+		if seconds > _deaf + 0.5:
+			get_tree().call_group("sound", "ears", "ring", linear_to_db(0.35 + close * 0.65))
+		_deaf = maxf(_deaf, seconds)
 	if dist >= radius:
 		return
 	var falloff := 1.0 - dist / radius
@@ -1175,6 +1217,7 @@ func take_damage(amount: float) -> void:
 		velocity = Vector3.ZERO
 		powers.clear()
 		_show_powers()
+		clear_senses()
 		_spectate = null
 		_spectate_time = 0.0
 		died.emit()
@@ -1201,6 +1244,7 @@ func respawn(pos: Vector3) -> void:
 	powers.clear()
 	_show_powers()
 	_slide = 0.0
+	clear_senses()
 	_roll = 0.0
 	_roll_window = 0.0
 	_wall_jumps = 0

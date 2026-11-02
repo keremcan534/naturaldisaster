@@ -51,6 +51,8 @@ const EN := {
 	"YENİ REKOR!": "NEW RECORD!", "DENEME BİTTİ": "RUN OVER",
 	"%d tur dayandın · Rekor: %d tur\nSonraki turda yeni deneme başlıyor": "You lasted %d rounds · Best: %d rounds\nA new run starts next round",
 	"Dayanıklılık rekorları": "Endurance records",
+	"ARTÇI SARSINTI!": "AFTERSHOCK!", "Bitti sanma: binalardan uzak dur!": "It's not over: stay away from buildings!",
+	"ARTÇI SARSINTI! Binalardan uzak dur": "AFTERSHOCK! Stay away from buildings",
 	"Henüz deneme yok: MOD tuşundan Dayanıklılık'ı seç.": "No runs yet: pick Endurance with the MODE button.",
 	"%d.  %d tur  ·  %d puan  ·  %s": "%d.  %d rounds  ·  %d points  ·  %s",
 	"Tsunami Haftası": "Tsunami Week", "Meteor Haftası": "Meteor Week", "Fırtına Haftası": "Storm Week",
