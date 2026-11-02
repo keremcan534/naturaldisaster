@@ -78,6 +78,8 @@ var _nav_dirty := false
 ## still costs a draw call every frame, so it is hidden once its last particle
 ## is gone (whoever starts it shows it again). [emitter, seconds idle]
 var _emitters: Array = []
+## Seconds after the main menu appears before the shader warm-up starts.
+const WARM_DELAY := 1.5
 var _player: Player
 var _hud: Hud
 var _controls: TouchControls
@@ -212,6 +214,8 @@ func play(from_menu := true) -> void:
 	_player.make_camera_current()
 	_set_controls(true)
 	_hud.visible = true
+	# Pressed before the menu's warm-up began: start it now (in front of the game camera).
+	_warm_shaders()
 	_manager.start(true)
 	# The first time: how to play, with the round clock held until it is read.
 	if not Progress.tutorial_done and from_menu:
@@ -237,7 +241,9 @@ func show_menu() -> void:
 	set_mood("clear")
 	get_tree().call_group("sound", "music", "calm")
 	_menu.show_main(spawn_point)
-	_warm_shaders()
+	# Let the menu come up and answer touches first; the shader warm-up (which
+	# stalls frames while it compiles) starts a moment later, or on OYNA.
+	get_tree().create_timer(WARM_DELAY).timeout.connect(_warm_shaders)
 
 
 ## Compiles every effect's shader at the start (behind the menu), not mid-disaster:

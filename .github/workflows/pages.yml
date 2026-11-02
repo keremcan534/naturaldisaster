@@ -57,9 +57,13 @@ jobs:
       - name: Export
         run: |
           mkdir -p build/web
+          # The page registers web/sw.js with the engine version, so the cached
+          # engine files are dropped when Godot is upgraded.
+          sed -i "s/__ENGINE__/${GODOT_VERSION}/" export_presets.cfg
           ~/godot/godot --headless --import
           ~/godot/godot --headless --export-release "Web" build/web/index.html
           test -f build/web/index.wasm
+          cp web/sw.js build/web/sw.js
 
       - uses: actions/upload-pages-artifact@v4
         with:

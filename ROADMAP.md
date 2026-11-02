@@ -195,7 +195,9 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - 💡 ⭐ PWA (ana ekrana ekle, çevrimdışı): yayın sürümünde açılacak; şimdi açılırsa telefon eski sürümü önbellekten gösterir
 - 🚧 ⭐ Android: APK iş akışı hazır (GitHub > Actions > Build Android APK > Run workflow, APK'yı indirip telefona kur); 🔒 Google Play için geliştirici hesabı ve imza anahtarı
 - 🔒 iOS sürümü: Mac ve Apple geliştirici hesabı lazım
-- 🚧 Daha hızlı yükleme: oyun dosyası çok küçük (her şey kodla üretiliyor); asıl yük Godot motorunun kendisi
+- ✅ Daha hızlı açılış: motor dosyası (10 MB) telefonda saklanır, güncellemelerden sonra yeniden inmez; menü önce gelir, shader ısınması arkadan yayılarak yapılır
+- ✅ Telefonda ilk dokunuşta tam ekran + yatay kilit (Android); dik tutulunca "Telefonu yan çevir" kartı (iPhone)
+- 💡 Daha küçük motor: kullanılmayan modülleri çıkarılmış özel web şablonu (indirmeyi ~%30 azaltır, derlemesi uzun)
 - ✅ Enkaz tek çizimde, parçacıklar birbirine çarpmaz, fizik interpolasyonu (akıcılık), shader ısınması
 - ✅ Düşük kalitede: 30 Hz fizik, daha az enkaz parçası (kırılma başına en çok 9), daha az alev ve duman sütunu (telefonda en pahalısı üst üste binen yarı saydam katmanlar), alev shader'ında tek gürültü okuması
 - ✅ Otomatik test (`--selftest`): her felaket ayrı bir haritada çalışır, durağan haldeyken düşen parça varsa söyler

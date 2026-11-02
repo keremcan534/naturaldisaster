@@ -287,7 +287,14 @@ interpolation keeps motion smooth; fast projectiles use continuous collision) an
 sea mesh has a quarter of the vertices. Web builds use the Compatibility
 (OpenGL) renderer; check visuals there too (`--rendering-method gl_compatibility`).
 The web page (`export_presets.cfg` head include) shows uncaught JS errors and a lost
-WebGL context in a red box, so the user can screenshot them.
+WebGL context in a red box, so the user can screenshot them. It also goes fullscreen and
+locks landscape on the first touch (Android; iPhones can't be turned by a page), shows a
+"Telefonu yan çevir" card while a touch screen is held upright, and registers `web/sw.js`
+(copied next to the export by the workflow, which stamps the Godot version into
+`sw.js?v=__ENGINE__`): it keeps the engine files (index.wasm/js, ~10 MB) cached between
+deploys, since Pages gives every deploy new ETags; the page and the .pck always come from
+the network. The main menu starts the shader warm-up `WARM_DELAY` after it appears (or on
+OYNA), one disaster per frame, so the menu answers at once.
 
 `scripts/core/quality.gd` has three levels (Düşük/Orta/Yüksek) plus auto mode, which
 measures FPS and moves between them; phones start on Düşük. Levels change MSAA,

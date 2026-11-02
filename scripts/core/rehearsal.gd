@@ -15,7 +15,8 @@ const LAYER := 1 << 19
 ## Disasters whose begin() changes the map for real (sets buildings on fire,
 ## cuts the ground) or shows nothing new.
 const SKIP := ["fire.gd", "sinkhole.gd", "earthquake.gd"]
-const PER_FRAME := 2
+## One a frame: each compiles a few shaders, so frames stay short (phones).
+const PER_FRAME := 1
 const HOLD_FRAMES := 3
 
 var world: Node3D
