@@ -50,6 +50,10 @@ static func load_settings(touch: bool) -> void:
 	if config.load(SETTINGS_PATH) == OK:
 		auto = config.get_value("graphics", "auto", true)
 		level = clampi(config.get_value("graphics", "level", level), 0, LEVELS.size() - 1)
+	# Phones on auto always start low: auto mode no longer steps them up (see
+	# main.gd), and older versions may have saved a level it raised them to.
+	if touch and auto:
+		level = 0
 
 
 ## Auto mode's decision after a measuring window; returns the level to use.
