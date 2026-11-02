@@ -80,6 +80,9 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Merdiven, trambolin, kaydırak
 - ✅ Yüzme, nefes tutma, düşme hasarı
 - ✅ Ölünce botu izleme
+- ✅ Tur içinde toplanan altınlar (çatılarda ve tehlikeli yerlerde de) ve sağlık kitleri
+- ✅ Her tura bir görev (3 altın topla, 8 m'den yüksekte bitir, hiç hasar alma...): +60 puan
+- ✅ Sürpriz felaket: felaketin ortasında bir tane daha gelebilir
 - ✅ ⭐ Günlük görevler: her gün 3 yeni görev → coin
 - ✅ ⭐ Seviye / XP sistemi, seviye atlayınca ödül
 - ✅ ⭐ Başarımlar: Kaptan, İtfaiyeci, Fırtına Avcısı, Durdurulamaz… (12 tane)
@@ -100,6 +103,10 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Felakete göre davranış (merdiven, ladder, açık alan, içeri, kaçış)
 - ✅ İsimler, renkler, ölüm listesi
 - ✅ ⭐ Konuşma balonları: "Çatıya çıkın!", "Kaçııın!", "İçeri girin!"
+- ✅ Yol bulma: binaların, çitlerin, eşyaların etrafından dolaşır, kapılardan girer
+- ✅ Akıllı sığınak: selde sağlam ve yüksek binayı seçer (zayıf evler yıkılır), yoksa can botuna biner
+- ✅ Refleksler: yıldırım halkasından, göktaşı halkasından, obruk kenarından, alevlerden çekilir
+- ✅ Dağılır (aynı noktaya yığılmaz), yaralı arkadaşı (seni de) iyileştirir, altın toplar, çöken binaya tepki verir
 - ✅ Kişilikler: korkak (hemen kaçar), cesur (geç davranır), şakacı (zıplar, şaka yapar)
 - ✅ "Beni takip et" (F / "Takip"): en yakın iki bot peşinden gelir, tekrar basınca bırakır
 - ✅ Yaralı bota yardım: canı azalan bot "Yardım edin!" der, yanında durunca iyileşir (+25 puan)
