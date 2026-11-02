@@ -89,8 +89,9 @@ const RESCUE_AT := 0.45
 ## per mode.
 const SURPRISE_CHANCE := {"classic": 0.35, "hard": 0.5, "last": 0.35, "endurance": 0.5}
 const SURPRISE_AT := 0.5
-## How often a quake round is followed by an aftershock in the break.
-const AFTERSHOCK_CHANCE := 0.6
+## How often a quake round is followed by an aftershock in the break (the
+## selftest turns it off: it checks that nothing moves at rest then).
+var aftershock_chance := 0.6
 ## Each round's extra goal for the player.
 const CHALLENGES := [
 	{"id": "coins", "text": "Bu tur 3 altın topla"},
@@ -208,6 +209,7 @@ func stop() -> void:
 		_end_run(_rounds - 1 if _state in [State.WARNING, State.ACTIVE] else _rounds)
 	set_process(false)
 	get_tree().call_group("pickups", "phase", "off")
+	get_tree().call_group("civilians", "phase", "off")
 	get_tree().call_group("rescue", "leave")
 	get_tree().call_group("weather", "power_flicker", false)
 	vote_options = []
@@ -343,7 +345,7 @@ func _enter(state: State) -> void:
 			get_tree().call_group("pickups", "phase", "wait")
 			# After a quake the ground is not done: maybe an aftershock in the break.
 			_aftershock_at = -1.0
-			if "earthquake" in last_round.get("kinds", []) and randf() < AFTERSHOCK_CHANCE:
+			if "earthquake" in last_round.get("kinds", []) and randf() < aftershock_chance:
 				_aftershock_at = randf_range(3.0, maxf(_time_left - 3.0, 3.5))
 			if mode_id() == "endurance":
 				status_changed.emit(Lang.t("Dayanıklılık · Tur %d · Rekor %d · %s") % [_rounds + 1, Profile.best_run(), Lang.t(world.map_name)])
@@ -383,6 +385,7 @@ func _enter(state: State) -> void:
 			_surprise_time = _current.duration * (1.0 - SURPRISE_AT) \
 					if _extra == null and randf() < SURPRISE_CHANCE.get(mode_id(), 0.0) else -INF
 			get_tree().call_group("pickups", "phase", "active")
+			get_tree().call_group("civilians", "phase", "active")
 			add_child(_current)
 			_current.begin()
 			var title: String = Lang.t(_current.display_name).to_upper()
@@ -407,6 +410,7 @@ func _enter(state: State) -> void:
 			get_tree().call_group("rescue", "leave")
 			get_tree().call_group("weather", "power_flicker", false)
 			get_tree().call_group("pickups", "phase", "results")
+			get_tree().call_group("civilians", "phase", "results")
 			_check_challenge()
 			_time_left = results_time * time_scale
 			status_changed.emit(_results_text())

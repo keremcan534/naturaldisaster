@@ -108,6 +108,7 @@ func _ready() -> void:
 		elif arg == "--selftest":
 			_selftest = true
 			manager.time_scale = 0.3
+			manager.aftershock_chance = 0.0
 			manager.world.forced_map = 0
 			manager.forced_disaster = 0
 			manager.round_started.connect(func() -> void: _test_check = 1.5)

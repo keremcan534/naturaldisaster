@@ -63,7 +63,7 @@ var _items: Label
 ## A compass strip under the timer: headings, the danger, the helicopter.
 var _compass: Control
 var _danger_at := Vector3.INF
-var _compass_key := Vector3.INF
+var _compass_key := Vector4.INF
 var _vignette: TextureRect
 ## This round's goal, and a quick "+15" over the crosshair for pickups.
 var _challenge: Label
@@ -72,6 +72,8 @@ var _pop_time := 0.0
 ## Active power-ups with their seconds left, and a blue glow at the screen's edge
 ## while the shield is up (first person).
 var _powers: Label
+## What to do about the hurt civilians (carry them to the light).
+var _task: Label
 var _shield_glow: TextureRect
 
 const POWER_NAMES := {"speed": "HIZ", "jump": "ZIPLAMA", "shield": "KALKAN"}
@@ -263,6 +265,10 @@ func _ready() -> void:
 	_pop.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_pop.offset_top = -80
 	_pop.visible = false
+	_task = _label(18)
+	_task.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_task.offset_top = 198
+	_task.add_theme_color_override("font_color", Color(1.0, 0.6, 0.55))
 	_powers = _label(18)
 	_powers.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_powers.offset_top = 174
@@ -341,7 +347,11 @@ func bind(manager: Node, player: Node) -> void:
 		toast(Lang.t("Tur görevi tamam! +%d puan") % points, 0)
 		_challenge.text = "")
 	player.picked.connect(func(kind: String, value: int) -> void:
-		if POWER_POPS.has(kind):
+		if kind == "extinguisher":
+			_pop.text = Lang.t("YANGIN TÜPÜ! Alevlere sık (4 / Tüp)")
+			_pop.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
+			_pop_time = 1.8
+		elif POWER_POPS.has(kind):
 			_pop.text = tr(POWER_POPS[kind])
 			_pop.add_theme_color_override("font_color", POWER_COLORS[kind])
 			_pop_time = 1.6
@@ -374,6 +384,14 @@ func _show_powers() -> void:
 		for kind: String in _player.powers:
 			parts.append("%s %d" % [tr(POWER_NAMES.get(kind, kind)), ceili(_player.powers[kind])])
 	_powers.text = "  ·  ".join(parts)
+	var civilians := get_tree().get_first_node_in_group("civilians")
+	var waiting: int = civilians.waiting() if civilians else 0
+	if _player.alive and _player.carrying:
+		_task.text = Lang.t("Yaralı sırtında: yeşil ışığa (T) götür")
+	elif _player.alive and waiting > 0:
+		_task.text = Lang.t("Yardım bekleyen yaralı: %d (pusulada +)") % waiting
+	else:
+		_task.text = ""
 	_shield_glow.visible = _player.alive and _player.powers.has("shield") and not Settings.third_person
 
 
@@ -566,8 +584,10 @@ func _redraw_compass() -> void:
 		return
 	var forward := -camera.global_basis.z
 	var heli := get_tree().get_first_node_in_group("rescue") as Node3D
-	var key := Vector3(snappedf(atan2(forward.x, -forward.z), 0.004), snappedf(_danger_at.x + _danger_at.z, 0.5) if _danger_at != Vector3.INF else -1.0,
-			snappedf(heli.global_position.x + heli.global_position.z, 0.5) if heli and heli.visible else -1.0)
+	var civilians := get_tree().get_first_node_in_group("civilians")
+	var key := Vector4(snappedf(atan2(forward.x, -forward.z), 0.004), snappedf(_danger_at.x + _danger_at.z, 0.5) if _danger_at != Vector3.INF else -1.0,
+			snappedf(heli.global_position.x + heli.global_position.z, 0.5) if heli and heli.visible else -1.0,
+			civilians.version + snappedf(_player.global_position.x + _player.global_position.z, 1.0) * 1000.0 if civilians and _player else -1.0)
 	if key != _compass_key:
 		_compass_key = key
 		_compass.queue_redraw()
@@ -606,6 +626,10 @@ func _draw_compass() -> void:
 	var heli := get_tree().get_first_node_in_group("rescue") as Node3D
 	if heli and heli.visible:
 		marks.append([heli.global_position, Color(1.0, 0.85, 0.25), "H"])
+	# Hurt civilians (+) and the assembly point (T).
+	var civilians := get_tree().get_first_node_in_group("civilians")
+	if civilians:
+		marks.append_array(civilians.marks())
 	for mark: Array in marks:
 		var to: Vector3 = mark[0] - _player.global_position
 		var rel := wrapf(atan2(to.x, -to.z) - heading, -PI, PI)
@@ -660,10 +684,11 @@ func _show_items(items: Dictionary) -> void:
 		_items.text = ""
 		return
 	var parts: Array = []
-	var names := {"parachute": "1 " + Lang.t("Paraşüt"), "bandage": "2 " + Lang.t("Sargı"), "hook": "3 " + Lang.t("Kanca")}
-	for id: String in ["parachute", "bandage", "hook"]:
+	var names := {"parachute": "1 " + Lang.t("Paraşüt"), "bandage": "2 " + Lang.t("Sargı"), "hook": "3 " + Lang.t("Kanca"),
+			"extinguisher": "4 " + Lang.t("Yangın tüpü")}
+	for id: String in ["parachute", "bandage", "hook", "extinguisher"]:
 		if items.get(id, 0) > 0:
-			parts.append("%s ×%d" % [names[id], items[id]])
+			parts.append(("%s %ds" if id == "extinguisher" else "%s ×%d") % [names[id], items[id]])
 	_items.text = "   ".join(parts)
 
 

@@ -52,7 +52,14 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   around the map and on roofs; anyone walking into one gets it (`collected()` /
   `power_up(kind, seconds)` on players and bots; `powers` holds what is running, the
   shield's bubble comes from `scripts/player/power_gear.gd`, `shaders/shield.gdshader`).
-  Flying debris shoves whoever it hits (`_knock`). The user finds cute/childish touches
+  Flying debris shoves whoever it hits (`_knock`). Rescue work in every disaster:
+  `scripts/world/civilians.gd` (group "civilians", phases from the manager) lays 2-3 hurt
+  civilians around the map (some on roofs) calling for help; standing by one lifts it
+  (player `carrying`: slower, lower jumps, no slides), carrying it into the green light at
+  the spawn (the assembly point) saves it (+80); the rest are lost at the round's end
+  (compass marks `+`/`T`, HUD task line). While things burn, pickups drops fire
+  extinguishers (player only): key 4 / the "Tüp" button sprays (`_update_spray`,
+  `Structure.extinguish_sphere`, +3 a piece). The user finds cute/childish touches
   (balloons, confetti, lucky wheels, slow-motion "close call" moments) boring: keep the
   game intense and grown-up. Each round has a goal for the
   player (`DisasterManager.CHALLENGES`, bonus points, HUD line), and halfway through a
@@ -202,7 +209,7 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   player drives by standing in it and pushing forward.
 - Tension: quakes die down to a false calm (random moment) and then an aftershock hits
   (`earthquake.gd` `_lull`/`_after`); after a quake round the break may get a short
-  aftershock too (`AFTERSHOCK_CHANCE`, `_start_aftershock`, HUD `alert()` card). Below
+  aftershock too (`aftershock_chance`, off in `--selftest`, `_start_aftershock`, HUD `alert()` card). Below
   40% health the player hears a quickening heartbeat and the colors drain
   (`weather.set_hurt`, Orta/Yüksek only); a big blast close by rings the ears and muffles
   the world for a few seconds (player `_deaf`). Game sounds play on the "World" bus (the

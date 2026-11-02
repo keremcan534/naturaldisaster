@@ -167,6 +167,25 @@ func extinguish() -> void:
 	_burning.clear()
 
 
+## Puts out the burning pieces within radius of center (an extinguisher's
+## spray); returns how many. Charred pieces never catch again.
+func extinguish_sphere(center: Vector3, radius: float) -> int:
+	if _burning.is_empty() or not world_bounds().grow(radius).has_point(center):
+		return 0
+	var r2 := radius * radius
+	var count := 0
+	var k := 0
+	while k < _burning.size():
+		var i := _burning[k]
+		if not _gone[i] and _pieces[i].global_position.distance_squared_to(center) < r2:
+			_burning.remove_at(k)
+			fires -= 1
+			count += 1
+			continue
+		k += 1
+	return count
+
+
 ## Appends Vector4(x, y, z, strength 0..1) for each burning piece, at its top.
 func collect_fire(out: Array) -> void:
 	for i in _burning:

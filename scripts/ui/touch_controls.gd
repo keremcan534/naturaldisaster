@@ -32,9 +32,9 @@ const SMALL_RADIUS := 34.0
 ## Around the jump button: angle (degrees, 0 = right, 90 = down) and distance in
 ## jump radii.
 const CROUCH_SPOT := Vector2(160.0, 2.05)
-const ITEM_SPOTS := [Vector2(205.0, 2.1), Vector2(238.0, 2.1), Vector2(272.0, 2.0)]
-const ITEM_IDS := ["parachute", "bandage", "hook"]
-const ITEM_NAMES := {"parachute": "Paraşüt", "bandage": "Sargı", "hook": "Kanca"}
+const ITEM_SPOTS := [Vector2(205.0, 2.1), Vector2(238.0, 2.1), Vector2(272.0, 2.0), Vector2(305.0, 2.1)]
+const ITEM_IDS := ["parachute", "bandage", "hook", "extinguisher"]
+const ITEM_NAMES := {"parachute": "Paraşüt", "bandage": "Sargı", "hook": "Kanca", "extinguisher": "Tüp"}
 ## Fraction of the radius ignored around the center, and the response curve.
 const STICK_DEADZONE := 0.08
 const STICK_CURVE := 1.1

@@ -126,6 +126,16 @@ const CHUTE_FALL := 2.2
 const HOOK_RANGE := 32.0
 const HOOK_SPEED := 18.0
 const BANDAGE_HEAL := 40.0
+## Fire extinguisher (picked up while things burn): seconds of spray in one, a
+## tap's burst, and where along the view it puts fires out.
+const EXTINGUISHER_CHARGE := 12
+const SPRAY_BURST := 1.2
+const SPRAY_REACH := [1.5, 2.8, 4.1]
+const SPRAY_RADIUS := 1.7
+## Carrying a hurt civilian (civilians.gd): slower, lower jumps, no slides.
+const CARRY_SPEED := 0.72
+const CARRY_JUMP := 0.8
+const Look := preload("res://scripts/world/look.gd")
 ## Standing by a badly hurt teammate this long patches them up.
 const HELP_TIME := 1.5
 const HELP_HEAL := 40.0
@@ -165,6 +175,10 @@ var helps_round := 0
 var voting := false
 ## Active power-ups: kind -> seconds left.
 var powers := {}
+## A hurt civilian on our shoulders (set by civilians.gd).
+var carrying := false
+## Burning pieces put out this round.
+var fires_out_round := 0
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _body: Avatar
@@ -251,6 +265,10 @@ var _crouch_held := false
 ## Deafened by a blast (seconds left: muffled world, ringing ears), the
 ## heartbeat's clock at low health, and how drained the colors are.
 var _deaf := 0.0
+var _spray := 0.0
+var _spray_used := 0.0
+var _spray_tick := 0.0
+var _mist: CPUParticles3D
 var _heart := 0.0
 var _drained := 0.0
 var _roll := 0.0
@@ -360,6 +378,7 @@ func _ready() -> void:
 	tint_layer.add_child(_drops)
 	add_child(tint_layer)
 	_build_hands()
+	_build_mist()
 
 	apply_perks()
 	_prev_pos = global_position
@@ -449,7 +468,7 @@ func _physics_process(delta: float) -> void:
 	_crouch_held = crouch_now
 	# (Just off the ground counts as on it: running down a slope skips a little.)
 	var grounded := is_on_floor() or (_coyote > 0.0 and velocity.y <= 0.5)
-	if crouch_tap and grounded and _slide <= 0.0 and Vector2(_walk.x, _walk.z).length() > SPEED + 0.8 \
+	if crouch_tap and grounded and _slide <= 0.0 and not carrying and Vector2(_walk.x, _walk.z).length() > SPEED + 0.8 \
 			and not _in_water():
 		# Running, then crouch: slide.
 		_start_slide(Vector3(_walk.x, 0, _walk.z) * SLIDE_BOOST)
@@ -490,7 +509,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= _gravity * (0.35 if in_water else 1.0) * delta
 		_fall_speed = maxf(_fall_speed, -velocity.y)
 	if _jump_buffer > 0.0 and _coyote > 0.0 and not in_water:
-		velocity.y = _jump_velocity * (POWER_JUMP if powers.has("jump") else 1.0)
+		velocity.y = _jump_velocity * (POWER_JUMP if powers.has("jump") else 1.0) * (CARRY_JUMP if carrying else 1.0)
 		_jump_buffer = 0.0
 		_coyote = 0.0
 		if _slide > 0.0:
@@ -524,6 +543,8 @@ func _physics_process(delta: float) -> void:
 		speed = CROUCH_SPEED
 	if powers.has("speed"):
 		speed *= POWER_SPEED
+	if carrying:
+		speed *= CARRY_SPEED
 	if in_water:
 		speed *= _swim_factor
 	if not use_mouse and Settings.auto_jump and not in_water and not _crouching:
@@ -559,6 +580,7 @@ func _physics_process(delta: float) -> void:
 	velocity.z = _walk.z + _push.z
 	move_and_slide()
 	_touch_pieces()
+	_update_spray(delta)
 	# A wall within reach in the air: a jump kicks off it.
 	if is_on_wall() and not is_on_floor() and not in_water:
 		_wall_time = WALL_GRACE
@@ -640,6 +662,11 @@ func _wall_jump() -> void:
 
 ## Walked into a pickup (pickups.gd): coins are already counted in bonus_points.
 func collected(kind: String, value: int) -> void:
+	if kind == "extinguisher":
+		items["extinguisher"] = items.get("extinguisher", 0) + EXTINGUISHER_CHARGE
+		items_changed.emit(items)
+		picked.emit(kind, items["extinguisher"])
+		return
 	if kind == "coin":
 		coins_round += 1
 	else:
@@ -761,6 +788,9 @@ func _use_items() -> void:
 		use_item("bandage")
 	if Input.is_action_just_pressed("item_hook"):
 		use_item("hook")
+	# The extinguisher sprays while its key is held.
+	if Input.is_action_pressed("item_extinguisher") and items.get("extinguisher", 0) > 0:
+		_spray = maxf(_spray, 0.12)
 	if Input.is_action_just_pressed("follow"):
 		call_followers()
 	if Input.is_action_just_pressed("emote"):
@@ -810,6 +840,10 @@ func wave() -> void:
 
 func use_item(id: String) -> void:
 	if items.get(id, 0) <= 0 or not alive:
+		return
+	if id == "extinguisher":
+		# A tap (touch button): a short burst.
+		_spray = SPRAY_BURST
 		return
 	match id:
 		"parachute":
@@ -1141,6 +1175,71 @@ func _update_heart(delta: float) -> void:
 		get_tree().call_group("weather", "set_hurt", drained)
 
 
+## A cone of white mist in front of the camera, emitting while spraying.
+func _build_mist() -> void:
+	var puff := QuadMesh.new()
+	puff.size = Vector2(0.5, 0.5)
+	puff.material = Look.sprite(0.5)
+	_mist = CPUParticles3D.new()
+	_mist.mesh = puff
+	_mist.emitting = false
+	_mist.amount = 28
+	_mist.lifetime = 0.6
+	_mist.local_coords = false
+	_mist.direction = Vector3(0, 0.05, -1)
+	_mist.spread = 9.0
+	_mist.initial_velocity_min = 8.0
+	_mist.initial_velocity_max = 11.0
+	_mist.damping_min = 6.0
+	_mist.damping_max = 9.0
+	_mist.gravity = Vector3(0, 0.4, 0)
+	_mist.scale_amount_min = 0.6
+	_mist.scale_amount_max = 1.2
+	_mist.scale_amount_curve = Look.grow(0.3)
+	_mist.color_ramp = Look.ramp([Color(1, 1, 1, 0.0), Color(0.95, 0.97, 1.0, 0.7), Color(1, 1, 1, 0.0)])
+	_mist.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_mist.position = Vector3(0.18, -0.22, -0.45)
+	_mist.visible = false
+	_camera.add_child(_mist)
+
+
+## Spraying: mist, a hiss, fires along the view put out (points for each), the
+## charge running down a second at a time.
+func _update_spray(delta: float) -> void:
+	if _spray <= 0.0 or not alive or items.get("extinguisher", 0) <= 0:
+		_spray = 0.0
+		if _mist.emitting:
+			_mist.emitting = false
+		return
+	_spray -= delta
+	_mist.visible = true
+	_mist.emitting = true
+	get_tree().call_group("sound", "loop", "rain", 0.7, 1.9)
+	_spray_used += delta
+	if _spray_used >= 1.0:
+		_spray_used -= 1.0
+		items["extinguisher"] -= 1
+		items_changed.emit(items)
+	_spray_tick -= delta
+	if _spray_tick > 0.0:
+		return
+	_spray_tick = 0.1
+	var from := _camera.global_position
+	var ahead := -_camera.global_basis.z
+	var out := 0
+	for structure: Node in get_tree().get_nodes_in_group("structures"):
+		for reach: float in SPRAY_REACH:
+			out += structure.extinguish_sphere(from + ahead * reach, SPRAY_RADIUS)
+	if out > 0:
+		fires_out_round += out
+		bonus_points += 3 * out
+
+
+## Where our body is drawn this frame (civilians.gd carries one on it).
+func body_transform() -> Transform3D:
+	return _body.global_transform
+
+
 ## Back to normal hearing and colors (death, respawn, the menu).
 func clear_senses() -> void:
 	_deaf = 0.0
@@ -1244,6 +1343,9 @@ func respawn(pos: Vector3) -> void:
 	powers.clear()
 	_show_powers()
 	_slide = 0.0
+	carrying = false
+	fires_out_round = 0
+	_spray = 0.0
 	clear_senses()
 	_roll = 0.0
 	_roll_window = 0.0

@@ -3,12 +3,14 @@ const Prof := preload("res://scripts/core/prof.gd")
 ## Things to grab during a round: gold coins (round points) all over the
 ## island, many of them up on roofs and out in the open where the danger is,
 ## first-aid kits, and power-up orbs (speed, super jump, shield; see
-## POWERS). A few appear while waiting for the disaster and more keep coming
+## POWERS), and while something burns, fire extinguishers (only the player
+## takes those). A few appear while waiting for the disaster and more keep coming
 ## while it lasts; whoever walks into one (player or bot) gets it. They spin and
 ## bob; all of them are three MultiMeshes. The manager switches phases.
 
 const BotNav := preload("res://scripts/player/bot_nav.gd")
 const Maps := preload("res://scripts/world/maps.gd")
+const Structure := preload("res://scripts/world/structure.gd")
 
 const COIN_POINTS := 15
 const KIT_HEAL := 35.0
@@ -33,6 +35,8 @@ var _kit_node: MultiMeshInstance3D
 var _kits: MultiMesh
 var _orbs: MultiMesh
 var _orb_node: MultiMeshInstance3D
+var _tubes: MultiMesh
+var _tube_node: MultiMeshInstance3D
 var _spawning := false
 var _spawn_timer := 0.0
 var _tick := 0.0
@@ -80,6 +84,21 @@ func _ready() -> void:
 	orb.material = glow
 	_orbs = _batch(orb, true)
 	_orb_node = get_child(get_child_count() - 1)
+	# Fire extinguishers: a red bottle.
+	var tube := CylinderMesh.new()
+	tube.top_radius = 0.11
+	tube.bottom_radius = 0.13
+	tube.height = 0.55
+	tube.radial_segments = 10
+	var paint := StandardMaterial3D.new()
+	paint.albedo_color = Color(0.85, 0.08, 0.06)
+	paint.roughness = 0.35
+	paint.emission_enabled = true
+	paint.emission = Color(0.6, 0.05, 0.02)
+	paint.emission_energy_multiplier = 0.5
+	tube.material = paint
+	_tubes = _batch(tube)
+	_tube_node = get_child(get_child_count() - 1)
 
 
 func _batch(mesh: Mesh, colors := false) -> MultiMesh:
@@ -116,11 +135,14 @@ func phase(name: String) -> void:
 	_redraw()
 
 
-## The nearest one within reach of pos on about the same level, or INF.
+## The nearest one within reach of pos on about the same level, or INF (for
+## bots: extinguishers are left for the player).
 func nearest(pos: Vector3, reach: float) -> Vector3:
 	var best := Vector3.INF
 	var best_d := reach
 	for item: Array in _items:
+		if item[1] == "extinguisher":
+			continue
 		var at: Vector3 = item[0]
 		if absf(at.y - pos.y) > 1.5:
 			continue
@@ -150,6 +172,13 @@ func _spawn(kind: String) -> void:
 	_items.append([at + Vector3.UP * 0.9, kind, 0.0])
 
 
+func _has(kind: String) -> bool:
+	for item: Array in _items:
+		if item[1] == kind:
+			return true
+	return false
+
+
 func _floor_under(p: Vector3) -> bool:
 	var query := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 1.0, p + Vector3.DOWN * 1.0, 1 | 2)
 	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
@@ -165,7 +194,10 @@ func _physics_process(delta: float) -> void:
 		if _spawn_timer <= 0.0:
 			_spawn_timer = _rng.randf_range(SPAWN_GAP.x, SPAWN_GAP.y)
 			var roll := _rng.randf()
-			_spawn("kit" if roll < 0.15 else (POWERS.keys().pick_random() if roll < 0.37 else "coin"))
+			if Structure.fires > 4 and _rng.randf() < 0.3 and not _has("extinguisher"):
+				_spawn("extinguisher")
+			else:
+				_spawn("kit" if roll < 0.15 else (POWERS.keys().pick_random() if roll < 0.37 else "coin"))
 	_tick -= delta
 	if _tick > 0.0:
 		Prof.end("pickups", _p)
@@ -180,7 +212,7 @@ func _physics_process(delta: float) -> void:
 			taken = true
 		else:
 			for p: Node3D in get_tree().get_nodes_in_group("player"):
-				if not p.alive:
+				if not p.alive or (item[1] == "extinguisher" and p.is_bot):
 					continue
 				var to: Vector3 = p.global_position + Vector3.UP * 0.9 - item[0]
 				if Vector2(to.x, to.z).length() < PICK_RADIUS and absf(to.y) < 1.4:
@@ -203,6 +235,10 @@ func _give(p: Node3D, item: Array) -> void:
 		get_tree().call_group("sound", "play", "coin", item[0], -2.0, 1.6)
 		p.power_up(kind, POWERS[kind][1])
 		return
+	elif kind == "extinguisher":
+		get_tree().call_group("sound", "play", "metal", item[0], -6.0, 1.4)
+		p.collected(kind, 0)
+		return
 	else:
 		get_tree().call_group("sound", "play", "click", item[0], 0.0, 0.6)
 	p.collected(kind, COIN_POINTS if kind == "coin" else int(KIT_HEAL))
@@ -211,7 +247,7 @@ func _give(p: Node3D, item: Array) -> void:
 func _process(delta: float) -> void:
 	var _p := Prof.begin()
 	if _items.is_empty() and _coins.visible_instance_count == 0 and _kits.visible_instance_count == 0 \
-			and _orbs.visible_instance_count == 0:
+			and _orbs.visible_instance_count == 0 and _tubes.visible_instance_count == 0:
 		Prof.end("pickups", _p)
 		return
 	_time += delta
@@ -224,6 +260,7 @@ func _redraw() -> void:
 	var coins := 0
 	var kits := 0
 	var orbs := 0
+	var tubes := 0
 	for item: Array in _items:
 		var age: float = item[2]
 		if age > LIFETIME - 4.0 and fmod(_time * 6.0, 1.0) < 0.35:
@@ -238,6 +275,9 @@ func _redraw() -> void:
 			_orbs.set_instance_transform(orbs, Transform3D(Basis.from_scale(Vector3.ONE * pulse), at + Vector3.UP * 0.2))
 			_orbs.set_instance_color(orbs, POWERS[item[1]][0])
 			orbs += 1
+		elif item[1] == "extinguisher":
+			_tubes.set_instance_transform(tubes, Transform3D(spin, at))
+			tubes += 1
 		else:
 			_kits.set_instance_transform(kits, Transform3D(spin, at))
 			kits += 1
@@ -245,6 +285,8 @@ func _redraw() -> void:
 	_kits.visible_instance_count = kits
 	_orbs.visible_instance_count = orbs
 	_orb_node.visible = orbs > 0
+	_tubes.visible_instance_count = tubes
+	_tube_node.visible = tubes > 0
 	# Nothing to draw: skip the draw calls too.
 	_coin_node.visible = coins > 0
 	_kit_node.visible = kits > 0

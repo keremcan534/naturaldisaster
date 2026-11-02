@@ -85,6 +85,8 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Her tura bir görev (3 altın topla, 8 m'den yüksekte bitir, hiç hasar alma...): +60 puan
 - ✅ Sürpriz felaket: felaketin ortasında bir tane daha gelebilir
 - ✅ Güçlendirici küreler: süper hız, süper zıplama, koruma kalkanı; botlar da alır
+- ✅ Kurtarma işi: her felakette 2-3 yaralı sivil (bazıları çatıda) yardım diye bağırır; yanında durunca sırtlarsın (yavaşlarsın), yeşil ışıklı toplanma alanına götürünce +80 puan; tur bitince kurtarılamayanlar kaybolur
+- ✅ Yangın tüpü: bir şeyler yanarken haritada çıkar (sadece oyuncu alır), 4 / "Tüp" tuşuyla alevleri söndürürsün (parça başı +3)
 - ✅ Uçan enkaz çarptığı kişiyi iter
 - ✅ ⭐ Günlük görevler: her gün 3 yeni görev → coin
 - ✅ ⭐ Seviye / XP sistemi, seviye atlayınca ödül

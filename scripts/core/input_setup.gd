@@ -15,6 +15,7 @@ const ACTIONS := {
 	"item_parachute": [KEY_1],
 	"item_bandage": [KEY_2],
 	"item_hook": [KEY_3],
+	"item_extinguisher": [KEY_4],
 	"use": [KEY_E],
 	"follow": [KEY_F],
 	"emote": [KEY_G],
@@ -33,6 +34,7 @@ const PAD_BUTTONS := {
 	"item_parachute": JOY_BUTTON_LEFT_SHOULDER,
 	"item_bandage": JOY_BUTTON_RIGHT_SHOULDER,
 	"item_hook": JOY_BUTTON_DPAD_UP,
+	"item_extinguisher": JOY_BUTTON_DPAD_LEFT,
 	"emote": JOY_BUTTON_DPAD_DOWN,
 	"camera": JOY_BUTTON_RIGHT_STICK,
 }
