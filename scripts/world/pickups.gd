@@ -2,9 +2,10 @@ extends Node3D
 const Prof := preload("res://scripts/core/prof.gd")
 ## Things to grab during a round: gold coins (round points) all over the
 ## island, many of them up on roofs and out in the open where the danger is,
-## and first-aid kits. A few appear while waiting for the disaster and more keep
-## coming while it lasts; whoever walks into one (player or bot) gets it. They
-## spin and bob; all of them are two MultiMeshes. The manager switches phases.
+## first-aid kits, and power-up orbs (speed, super jump, shield, balloon; see
+## POWERS). A few appear while waiting for the disaster and more keep coming
+## while it lasts; whoever walks into one (player or bot) gets it. They spin and
+## bob; all of them are three MultiMeshes. The manager switches phases.
 
 const BotNav := preload("res://scripts/player/bot_nav.gd")
 const Maps := preload("res://scripts/world/maps.gd")
@@ -17,6 +18,13 @@ const PICK_RADIUS := 1.2
 const TICK := 0.1
 ## Seconds between new ones while a disaster lasts.
 const SPAWN_GAP := Vector2(2.0, 3.5)
+## Power-ups: color of the orb and how long it lasts (seconds).
+const POWERS := {
+	"speed": [Color(1.0, 0.75, 0.1), 12.0],
+	"jump": [Color(0.3, 1.0, 0.35), 12.0],
+	"shield": [Color(0.3, 0.7, 1.0), 8.0],
+	"balloon": [Color(1.0, 0.45, 0.8), 10.0],
+}
 
 ## [position, kind ("coin"/"kit"), age]
 var _items: Array = []
@@ -24,6 +32,8 @@ var _coins: MultiMesh
 var _coin_node: MultiMeshInstance3D
 var _kit_node: MultiMeshInstance3D
 var _kits: MultiMesh
+var _orbs: MultiMesh
+var _orb_node: MultiMeshInstance3D
 var _spawning := false
 var _spawn_timer := 0.0
 var _tick := 0.0
@@ -59,11 +69,24 @@ func _ready() -> void:
 	kit.material = red
 	_kits = _batch(kit)
 	_kit_node = get_child(get_child_count() - 1)
+	# Glowing orbs, one color per power-up (instance colors, one draw call).
+	var orb := SphereMesh.new()
+	orb.radius = 0.32
+	orb.height = 0.64
+	orb.radial_segments = 12
+	orb.rings = 6
+	var glow := StandardMaterial3D.new()
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow.vertex_color_use_as_albedo = true
+	orb.material = glow
+	_orbs = _batch(orb, true)
+	_orb_node = get_child(get_child_count() - 1)
 
 
-func _batch(mesh: Mesh) -> MultiMesh:
+func _batch(mesh: Mesh, colors := false) -> MultiMesh:
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = colors
 	mm.mesh = mesh
 	mm.instance_count = MAX
 	mm.visible_instance_count = 0
@@ -84,6 +107,7 @@ func phase(name: String) -> void:
 			_spawning = false
 			for k in 5:
 				_spawn("coin")
+			_spawn(POWERS.keys().pick_random())
 		"active":
 			_spawning = true
 			_spawn_timer = 1.0
@@ -141,7 +165,8 @@ func _physics_process(delta: float) -> void:
 		_spawn_timer -= delta
 		if _spawn_timer <= 0.0:
 			_spawn_timer = _rng.randf_range(SPAWN_GAP.x, SPAWN_GAP.y)
-			_spawn("kit" if _rng.randf() < 0.2 else "coin")
+			var roll := _rng.randf()
+			_spawn("kit" if roll < 0.15 else (POWERS.keys().pick_random() if roll < 0.37 else "coin"))
 	_tick -= delta
 	if _tick > 0.0:
 		Prof.end("pickups", _p)
@@ -175,6 +200,10 @@ func _give(p: Node3D, item: Array) -> void:
 	if kind == "coin":
 		p.bonus_points += COIN_POINTS
 		get_tree().call_group("sound", "play", "coin", item[0], -4.0)
+	elif POWERS.has(kind):
+		get_tree().call_group("sound", "play", "coin", item[0], -2.0, 1.6)
+		p.power_up(kind, POWERS[kind][1])
+		return
 	else:
 		get_tree().call_group("sound", "play", "click", item[0], 0.0, 0.6)
 	p.collected(kind, COIN_POINTS if kind == "coin" else int(KIT_HEAL))
@@ -182,7 +211,8 @@ func _give(p: Node3D, item: Array) -> void:
 
 func _process(delta: float) -> void:
 	var _p := Prof.begin()
-	if _items.is_empty() and _coins.visible_instance_count == 0 and _kits.visible_instance_count == 0:
+	if _items.is_empty() and _coins.visible_instance_count == 0 and _kits.visible_instance_count == 0 \
+			and _orbs.visible_instance_count == 0:
 		Prof.end("pickups", _p)
 		return
 	_time += delta
@@ -194,6 +224,7 @@ func _process(delta: float) -> void:
 func _redraw() -> void:
 	var coins := 0
 	var kits := 0
+	var orbs := 0
 	for item: Array in _items:
 		var age: float = item[2]
 		if age > LIFETIME - 4.0 and fmod(_time * 6.0, 1.0) < 0.35:
@@ -203,11 +234,18 @@ func _redraw() -> void:
 		if item[1] == "coin":
 			_coins.set_instance_transform(coins, Transform3D(spin * Basis(Vector3.RIGHT, PI * 0.5), at))
 			coins += 1
+		elif POWERS.has(item[1]):
+			var pulse := 1.0 + sin(_time * 6.0 + age) * 0.12
+			_orbs.set_instance_transform(orbs, Transform3D(Basis.from_scale(Vector3.ONE * pulse), at + Vector3.UP * 0.2))
+			_orbs.set_instance_color(orbs, POWERS[item[1]][0])
+			orbs += 1
 		else:
 			_kits.set_instance_transform(kits, Transform3D(spin, at))
 			kits += 1
 	_coins.visible_instance_count = coins
 	_kits.visible_instance_count = kits
+	_orbs.visible_instance_count = orbs
+	_orb_node.visible = orbs > 0
 	# Nothing to draw: skip the draw calls too.
 	_coin_node.visible = coins > 0
 	_kit_node.visible = kits > 0

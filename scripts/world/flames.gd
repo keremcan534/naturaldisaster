@@ -13,8 +13,10 @@ const SHADER := preload("res://shaders/flame.gdshader")
 
 const TICK := 0.2
 ## Flames drawn at most, per quality level.
-const MAX_FLAMES := [70, 120, 180]
+## Per quality level (phones pay for every see-through layer on screen).
+const MAX_FLAMES := [45, 120, 180]
 const SMOKE_COLUMNS := 5
+const SMOKE_LIMIT := [3, 4, 5]
 const SMOKE_SPACING := 7.0
 const LIGHTS := 2
 ## Standing this close to a burning piece hurts, per second.
@@ -137,8 +139,9 @@ func _draw_flames() -> void:
 ## Smoke over well-separated blazes (biggest first), lights on the nearest two.
 func _place_smoke_and_lights() -> void:
 	var used: Array[Vector3] = []
+	var most: int = SMOKE_LIMIT[Quality.level]
 	for p: Vector4 in _points:
-		if used.size() >= SMOKE_COLUMNS:
+		if used.size() >= most:
 			break
 		var at := Vector3(p.x, p.y, p.z)
 		var free := true
@@ -190,7 +193,7 @@ func _smoke() -> CPUParticles3D:
 	p.mesh = quad
 	p.emitting = false
 	# Big soft puffs over each other: fewer on low quality (phones pay per layer).
-	p.amount = 16 if Quality.level == 0 else 26
+	p.amount = 12 if Quality.level == 0 else 26
 	p.lifetime = 7.0
 	p.local_coords = false
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE

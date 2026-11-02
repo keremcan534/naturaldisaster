@@ -13,6 +13,7 @@ const Avatar := preload("res://scripts/player/avatar.gd")
 const Maps := preload("res://scripts/world/maps.gd")
 const Settings := preload("res://scripts/core/settings.gd")
 const BotNav := preload("res://scripts/player/bot_nav.gd")
+const PowerGear := preload("res://scripts/player/power_gear.gd")
 
 ## Personalities: how quickly they react and what they do between disasters.
 ## korkak: runs at the first warning; cesur: waits until the last moment;
@@ -25,6 +26,10 @@ const JOKES := ["Hop hop!", "Beni yakala!", "Felaket mi? Hangi felaket?", "Dans 
 const GREETINGS := ["Selam!", "Merhaba!", "Naber?", "Hey!"]
 const DODGES := ["Çekil!", "Kaçın!", "Ohaa!", "Uzak durun!"]
 const COLLAPSES := ["Bina çöktü!", "Eyvah!", "Dikkat, enkaz!", "Çok yakındı!", "Gördün mü onu?!"]
+const BOUNCY := ["Trambolin!", "Zıp zıp!", "Bakın ne kadar yükseğe!", "Vuhuuu!"]
+const CLOSE_CALLS := ["Kıl payı!", "Ucuz atlattık!", "Az kalsın!", "Hoppala!"]
+const TUMBLES := ["Aaaaa!", "Uçuyorummm!", "İmdaaat!", "Vuhuuu!"]
+const POWER_LINES := {"speed": "Süper hız!", "jump": "Zıp zıp!", "shield": "Kalkan!", "balloon": "Balon!"}
 const WAITING := ["Dayanın!", "Az kaldı!", "Burada güvendeyiz.", "Herkes iyi mi?", "Kıpırdamayın!"]
 ## Plans where a bot is somewhere safe and can look after others.
 const SAFE_PLANS := ["hold", "inside", "open", "far", "boat", "wander"]
@@ -160,6 +165,12 @@ var _help_target: Node3D
 var _help_time := 0.0
 var _help_cooldown := 0.0
 var _wave := 0.0
+## Power-ups (same as the player's): kind -> seconds left.
+var powers := {}
+var _balloon: Node3D
+var _shield: MeshInstance3D
+var _tumble := 0.0
+var _spin := 0.0
 
 
 func setup(index: int, seed_value: int) -> void:
@@ -250,6 +261,10 @@ func _ready() -> void:
 	_bubble.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_bubble.visible = false
 	add_child(_bubble)
+	_balloon = PowerGear.balloon()
+	_avatar.add_child(_balloon)
+	_shield = PowerGear.bubble()
+	_avatar.add_child(_shield)
 
 
 func _physics_process(delta: float) -> void:
@@ -295,13 +310,17 @@ func _physics_process(delta: float) -> void:
 		_stop_height = INF
 		_plan = "hold"
 
+	_tick_powers(delta)
 	if is_on_floor():
-		if _fall_speed > FALL_DAMAGE_MIN_SPEED:
+		if _fall_speed > FALL_DAMAGE_MIN_SPEED and not powers.has("jump"):
 			take_damage((_fall_speed - FALL_DAMAGE_MIN_SPEED) * 6.0)
 		_fall_speed = 0.0
 	else:
 		velocity.y -= _gravity * (0.35 if in_water else 1.0) * delta
 		_fall_speed = maxf(_fall_speed, -velocity.y)
+	if powers.has("balloon") and velocity.y < -1.6:
+		velocity.y = move_toward(velocity.y, -1.6, 30.0 * delta)
+		_fall_speed = 0.0
 
 	_ladder -= delta
 	if _ladder > 0.0 and climb:
@@ -310,10 +329,12 @@ func _physics_process(delta: float) -> void:
 	elif is_on_floor() and is_on_wall() and dir != Vector3.ZERO and not in_water:
 		# Bumped into something while walking: hop (furniture, rubble, kerbs).
 		if dir.dot(-get_wall_normal()) > 0.3:
-			velocity.y = JUMP_VELOCITY
+			velocity.y = JUMP_VELOCITY * (1.75 if powers.has("jump") else 1.0)
 
 	var drag := PUSH_DRAG_GROUND if is_on_floor() else PUSH_DRAG_AIR
 	var speed := (SPRINT_SPEED if _hurry else SPEED * 0.65) * _pace
+	if powers.has("speed"):
+		speed *= 1.6
 	if in_water:
 		drag = PUSH_DRAG_WATER
 		speed *= 0.55
@@ -333,9 +354,10 @@ func _physics_process(delta: float) -> void:
 	velocity.z = _walk.z + _push.z
 	move_and_slide()
 	_touch_pieces()
+	_update_tumble(delta, in_water)
 	max_height = maxf(max_height, global_position.y)
 	if global_position.y < KILL_HEIGHT:
-		if rescued:
+		if rescued or powers.has("shield"):
 			global_position = world.spawn_point + Vector3.UP * 2.0
 			reset_physics_interpolation()
 		take_damage(MAX_HEALTH)
@@ -347,7 +369,7 @@ func _physics_process(delta: float) -> void:
 		_face = face
 		_avatar.set_scared(face)
 	if _cheer > 0.0 and is_on_floor() and _path.is_empty():
-		velocity.y = JUMP_VELOCITY * 0.8
+		velocity.y = JUMP_VELOCITY * (1.4 if powers.has("jump") else 0.8)
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0
 	var arms := 1.0 if _ladder > 0.0 or (_panic > 0.0 and _hurry) or _cheer > 0.0 or _wave > 0.0 else 0.0
 	_avatar.animate(delta, ground_speed, arms)
@@ -523,6 +545,15 @@ func _wander() -> void:
 	if pickup != Vector3.INF:
 		_go_to(pickup)
 		return
+	# Between rounds: a go on a trampoline (the jokers love it).
+	if not Maps.trampolines.is_empty() and _rng.randf() < (0.3 if personality == "şakacı" else 0.1):
+		var pad: Vector3 = Maps.trampolines.pick_random()
+		if global_position.distance_to(pad) < 35.0:
+			_go_to(BotNav.random_point(pad, 2.2, _rng), [pad])
+			_wait = _rng.randf_range(5.0, 10.0)
+			if _rng.randf() < 0.5:
+				_say(BOUNCY[_rng.randi() % BOUNCY.size()], 2.0)
+			return
 	var target := BotNav.random_point(global_position, 12.0, _rng)
 	var running: bool = manager and manager.running()
 	if running and _skill > 0.6 and _rng.randf() < 0.35 and not Maps.refuges.is_empty():
@@ -923,6 +954,63 @@ func collected(kind: String, value: int) -> void:
 		_say("Altın!" if kind == "coin" else "Can kiti!", 1.5)
 
 
+## Walked into a power orb (pickups.gd POWERS).
+func power_up(kind: String, seconds: float) -> void:
+	if not alive:
+		return
+	powers[kind] = seconds
+	_show_powers()
+	if _bubble_time <= 0.0 or _rng.randf() < 0.5:
+		_say(POWER_LINES.get(kind, "Güç!"), 1.6)
+
+
+func _tick_powers(delta: float) -> void:
+	if powers.is_empty():
+		return
+	for kind: String in powers.keys():
+		powers[kind] = maxf(powers[kind] - delta, 0.0)
+		var holding: bool = kind == "balloon" and not is_on_floor() and not _in_water()
+		if powers[kind] <= 0.0 and not holding:
+			powers.erase(kind)
+			_show_powers()
+
+
+func _show_powers() -> void:
+	_balloon.visible = powers.has("balloon")
+	_shield.visible = powers.has("shield")
+
+
+## Something just missed us.
+func near_miss() -> void:
+	if alive and _bubble_time <= 0.0 and _rng.randf() < 0.3:
+		_say(CLOSE_CALLS[_rng.randi() % CLOSE_CALLS.size()], 1.8)
+
+
+## Thrown fast through the air: spin head over heels (and yell) until landing.
+func _update_tumble(delta: float, in_water: bool) -> void:
+	var flying := not is_on_floor() and not in_water and _ladder <= 0.0 \
+			and velocity.length() > 11.0 and _push.length() > 5.0
+	if flying:
+		if _tumble <= 0.0 and _rng.randf() < 0.6:
+			_say(TUMBLES[_rng.randi() % TUMBLES.size()], 1.5)
+			get_tree().call_group("sound", "play", "shout", global_position + Vector3.UP * 1.6, -4.0, _voice * 1.25)
+		_tumble = 0.5
+	elif is_on_floor() or in_water:
+		_tumble = minf(_tumble, 0.0)
+	_tumble -= delta
+	if _tumble > 0.0:
+		_spin += delta * 9.0
+	elif _spin != 0.0:
+		var upright := roundf(_spin / TAU) * TAU
+		_spin = move_toward(_spin, upright, delta * 14.0)
+		if _spin == upright:
+			_spin = 0.0
+	else:
+		return
+	var turn := Basis(Vector3.RIGHT, -_spin)
+	_avatar.transform = Transform3D(turn, Vector3.UP * 0.9 - turn * Vector3.UP * 0.9)
+
+
 ## A teammate patched us up.
 func heal(amount: float) -> void:
 	if alive:
@@ -950,6 +1038,8 @@ func explode_at(pos: Vector3, radius: float, damage: float) -> void:
 	var offset := global_position - pos
 	var dist := offset.length()
 	if dist >= radius:
+		if dist < radius + 3.0:
+			near_miss()
 		return
 	var falloff := 1.0 - dist / radius
 	take_damage(damage * falloff)
@@ -981,7 +1071,7 @@ func _update_breath(delta: float) -> void:
 
 
 func take_damage(amount: float) -> void:
-	if not alive or amount <= 0.0 or rescued:
+	if not alive or amount <= 0.0 or rescued or powers.has("shield"):
 		return
 	var was := health
 	health = maxf(health - amount, 0.0)
@@ -991,6 +1081,11 @@ func take_damage(amount: float) -> void:
 	if health <= 0.0:
 		alive = false
 		_dead_time = 0.0
+		powers.clear()
+		_show_powers()
+		_spin = 0.0
+		_tumble = 0.0
+		_avatar.transform = Transform3D.IDENTITY
 		_label.visible = false
 		_bubble.visible = false
 		velocity = Vector3.ZERO
@@ -1021,7 +1116,11 @@ func respawn(pos: Vector3) -> void:
 	_apply_level()
 	alive = true
 	_avatar.visible = true
-	_avatar.rotation.x = 0.0
+	_avatar.transform = Transform3D.IDENTITY
+	powers.clear()
+	_show_powers()
+	_spin = 0.0
+	_tumble = 0.0
 	_label.visible = true
 	_path.clear()
 	_plan = "wander"
@@ -1040,3 +1139,13 @@ func _on_hitbox_body_entered(body: Node3D) -> void:
 	var speed := rb.linear_velocity.length()
 	if speed > DEBRIS_MIN_SPEED:
 		take_damage(minf((speed - DEBRIS_MIN_SPEED) * rb.mass * 4.0, MAX_HEALTH))
+		_knock(rb, speed)
+
+
+## A heavy piece flying into us shoves us along its way (more the heavier it is).
+func _knock(rb: RigidBody3D, speed: float) -> void:
+	if not alive:
+		return
+	var along := rb.linear_velocity / maxf(speed, 0.01)
+	var strength := minf(speed * clampf(rb.mass / 40.0, 0.1, 1.0), 9.0)
+	push(Vector3(along.x, 0.0, along.z) * strength + Vector3.UP * strength * 0.25)

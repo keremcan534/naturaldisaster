@@ -69,6 +69,18 @@ var _vignette: TextureRect
 var _challenge: Label
 var _pop: Label
 var _pop_time := 0.0
+## Active power-ups with their seconds left, a blue glow at the screen's edge
+## while the shield is up (first person), and a big "KIL PAYI!" for near misses.
+var _powers: Label
+var _shield_glow: TextureRect
+var _near: Label
+var _near_tween: Tween
+
+const POWER_NAMES := {"speed": "HIZ", "jump": "ZIPLAMA", "shield": "KALKAN", "balloon": "BALON"}
+const POWER_POPS := {"speed": "SÜPER HIZ!", "jump": "SÜPER ZIPLAMA!", "shield": "KALKAN!",
+		"balloon": "BALON! Zıplamayı basılı tut, uç"}
+const POWER_COLORS := {"speed": Color(1.0, 0.8, 0.2), "jump": Color(0.4, 1.0, 0.45),
+		"shield": Color(0.45, 0.8, 1.0), "balloon": Color(1.0, 0.5, 0.8)}
 
 
 func _ready() -> void:
@@ -190,6 +202,16 @@ func _ready() -> void:
 	_hurt.modulate = Color(1.0, 0.1, 0.05, 0.0)
 	add_child(_hurt)
 	move_child(_hurt, 1)
+	_shield_glow = TextureRect.new()
+	_shield_glow.texture = shade
+	_shield_glow.stretch_mode = TextureRect.STRETCH_SCALE
+	_shield_glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_shield_glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_shield_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_shield_glow.modulate = Color(0.3, 0.75, 1.0, 0.8)
+	_shield_glow.visible = false
+	add_child(_shield_glow)
+	move_child(_shield_glow, 2)
 
 	_card = _build_card()
 	add_child(_card)
@@ -244,6 +266,19 @@ func _ready() -> void:
 	_pop.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_pop.offset_top = -80
 	_pop.visible = false
+	_powers = _label(18)
+	_powers.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_powers.offset_top = 174
+	_powers.add_theme_color_override("font_color", Color(0.75, 0.95, 1.0))
+	_near = _label(46)
+	_near.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_near.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_near.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_near.offset_top = 40
+	_near.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	_near.add_theme_color_override("font_outline_color", Color(0.35, 0.1, 0.0))
+	_near.add_theme_constant_override("outline_size", 12)
+	_near.visible = false
 	# Desktop: what the number keys hold this round.
 	_items = _label(18)
 	_items.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
@@ -268,6 +303,7 @@ func _process(delta: float) -> void:
 		_coins.set_amount(Profile.coins)
 		if _player:
 			_score.text = Lang.t("Puan: %d") % _player.score
+			_show_powers()
 		var players := get_tree().get_nodes_in_group("player")
 		var alive := players.filter(func(p: Node) -> bool: return p.alive).size()
 		var fighting: bool = _manager != null and _manager.coming_kind() != ""
@@ -280,7 +316,7 @@ func _process(delta: float) -> void:
 	if _pop_time > 0.0:
 		_pop_time -= delta
 		_pop.modulate.a = clampf(_pop_time / 0.4, 0.0, 1.0)
-		_pop.offset_top = -80 - (0.9 - _pop_time) * 40.0
+		_pop.offset_top = -80 - (0.9 - minf(_pop_time, 0.9)) * 40.0
 		_pop.visible = _pop_time > 0.0
 	_redraw_compass()
 	_time += delta
@@ -312,10 +348,17 @@ func bind(manager: Node, player: Node) -> void:
 		toast(Lang.t("Tur görevi tamam! +%d puan") % points, 0)
 		_challenge.text = "")
 	player.picked.connect(func(kind: String, value: int) -> void:
-		_pop.text = ("+%d" % value) if kind == "coin" else Lang.t("+%d can") % value
-		_pop.add_theme_color_override("font_color", Ui.COIN if kind == "coin" else Color(0.5, 1.0, 0.55))
-		_pop.visible = true
-		_pop_time = 0.9)
+		if POWER_POPS.has(kind):
+			_pop.text = tr(POWER_POPS[kind])
+			_pop.add_theme_color_override("font_color", POWER_COLORS[kind])
+			_pop_time = 1.6
+			_show_powers()
+		else:
+			_pop.text = ("+%d" % value) if kind == "coin" else Lang.t("+%d can") % value
+			_pop.add_theme_color_override("font_color", Ui.COIN if kind == "coin" else Color(0.5, 1.0, 0.55))
+			_pop_time = 0.9
+		_pop.visible = true)
+	player.near_missed.connect(_show_near_miss)
 	player.helped.connect(func(bot_name: String) -> void:
 		toast(Lang.t("%s ayağa kalktı! +25 puan") % bot_name, 0))
 	player.rescued_now.connect(func() -> void:
@@ -330,6 +373,31 @@ func bind(manager: Node, player: Node) -> void:
 	player.respawned.connect(func() -> void: _center.visible = false)
 	player.spectating.connect(func(bot_name: String) -> void:
 		_center.text = Lang.t("Öldün! İzliyorsun: %s") % bot_name if bot_name != "" else Lang.t("Öldün! Sonraki turu bekle"))
+
+
+## "HIZ 8 · KALKAN 5" for the power-ups running, and the shield's glow.
+func _show_powers() -> void:
+	var parts: PackedStringArray = []
+	if _player.alive:
+		for kind: String in _player.powers:
+			parts.append("%s %d" % [tr(POWER_NAMES.get(kind, kind)), ceili(_player.powers[kind])])
+	_powers.text = "  ·  ".join(parts)
+	_shield_glow.visible = _player.alive and _player.powers.has("shield") and not Settings.third_person
+
+
+func _show_near_miss(points: int) -> void:
+	_near.text = Lang.t("KIL PAYI! +%d") % points
+	_near.visible = true
+	_near.pivot_offset = _near.get_combined_minimum_size() * 0.5
+	_near.scale = Vector2.ONE * 1.6
+	_near.modulate.a = 1.0
+	if _near_tween:
+		_near_tween.kill()
+	_near_tween = create_tween()
+	_near_tween.tween_property(_near, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_near_tween.tween_interval(0.7)
+	_near_tween.tween_property(_near, "modulate:a", 0.0, 0.4)
+	_near_tween.tween_callback(func() -> void: _near.visible = false)
 
 
 ## The ranking after a disaster: total score, this round's points, and the coins

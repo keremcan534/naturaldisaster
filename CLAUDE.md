@@ -45,8 +45,18 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   sometimes flies to the highest refuge roof mid-disaster; reaching its ladder calls
   `rescue()` on players/bots (no more damage that round, bonus points).
 - Round spice: `scripts/world/pickups.gd` (group "pickups", phases from the manager) puts gold
-  coins (round points) and first-aid kits around the map and on roofs; anyone walking
-  into one gets it (`collected()` on players and bots). Each round has a goal for the
+  coins (round points), first-aid kits and power orbs (`POWERS`: speed, jump, shield,
+  balloon) around the map and on roofs; anyone walking into one gets it (`collected()` /
+  `power_up(kind, seconds)` on players and bots; `powers` holds what is running, the
+  balloon and bubble come from `scripts/player/power_gear.gd`, `shaders/shield.gdshader`).
+  Near misses (`near_miss()` on players and bots, called just outside blasts in
+  `explode_at`, next to heavy impacts in `rumble`, by the tsunami crest and the tornado)
+  give +10, a "KIL PAYI!" and a short slow motion (main `_slow_motion`, `Engine.time_scale`,
+  reset in `show_menu`). Thrown fast through the air, players and bots tumble head over
+  heels; flying debris shoves them (`_knock`). Survivors get confetti
+  (`effects.confetti`), bots bounce on trampolines between rounds (`Maps.trampolines`),
+  and the menu has a daily lucky wheel (`scripts/ui/wheel.gd`, `Profile.spin_wheel`).
+  Each round has a goal for the
   player (`DisasterManager.CHALLENGES`, bonus points, HUD line), and halfway through a
   disaster another may join it (`_surprise()`, `SURPRISE_CHANCE` per mode).
 - Player extras: crouch, mantling ledges, items bought in the shop (`items`, parachute /
@@ -84,7 +94,8 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   chars pieces (instance color, or the building shader's `INSTANCE_CUSTOM.r` with glowing
   embers) and drops burnt ones. `collect_fire()` lists burning spots, `extinguish()`
   puts all out; `Structure.fires` counts them. `scripts/world/flames.gd` draws flames
-  (one MultiMesh, `shaders/flame.gdshader`), smoke and light, and burns anyone close.
+  (one MultiMesh, `shaders/flame.gdshader`), smoke and light, and burns anyone close
+  (flame and smoke column caps per quality level: see-through layers are what phones pay for).
   The fire disaster, meteors and lava bombs (`ignite_chance`) start fires.
 - Building stairs (`Structure._add_ramp`): every floor's ramp runs along the back row
   from a 1 m landing to the fourth column, stacked one storey apart; the second row is
@@ -283,6 +294,6 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
 (`--fast`, `--log`, `--perf`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
-`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`, `--mode=<i>`, `--rescue`, `--third`, `--selftest` (every disaster once, each on another map, reports pieces falling at rest); `--perf` also prints
+`--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`, `--mode=<i>`, `--rescue`, `--third`, `--power=<kind>` (a power-up every round), `--selftest` (every disaster once, each on another map, reports pieces falling at rest); `--perf` also prints
 the number of burning pieces). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

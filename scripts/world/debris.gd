@@ -107,7 +107,9 @@ func shatter(xform: Transform3D, size: Vector3, color: Color, velocity: Vector3,
 	get_tree().call_group("sound", "play", _break_sound(color, glass), xform.origin, -2.0)
 	var edge := SHARD_EDGE if glass else CHUNK_EDGE
 	var cuts := Vector3i(maxi(roundi(size.x / edge), 1), maxi(roundi(size.y / edge), 1), maxi(roundi(size.z / edge), 1))
-	while cuts.x * cuts.y * cuts.z > MAX_CHUNKS:
+	# Low quality: fewer, bigger chunks (fewer bodies for physics to carry).
+	var most := MAX_CHUNKS if Quality.level > 0 else 9
+	while cuts.x * cuts.y * cuts.z > most:
 		if cuts.x >= cuts.y and cuts.x >= cuts.z:
 			cuts.x -= 1
 		elif cuts.y >= cuts.z:

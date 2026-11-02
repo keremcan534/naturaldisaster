@@ -22,6 +22,8 @@ var _clouds: Array[CPUParticles3D] = []
 var _next_cloud := 0
 var _scorch: MultiMeshInstance3D
 var _next_scorch := 0
+## Colorful paper raining down on whoever survived a round.
+var _confetti: CPUParticles3D
 
 
 func _ready() -> void:
@@ -41,6 +43,8 @@ func _ready() -> void:
 		var cloud := _cloud()
 		add_child(cloud)
 		_clouds.append(cloud)
+	_confetti = _make_confetti()
+	add_child(_confetti)
 	var quad := QuadMesh.new()
 	quad.orientation = PlaneMesh.FACE_Y
 	var marks := MultiMesh.new()
@@ -107,6 +111,22 @@ func cloud(pos: Vector3, size: float) -> void:
 	emitter.restart()
 	get_tree().call_group("sound", "play", "boom", pos, 2.0, 0.45)
 	get_tree().call_group("player", "rumble", pos, 600.0)
+
+
+## A shower of confetti for whoever stands at pos: a few meters in front of
+## the camera (right at it, the paper would fill the view).
+func confetti(pos: Vector3) -> void:
+	var at := pos + Vector3.UP * 2.6
+	var camera := get_viewport().get_camera_3d()
+	if camera:
+		var ahead := -camera.global_basis.z
+		ahead.y = 0.0
+		if ahead.length() > 0.1:
+			at = camera.global_position + ahead.normalized() * 3.2 + Vector3.UP * 1.0
+	_confetti.global_position = at
+	_confetti.visible = true
+	_confetti.restart()
+	get_tree().call_group("sound", "play", "coin", null, -6.0, 1.9)
 
 
 ## Puff of dust where a structure piece broke loose.
@@ -201,6 +221,46 @@ func _cloud() -> CPUParticles3D:
 	p.scale_amount_max = 11.0
 	p.scale_amount_curve = Look.grow(0.35)
 	p.color_ramp = Look.ramp([Color(0.55, 0.5, 0.44, 0.0), Color(0.55, 0.5, 0.44, 0.75), Color(0.6, 0.56, 0.5, 0.4), Color(0.65, 0.6, 0.55, 0)])
+	return p
+
+
+func _make_confetti() -> CPUParticles3D:
+	var paper := QuadMesh.new()
+	paper.size = Vector2(0.07, 0.11)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.vertex_color_use_as_albedo = true
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	paper.material = material
+	var p := CPUParticles3D.new()
+	p.mesh = paper
+	p.emitting = false
+	p.one_shot = true
+	p.explosiveness = 0.85
+	p.amount = 50 if Quality.level == 0 else 90
+	p.lifetime = 3.2
+	p.local_coords = false
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.6
+	p.direction = Vector3.UP
+	p.spread = 60.0
+	p.initial_velocity_min = 3.0
+	p.initial_velocity_max = 6.5
+	p.gravity = Vector3(0, -3.2, 0)
+	p.damping_min = 1.5
+	p.damping_max = 2.5
+	p.particle_flag_rotate_y = true
+	p.angular_velocity_min = -540.0
+	p.angular_velocity_max = 540.0
+	p.angle_min = 0.0
+	p.angle_max = 360.0
+	var colors := Gradient.new()
+	colors.offsets = PackedFloat32Array([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+	colors.colors = PackedColorArray([Color(1, 0.3, 0.3), Color(1, 0.8, 0.2), Color(0.3, 0.9, 0.4),
+			Color(0.3, 0.6, 1.0), Color(0.8, 0.4, 1.0), Color(1, 0.5, 0.8)])
+	colors.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+	p.color_initial_ramp = colors
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return p
 
 

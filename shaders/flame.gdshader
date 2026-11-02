@@ -6,6 +6,7 @@ shader_type spatial;
 render_mode blend_add, depth_draw_never, cull_disabled, unshaded, shadows_disabled, fog_disabled;
 
 uniform sampler2D noise : filter_linear_mipmap, repeat_enable;
+global uniform float quality;
 
 varying float seed;
 varying float power;
@@ -24,7 +25,8 @@ void fragment() {
 	float h = 1.0 - UV.y;
 	float x = (UV.x - 0.5) * 2.0;
 	float n = texture(noise, vec2(UV.x * 0.7 + seed, UV.y * 0.5 + TIME * 1.5 + seed)).r;
-	float n2 = texture(noise, vec2(UV.x * 1.6 - seed, UV.y * 1.2 + TIME * 2.4)).r;
+	// Low quality: one noise read (the second only varies the tips).
+	float n2 = quality < 0.5 ? n : texture(noise, vec2(UV.x * 1.6 - seed, UV.y * 1.2 + TIME * 2.4)).r;
 	float width = (1.0 - h) * 0.85 + 0.1;
 	float shape = 1.0 - smoothstep(width * 0.55, width, abs(x + (n - 0.5) * 0.6 * h));
 	float body = shape * smoothstep(0.0, 0.1, h) * (1.0 - smoothstep(0.45 + n2 * 0.45, 1.0, h + (n - 0.5) * 0.35));

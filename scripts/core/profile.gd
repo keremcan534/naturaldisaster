@@ -63,6 +63,8 @@ static var wearing: Array = []
 ## row it was claimed (day 7 pays the big one, then it starts over).
 static var gift_day := -1
 static var login_streak := 0
+## Day number of the last spin of the daily wheel (menu).
+static var wheel_day := -1
 ## Lifetime numbers for the statistics screen: per disaster kind [played,
 ## survived], best streak, coins earned, rescues by helicopter, teammates helped.
 static var stats := {}
@@ -82,6 +84,7 @@ static func load_profile() -> void:
 	wearing = config.get_value("profile", "wearing", [])
 	gift_day = config.get_value("profile", "gift_day", -1)
 	login_streak = config.get_value("profile", "login_streak", 0)
+	wheel_day = config.get_value("profile", "wheel_day", -1)
 	stats = config.get_value("profile", "stats", {})
 
 
@@ -99,6 +102,7 @@ static func save_profile() -> void:
 	config.set_value("profile", "wearing", wearing)
 	config.set_value("profile", "gift_day", gift_day)
 	config.set_value("profile", "login_streak", login_streak)
+	config.set_value("profile", "wheel_day", wheel_day)
 	config.set_value("profile", "stats", stats)
 	config.save(PATH)
 
@@ -172,6 +176,55 @@ static func claim_gift() -> int:
 	coins += amount
 	save_profile()
 	return amount
+
+
+## The daily wheel's slices: coins, or "prize" (an outfit or extra not owned
+## yet, coins when there is none left); weight = how likely.
+const WHEEL := [
+	{"coins": 50, "weight": 20}, {"coins": 120, "weight": 16}, {"coins": 80, "weight": 18},
+	{"coins": 300, "weight": 7}, {"coins": 60, "weight": 20}, {"coins": 150, "weight": 12},
+	{"coins": 600, "weight": 3}, {"prize": true, "coins": 400, "weight": 6},
+]
+
+
+static func wheel_ready() -> bool:
+	return wheel_day != _today()
+
+
+## Spins today's wheel: which slice it stops on, and what it gave
+## ({"coins": n} or {"item": id}).
+static func spin_wheel() -> Dictionary:
+	if not wheel_ready():
+		return {}
+	var total := 0
+	for slice: Dictionary in WHEEL:
+		total += slice.weight
+	var roll := randi() % total
+	var index := 0
+	for k in WHEEL.size():
+		roll -= WHEEL[k].weight
+		if roll < 0:
+			index = k
+			break
+	var slice: Dictionary = WHEEL[index]
+	wheel_day = _today()
+	var result := {"slice": index}
+	if slice.get("prize", false):
+		var choices: Array = ITEMS.filter(func(entry: Dictionary) -> bool:
+			return entry.kind in ["skin", "extra"] and not has(entry.id) and entry.price <= 600 \
+					and not entry.get("event", false) and not entry.get("season", false))
+		if not choices.is_empty():
+			var prize: Dictionary = choices.pick_random()
+			owned.append(prize.id)
+			if prize.kind == "extra":
+				wearing.append(prize.id)
+			result["item"] = prize.id
+			save_profile()
+			return result
+	coins += slice.coins
+	result["coins"] = slice.coins
+	save_profile()
+	return result
 
 
 ## Adds to a lifetime counter (rescues, helps...).

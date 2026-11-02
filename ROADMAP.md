@@ -83,6 +83,10 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Tur içinde toplanan altınlar (çatılarda ve tehlikeli yerlerde de) ve sağlık kitleri
 - ✅ Her tura bir görev (3 altın topla, 8 m'den yüksekte bitir, hiç hasar alma...): +60 puan
 - ✅ Sürpriz felaket: felaketin ortasında bir tane daha gelebilir
+- ✅ Güçlendirici küreler: süper hız, süper zıplama, koruma kalkanı, uçan balon (zıplamayı basılı tut); botlar da alır
+- ✅ "KIL PAYI!": patlamanın, düşen bloğun, dalga tepesinin, hortumun hemen yanından kurtulunca +10 puan ve kısa ağır çekim
+- ✅ Savrulma: patlama/dalga/hortumla havaya fırlayan takla atar, uçan enkaz çarptığı kişiyi iter
+- ✅ Tur sonunda hayatta kalana konfeti
 - ✅ ⭐ Günlük görevler: her gün 3 yeni görev → coin
 - ✅ ⭐ Seviye / XP sistemi, seviye atlayınca ödül
 - ✅ ⭐ Başarımlar: Kaptan, İtfaiyeci, Fırtına Avcısı, Durdurulamaz… (12 tane)
@@ -112,6 +116,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Yaralı bota yardım: canı azalan bot "Yardım edin!" der, yanında durunca iyileşir (+25 puan)
 - ✅ Bot seviyeleri (Ayarlar: Kolay / Normal / Zor)
 - ✅ Bot kıyafetleri: rastgele baret, kep, gözlük, sırt çantası
+- ✅ Turlar arasında trambolinde zıplarlar, güç alınca bağırırlar, kıl payı kurtulunca ve havaya uçunca tepki verirler
 
 ## 5. Grafik ve atmosfer
 - ✅ Bulutlu gökyüzü, gün saatleri, yıldız, aurora, gökkuşağı, yağmur, şimşek
@@ -168,6 +173,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Coin, güçlendirmeler, kıyafet renkleri, günlük hediye
 - ✅ ⭐ Şapka, güneş gözlüğü, sırt çantası (mağazada, tak/çıkar); iz efektleri ileride
 - ✅ ⭐ Günlük giriş serisi: her gün artan hediye, 7. gün 1000 coin
+- ✅ Günlük şans çarkı (ana menüde): coin ya da henüz alınmamış bir kıyafet
 - 🚧 Sezon kartı: aylık ücretsiz yol var (10 kademe, sonunda özel kıyafet); 🔒 premium yol ödeme sistemi ister
 - 🔒 Reklam izle → 2 kat coin: oyun tarafı hazır (sayfada showRewardedAd varsa tuş çıkar); bir oyun portalı hesabı ve SDK'sı lazım
 - 🔒 Coin paketleri, reklamsız paket: Google Play geliştirici hesabı ve ödeme ayarı lazım
@@ -188,4 +194,5 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - 🔒 iOS sürümü: Mac ve Apple geliştirici hesabı lazım
 - 🚧 Daha hızlı yükleme: oyun dosyası çok küçük (her şey kodla üretiliyor); asıl yük Godot motorunun kendisi
 - ✅ Enkaz tek çizimde, parçacıklar birbirine çarpmaz, fizik interpolasyonu (akıcılık), shader ısınması
+- ✅ Düşük kalitede: 30 Hz fizik, daha az enkaz parçası (kırılma başına en çok 9), daha az alev ve duman sütunu (telefonda en pahalısı üst üste binen yarı saydam katmanlar), alev shader'ında tek gürültü okuması
 - ✅ Otomatik test (`--selftest`): her felaket ayrı bir haritada çalışır, durağan haldeyken düşen parça varsa söyler

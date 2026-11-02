@@ -57,6 +57,8 @@ static var _roads: Array[Array] = []
 ## buildings: building footprints (world XZ), to keep away from in quakes.
 static var refuges: Array[Dictionary] = []
 static var buildings: Array[Rect2] = []
+## Tops of the trampolines (bots go bouncing between rounds).
+static var trampolines: Array[Vector3] = []
 
 
 ## A map's name without building it (map votes).
@@ -71,6 +73,7 @@ static func build(index: int, root: Node3D) -> Dictionary:
 	_shades.clear()
 	_roads.clear()
 	refuges.clear()
+	trampolines.clear()
 	var info: Dictionary
 	match index:
 		0:
@@ -405,6 +408,7 @@ static func _trampoline(props: Structure, pos: Vector3) -> void:
 	var pad := props.add_box(pos + Vector3(0, 0.45, 0), Vector3(2.0, 0.1, 2.0), TRAMPOLINE_COLOR)
 	pad.set_meta("bounce", BOUNCE)
 	_bare.append(_rect(pos, Vector2(2.4, 2.4)))
+	trampolines.append(props.transform * (pos + Vector3(0, 0.5, 0)))
 
 
 ## A slide: a post and platform with a ladder at the back and a steep chute down
