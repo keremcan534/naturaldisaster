@@ -114,8 +114,18 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   switched back on for things moved in physics steps (structures, debris, bots,
   projectiles, the tornado, the ship), which draw with `get_global_transform_interpolated()`
   and call `reset_physics_interpolation()` after teleports. Nodes moved in `_process`
-  stay off. `scripts/core/warmup.gd` draws every effect's material once behind the menu
-  so web shader compiles don't freeze a round. Settings has a performance readout.
+  stay off. Web builds compile each material the first time it is drawn, which froze
+  rounds (a fire's first light: 4 s): `scripts/core/warmup.gd` draws a few materials in
+  front of the camera and `scripts/core/rehearsal.gd` then runs every disaster's
+  `begin()` (frozen, out of physics, nodes pulled in front of a hidden SubViewport camera on
+  render layer 20, which game cameras never show) and draws a copy of every idle effect.
+  A new disaster or effect is covered automatically as long as its `begin()` only builds
+  visuals; disasters that change the map in `begin()` belong in its `SKIP` list. Avoid
+  OmniLights except on high quality (each lit object is drawn again in the web renderer).
+  Auto quality never steps phones up, and other level changes (they toggle shadows/glow,
+  i.e. recompiles) wait for the next map load unless the game is crawling. `--hitches`
+  prints frames over 100 ms and `--probe` the cost of 16 views; settings has a
+  performance readout.
 - Chaos: disasters are tuned to bring weak houses down (tsunami rips out ground floors,
   quakes collapse them); building `strength` decides who survives (skyscraper 2.6,
   mall 2.4, apartment 2.0 stand; houses ~1 fall). Every map also gets weak clutter

@@ -15,6 +15,11 @@ extends Node
 ##   --mode=<i>          plays game mode i (DisasterManager.MODES) without saving it
 ##   --rescue            the rescue helicopter comes every round
 ##   --third             third-person camera (not saved)
+##   --probe             between disasters, turns the player through 8 directions
+##                       (level and looking down) and prints frame time, draw
+##                       calls and primitives for each view, then quits
+##   --hitches           prints every frame longer than 100 ms (shader compiles,
+##                       map loads, collapses)
 ##   --selftest          plays every disaster once, each on another map (fast),
 ##                       reports loose pieces at rest and survivors, then quits
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
@@ -41,6 +46,18 @@ var _perf_timer := 0.0
 var _bot_log := false
 var _bot_timer := 0.0
 var _selftest := false
+var _probe := false
+var _hitches := false
+var _last_usec := 0
+var _probe_view := -1
+var _probe_frames := 0
+var _probe_sum := 0.0
+var _probe_worst := 0.0
+var _probe_draws := 0
+var _probe_prims := 0
+var _probe_wait := 3.0
+var _probe_proc := 0.0
+var _probe_phys := 0.0
 var _test_round := 0
 var _test_check := -1.0
 var _test_warnings: Array = []
@@ -68,6 +85,12 @@ func _ready() -> void:
 			preload("res://scripts/core/settings.gd").game_mode = arg.get_slice("=", 1).to_int()
 		elif arg == "--rescue":
 			manager.rescue_chance = 1.0
+		elif arg == "--hitches":
+			_hitches = true
+		elif arg == "--probe":
+			_probe = true
+			# Measure what drawing costs, not the display's refresh.
+			DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 		elif arg == "--selftest":
 			_selftest = true
 			manager.time_scale = 0.3
@@ -92,6 +115,49 @@ func _ready() -> void:
 			manager.status_changed.connect(func(text: String) -> void: print("[%.1fs] %s" % [_elapsed, text]))
 		elif arg.begins_with("--run-for="):
 			_run_for = arg.get_slice("=", 1).to_float()
+
+
+## --probe: 16 views (8 headings, level and 25 degrees down), 40 frames each
+## after 15 to settle; prints the average and worst frame and what was drawn.
+func _probe_step(delta: float) -> void:
+	if _probe_wait > 0.0:
+		_probe_wait -= delta
+		return
+	var player: Node3D = null
+	for p: Node3D in get_tree().get_nodes_in_group("player"):
+		if not p.is_bot:
+			player = p
+	if player == null:
+		return
+	_probe_frames += 1
+	if _probe_frames > 15:
+		_probe_sum += delta * 1000.0
+		_probe_worst = maxf(_probe_worst, delta * 1000.0)
+		_probe_proc += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		_probe_phys += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+		_probe_draws = maxi(_probe_draws, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)))
+		_probe_prims = maxi(_probe_prims, int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)))
+	if _probe_view >= 0 and _probe_frames < 55:
+		return
+	if _probe_view >= 0:
+		print("[probe] %-16s view %2d yaw %3d pitch %3d: avg %6.1f ms worst %6.1f ms (process %4.1f, physics %4.1f), draws %4d, prims %7d" % [
+				manager.world.map_name, _probe_view, (_probe_view % 8) * 45, -25 if _probe_view >= 8 else 0,
+				_probe_sum / 40.0, _probe_worst, _probe_proc / 40.0, _probe_phys / 40.0, _probe_draws, _probe_prims])
+	_probe_view += 1
+	if _probe_view >= 16:
+		get_tree().quit()
+		return
+	_probe_frames = 0
+	_probe_proc = 0.0
+	_probe_phys = 0.0
+	_probe_sum = 0.0
+	_probe_worst = 0.0
+	_probe_draws = 0
+	_probe_prims = 0
+	# Headings around the start view (--yaw/--pitch), level and 25 degrees lower.
+	player.set_view(_start_yaw + deg_to_rad((_probe_view % 8) * 45.0), _start_pitch + deg_to_rad(-25.0 if _probe_view >= 8 else 0.0))
+	if _start_pos != null:
+		player.teleport(_start_pos)
 
 
 ## After each round: the next disaster on the next map; after the last, a report.
@@ -124,6 +190,14 @@ func _process(delta: float) -> void:
 				player.teleport(_start_pos)
 				player.set_view(_start_yaw, _start_pitch)
 	_elapsed += delta
+	if _hitches:
+		var now := Time.get_ticks_usec()
+		var frame := (now - _last_usec) / 1000.0
+		_last_usec = now
+		if frame > 100.0 and _elapsed > 2.0:
+			print("[hitch] %.1fs %.0f ms (moving pieces %d)" % [_elapsed, frame, Structure.awake])
+	if _probe:
+		_probe_step(delta)
 	if _perf:
 		_perf_timer -= delta
 		if _perf_timer <= 0.0:

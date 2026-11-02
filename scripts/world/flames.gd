@@ -140,10 +140,13 @@ func _place_smoke_and_lights() -> void:
 		if i < used.size():
 			_smokes[i].global_position = used[i] + Vector3.UP * 1.5
 	# Lights a little out toward the camera: inside a burning wall they would
-	# flood its panels with flat orange.
+	# flood its panels with flat orange. Only on high quality: in the web
+	# renderer every object a light touches is drawn once more, and the first
+	# light compiles a lit version of every material (a long freeze on phones).
 	var camera := get_viewport().get_camera_3d()
+	var lit: bool = Quality.level >= 2
 	for i in _lights.size():
-		_lights[i].visible = i < used.size()
+		_lights[i].visible = lit and i < used.size()
 		if i < used.size():
 			var out := Vector3.ZERO
 			if camera:
@@ -171,7 +174,8 @@ func _smoke() -> CPUParticles3D:
 	var p := CPUParticles3D.new()
 	p.mesh = quad
 	p.emitting = false
-	p.amount = 26
+	# Big soft puffs over each other: fewer on low quality (phones pay per layer).
+	p.amount = 16 if Quality.level == 0 else 26
 	p.lifetime = 7.0
 	p.local_coords = false
 	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE

@@ -4,6 +4,7 @@ extends Node3D
 ## free slot and restarts its emitters. Reached through call_group("effects", ...).
 
 const Look := preload("res://scripts/world/look.gd")
+const Quality := preload("res://scripts/core/quality.gd")
 
 const EXPLOSION_SLOTS := 8
 const DUST_SLOTS := 10
@@ -205,7 +206,9 @@ func _burst(amount: int, lifetime: float, material: Material) -> CPUParticles3D:
 	p.emitting = false
 	p.one_shot = true
 	p.explosiveness = 0.95
-	p.amount = amount
+	# Smoke and dust are big see-through sprites: every overlapping layer costs
+	# phones a full pass over those pixels, so low quality draws fewer.
+	p.amount = maxi(int(amount * 0.6), 4) if Quality.level == 0 else amount
 	p.lifetime = lifetime
 	p.local_coords = false
 	p.direction = Vector3.UP

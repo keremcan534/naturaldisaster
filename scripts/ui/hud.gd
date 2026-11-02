@@ -62,12 +62,15 @@ var _items: Label
 ## A compass strip under the timer: headings, the danger, the helicopter.
 var _compass: Control
 var _danger_at := Vector3.INF
+var _compass_key := Vector3.INF
+var _vignette: TextureRect
 
 
 func _ready() -> void:
 	add_to_group("hud")
 	# Soft dark edges pull the eye to the middle of the screen.
 	var vignette := TextureRect.new()
+	_vignette = vignette
 	var shade := GradientTexture2D.new()
 	shade.fill = GradientTexture2D.FILL_RADIAL
 	shade.fill_from = Vector2(0.5, 0.5)
@@ -246,6 +249,7 @@ func _process(delta: float) -> void:
 		_update_perf()
 		var mode := " (oto)" if Quality.auto else ""
 		_fps.text = "%d FPS · %s%s" % [Engine.get_frames_per_second(), Quality.current().name, mode]
+		_vignette.visible = Quality.level > 0
 		_coins.set_amount(Profile.coins)
 		if _player:
 			_score.text = Lang.t("Puan: %d") % _player.score
@@ -258,13 +262,15 @@ func _process(delta: float) -> void:
 		if _board_time <= 0.0:
 			_board.visible = false
 	_update_vote()
-	_compass.queue_redraw()
+	_redraw_compass()
 	_time += delta
 	_update_toast(delta)
 	_update_danger()
 	_hurt_amount = move_toward(_hurt_amount, 0.0, delta * 0.8)
 	var pulse := (0.18 + 0.12 * sin(_time * 5.0)) if _low_health else 0.0
 	_hurt.modulate.a = maxf(_hurt_amount, pulse)
+	# Full-screen layers cost phones a pass over every pixel: draw them only when seen.
+	_hurt.visible = _hurt.modulate.a > 0.004
 
 
 func bind(manager: Node, player: Node) -> void:
@@ -475,6 +481,20 @@ func _update_danger() -> void:
 		var tip := size * 0.5 + Vector2(sin(_danger_angle), -cos(_danger_angle)) * (radius + 46.0)
 		_danger_label.position = tip - Vector2(110, -6) + Vector2(sin(_danger_angle), -cos(_danger_angle)) * 22.0
 		_danger.queue_redraw()
+
+
+## Redraws the compass only when the view turned or a mark moved.
+func _redraw_compass() -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var forward := -camera.global_basis.z
+	var heli := get_tree().get_first_node_in_group("rescue") as Node3D
+	var key := Vector3(snappedf(atan2(forward.x, -forward.z), 0.004), snappedf(_danger_at.x + _danger_at.z, 0.5) if _danger_at != Vector3.INF else -1.0,
+			snappedf(heli.global_position.x + heli.global_position.z, 0.5) if heli and heli.visible else -1.0)
+	if key != _compass_key:
+		_compass_key = key
+		_compass.queue_redraw()
 
 
 ## Compass: K/D/G/B (north is -Z) and ticks across ±70° of the view, a red

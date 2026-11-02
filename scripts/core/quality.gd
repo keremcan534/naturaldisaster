@@ -14,7 +14,7 @@ const SETTINGS_PATH := "user://settings.cfg"
 const LEVELS := [
 	{
 		"name": "Düşük", "msaa": Viewport.MSAA_DISABLED, "shadows": 0, "glow": false, "flare": false,
-		"grass": 0, "grass_range": 24.0, "flowers": false, "shader": 0.0, "rain": 150, "chaos": 140,
+		"grass": 0, "grass_range": 24.0, "flowers": false, "shader": 0.0, "rain": 150, "chaos": 110,
 	},
 	{
 		"name": "Orta", "msaa": Viewport.MSAA_DISABLED, "shadows": 1, "glow": true, "flare": true,

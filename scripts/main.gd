@@ -18,6 +18,7 @@ const Flames := preload("res://scripts/world/flames.gd")
 const Ambience := preload("res://scripts/world/ambience.gd")
 const Hazards := preload("res://scripts/world/hazards.gd")
 const Warmup := preload("res://scripts/core/warmup.gd")
+const Rehearsal := preload("res://scripts/core/rehearsal.gd")
 const Sound := preload("res://scripts/core/sound.gd")
 const Structure := preload("res://scripts/world/structure.gd")
 const Settings := preload("res://scripts/core/settings.gd")
@@ -64,6 +65,8 @@ var _ambience: Ambience
 var _fps_time := 0.0
 var _fps_frames := 0
 var _fps_settle := FPS_SETTLE
+## Auto quality's next level, applied when the next map loads (-1: none).
+var _pending_quality := -1
 var _player: Player
 var _hud: Hud
 var _controls: TouchControls
@@ -174,6 +177,7 @@ func _ready() -> void:
 	get_tree().call_group("bots", "respawn", spawn_point)
 	if "--play" in args or "--fast" in args or "--selftest" in args:
 		play(false)
+		_warm_shaders()
 	else:
 		show_menu()
 
@@ -214,12 +218,23 @@ func show_menu() -> void:
 	set_mood("clear")
 	get_tree().call_group("sound", "music", "calm")
 	_menu.show_main(spawn_point)
-	# Compile every effect's shader now, behind the menu, not mid-disaster.
-	if not _warmed:
-		_warmed = true
-		var warmup := Warmup.new()
-		add_child(warmup)
-		warmup.run(get_viewport().get_camera_3d())
+	_warm_shaders()
+
+
+## Compiles every effect's shader at the start (behind the menu), not mid-disaster:
+## a few materials drawn in front of the camera, then every disaster's own
+## visuals and every idle effect, unseen (rehearsal.gd).
+func _warm_shaders() -> void:
+	if _warmed:
+		return
+	_warmed = true
+	var warmup := Warmup.new()
+	add_child(warmup)
+	warmup.run(get_viewport().get_camera_3d())
+	var rehearsal := Rehearsal.new()
+	add_child(rehearsal)
+	var drawn: Array[Node] = [_map_root, warmup]
+	rehearsal.run(self, drawn)
 
 
 func _pause() -> void:
@@ -273,6 +288,9 @@ func _on_round_scored(board: Array) -> void:
 ## Frees the current map and builds a different one (`choice`, a map vote's
 ## winner, or a random other one).
 func load_next_map(choice := -1) -> void:
+	if _pending_quality >= 0:
+		set_quality(_pending_quality, true)
+		_pending_quality = -1
 	if _map_root:
 		_map_root.free()
 	get_tree().call_group("debris", "clear")
@@ -384,9 +402,20 @@ func _process(delta: float) -> void:
 	_fps_time = 0.0
 	_fps_frames = 0
 	var next := Quality.auto_level(fps)
-	if next != Quality.level:
+	if next == Quality.level:
+		return
+	# Levels switch shadows and glow, which recompiles every material: a freeze
+	# of seconds in a browser. Phones never step up by themselves; other changes
+	# wait for the next map load (a pause anyway), unless the game is crawling.
+	if next > Quality.level and _touch:
+		Quality.ceiling = Quality.level
+		return
+	if next < Quality.level and fps < 24.0:
 		set_quality(next, true)
-		_fps_settle = FPS_SETTLE
+		_pending_quality = -1
+	else:
+		_pending_quality = next
+	_fps_settle = FPS_SETTLE
 
 
 ## Blends sky, light and fog toward one of Weather.MOODS.
