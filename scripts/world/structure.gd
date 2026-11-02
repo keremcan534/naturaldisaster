@@ -53,6 +53,12 @@ const IMPACT_DV := 8.0
 const IMPACT_HOLD := 60.0
 ## Explosions shatter pieces within this fraction of their radius.
 const SHATTER_RADIUS := 0.55
+## Pieces are filed in a grid of this cell size (local meters), so a hit only
+## looks at the pieces around it instead of the whole building.
+const GRID_CELL := 2.0
+## Wind and water fields reach every intact piece once per this many ticks
+## (with that much more time each): a third of the work per tick.
+const FIELD_STRIDE := 3
 ## Fire: how often it advances, how long a piece burns (heavier ones longer), the
 ## chance per tick that a burning piece lights what rests on it, its sides and
 ## what holds it up, and the color pieces char toward.
@@ -129,6 +135,11 @@ var _up: Array[Array] = []
 var _side: Array[Array] = []
 var _bounds := AABB()
 var _last_dust_ms := -DUST_INTERVAL_MS
+## Cell (Vector3i) -> indices of the pieces whose box reaches into it.
+var _grid := {}
+## Something broke: check support once at the next physics step.
+var _settle_pending := false
+var _field_phase := 0
 
 
 func _ready() -> void:
@@ -136,6 +147,7 @@ func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	_link_pieces()
 	_build_batches()
+	_build_grid()
 
 
 ## Sets pieces within radius of center (global) on fire. Glass bursts from the heat.
@@ -588,8 +600,8 @@ func quake(intensity: float) -> void:
 		broke = true
 	if broke:
 		_settle()
-	for i in _pieces.size():
-		if _loose[i] and not _gone[i]:
+	for i: int in _loose_list:
+		if not _gone[i]:
 			var rb := _pieces[i]
 			# Loose things hop and slide around while the ground heaves.
 			var push := Vector3(randf_range(-1, 1), randf_range(0.1, 0.6), randf_range(-1, 1))
@@ -600,7 +612,7 @@ func quake(intensity: float) -> void:
 func damage_sphere(center: Vector3, radius: float, force: float) -> void:
 	if not AABB(_bounds.position + global_position, _bounds.size).grow(radius).has_point(center):
 		return
-	for i in _pieces.size():
+	for i: int in _pieces_near(center, radius):
 		if _gone[i]:
 			continue
 		var rb := _pieces[i]
@@ -627,8 +639,11 @@ func apply_field(region: AABB, force_at: Callable, delta: float) -> void:
 		return
 	var hold := HOLD_FORCE * strength
 	var broke := false
-	for i in _pieces.size():
-		if _gone[i]:
+	# Intact pieces: a third of them each tick, in turn, with three ticks' time.
+	_field_phase = (_field_phase + 1) % FIELD_STRIDE
+	var span := delta * FIELD_STRIDE
+	for i in range(_field_phase, _pieces.size(), FIELD_STRIDE):
+		if _gone[i] or _loose[i]:
 			continue
 		var rb := _pieces[i]
 		var pos := rb.global_position
@@ -637,18 +652,28 @@ func apply_field(region: AABB, force_at: Callable, delta: float) -> void:
 		var force: Vector3 = force_at.call(pos)
 		if force == Vector3.ZERO:
 			continue
-		if not _loose[i]:
-			var over := force.length() / hold - 1.0
-			if over <= 0.0 or randf() > minf(over, 1.0) * BREAK_RATE * delta:
-				continue
-			broke = true
-			# Torn off by a force: most of it breaks up rather than coming off
-			# whole (floor slabs tend to hold together and fall).
-			if randf() < _shatter_odds(i, 0.45 + 0.4 * minf(over, 1.0)):
-				_shatter(i, pos - force.normalized(), clampf(force.length() * 0.12, 3.0, 14.0))
-				continue
-			_release(i)
+		var over := force.length() / hold - 1.0
+		if over <= 0.0 or randf() > minf(over, 1.0) * BREAK_RATE * span:
+			continue
+		broke = true
+		# Torn off by a force: most of it breaks up rather than coming off
+		# whole (floor slabs tend to hold together and fall).
+		if randf() < _shatter_odds(i, 0.45 + 0.4 * minf(over, 1.0)):
+			_shatter(i, pos - force.normalized(), clampf(force.length() * 0.12, 3.0, 14.0))
+			continue
+		_release(i)
 		rb.apply_central_impulse(force * rb.mass * delta)
+	# Loose pieces: every tick (they move).
+	for i: int in _loose_list:
+		if _gone[i]:
+			continue
+		var rb := _pieces[i]
+		var pos := rb.global_position
+		if not region.has_point(pos):
+			continue
+		var force: Vector3 = force_at.call(pos)
+		if force != Vector3.ZERO:
+			rb.apply_central_impulse(force * rb.mass * delta)
 	if broke:
 		_settle()
 	Prof.end("field", _p)
@@ -663,7 +688,7 @@ func impact(pos: Vector3, energy: float) -> void:
 		return
 	var chance := energy / (IMPACT_HOLD * strength)
 	var broke := false
-	for i in _pieces.size():
+	for i: int in _grid.get(_cell_of(pos - global_position), PackedInt32Array()):
 		if _loose[i]:
 			continue
 		var box := AABB(_boxes[i].position + global_position, _boxes[i].size).grow(0.5)
@@ -703,6 +728,9 @@ func _process(_delta: float) -> void:
 
 func _physics_process(delta: float) -> void:
 	var _p := Prof.begin()
+	if _settle_pending:
+		_settle_pending = false
+		settle_now()
 	if not _burning.is_empty():
 		_fire_timer -= delta
 		if _fire_timer <= 0.0:
@@ -854,9 +882,52 @@ func _dust(pos: Vector3) -> void:
 		get_tree().call_group("effects", "dust", pos)
 
 
+## Something broke: support is checked once at the next physics step (many
+## breaks in one tick, one check).
+func _settle() -> void:
+	_settle_pending = true
+
+
+## Files every piece in the cells its box reaches (grown a little).
+func _build_grid() -> void:
+	_grid.clear()
+	for i in _boxes.size():
+		var box := _boxes[i].grow(0.5)
+		var a := _cell_of(box.position)
+		var b := _cell_of(box.end)
+		for x in range(a.x, b.x + 1):
+			for y in range(a.y, b.y + 1):
+				for z in range(a.z, b.z + 1):
+					var key := Vector3i(x, y, z)
+					if not _grid.has(key):
+						_grid[key] = PackedInt32Array()
+					_grid[key].append(i)
+
+
+static func _cell_of(local: Vector3) -> Vector3i:
+	return Vector3i(floori(local.x / GRID_CELL), floori(local.y / GRID_CELL), floori(local.z / GRID_CELL))
+
+
+## Indices of the pieces filed near a world point (within radius), each once.
+func _pieces_near(center: Vector3, radius: float) -> PackedInt32Array:
+	var local := center - global_position
+	var a := _cell_of(local - Vector3.ONE * radius)
+	var b := _cell_of(local + Vector3.ONE * radius)
+	var seen := {}
+	var out := PackedInt32Array()
+	for x in range(a.x, b.x + 1):
+		for y in range(a.y, b.y + 1):
+			for z in range(a.z, b.z + 1):
+				for i: int in _grid.get(Vector3i(x, y, z), PackedInt32Array()):
+					if not seen.has(i):
+						seen[i] = true
+						out.append(i)
+	return out
+
+
 ## Drops every intact piece that can't trace support back to the ground.
 ## Moving up through a resting contact resets the span; each sideways step costs one.
-func _settle() -> void:
+func settle_now() -> void:
 	var _p := Prof.begin()
 	var n := _pieces.size()
 	var span := PackedInt32Array()

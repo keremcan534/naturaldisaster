@@ -696,7 +696,10 @@ func _escape_hazards() -> bool:
 		_plan = "escape"
 		_escape_time = 1.6
 		_hurry = true
-		_path = [target] if pos.y > BotNav.base + 1.0 else BotNav.route(pos, target)
+		if pos.y > BotNav.base + 1.0:
+			_path = [target]
+		else:
+			_path = BotNav.route(pos, target)
 		if _rng.randf() < 0.4:
 			_say(DODGES[_rng.randi() % DODGES.size()], 1.5)
 		return true

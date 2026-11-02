@@ -296,6 +296,9 @@ func apply_quality(q: Dictionary) -> void:
 			else DirectionalLight3D.SHADOW_ORTHOGONAL
 	_sun.directional_shadow_max_distance = 90.0 if q.shadows > 1 else 45.0
 	_env.glow_enabled = q.glow
+	# Color adjustments need a full-screen pass of their own in the web
+	# renderer; low quality (no glow either) draws straight to the screen.
+	_env.adjustment_enabled = q.glow
 	_flare_enabled = q.flare
 	_rain.amount = q.rain
 	_splashes.amount = int(q.rain * 0.2)
