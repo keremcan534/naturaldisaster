@@ -370,8 +370,8 @@ func _goal_row(text: String, state: String, reward: int, done: bool, fraction: f
 
 ## First play: a few cards on how the game works.
 func show_tutorial(touch: bool) -> void:
-	var controls_text := "Sol başparmak: hareket. Tam ileri itersen koşarsın; yukarıdaki kilide çekip bırakırsan otomatik koşarsın.\nSağ başparmak: ekranı kaydırarak etrafa bak, büyük tuşla zıpla.\nMerdivenlere doğru yürüyerek tırman." if touch \
-			else "WASD ile yürü, Shift ile koş, Space ile zıpla, fareyle bak.\nMerdivenlere doğru yürüyerek tırman. Esc menüyü açar."
+	var controls_text := "Sol başparmak: hareket. Tam ileri itersen koşarsın; yukarıdaki kilide çekip bırakırsan otomatik koşarsın.\nSağ başparmak: ekranı kaydırarak etrafa bak, büyük tuşla zıpla.\nMerdivenlere doğru yürüyerek tırman.\nParkur: koşarken Çömel = kay. Havada duvara karşı zıpla = duvardan sek. Yüksekten düşerken yere değmeden Çömel = yuvarlan, daha az hasar." if touch \
+			else "WASD ile yürü, Shift ile koş, Space ile zıpla, fareyle bak.\nMerdivenlere doğru yürüyerek tırman. Esc menüyü açar.\nParkur: koşarken C = kay. Havada duvara karşı Space = duvardan sek. Yüksekten düşerken yere değmeden C = yuvarlan, daha az hasar."
 	_tutorial_pages = [
 		["Hoş geldin!", "Her turda adaya bir felaket gelir. Uyarı kartı çıkınca ne yapman gerektiği yazar: oku ve hemen harekete geç!"],
 		["Nasıl hayatta kalırsın?", "Tsunami ve sel: yükseğe, çatıya çık.\nDeprem ve yangın: binalardan uzak, açık alana.\nDolu, yıldırım, asit, kum: kapalı bir yere gir.\nHortum ve volkan: uzaklaş. Kırmızı ok tehlikeyi gösterir."],

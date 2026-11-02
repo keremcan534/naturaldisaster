@@ -407,6 +407,14 @@ func _text(font: Font, center: Vector2, text: String, size: int, color: Color) -
 	_canvas.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
 
 
+## A slide ended: the crouch toggle that started it goes off, so the run goes on.
+func drop_crouch() -> void:
+	if _crouch:
+		_crouch = false
+		Input.action_release("crouch")
+		_canvas.queue_redraw()
+
+
 func _release_all() -> void:
 	for finger: int in _fingers.keys():
 		_release(finger)

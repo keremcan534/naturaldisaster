@@ -145,6 +145,7 @@ func _ready() -> void:
 		_controls.player = _player
 		add_child(_controls)
 		_controls.menu_requested.connect(_pause)
+		_player.slide_ended.connect(_controls.drop_crouch)
 
 	_manager = DisasterManager.new()
 	_manager.world = self

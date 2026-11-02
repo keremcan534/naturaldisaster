@@ -73,10 +73,10 @@ const EN := {
 			"Every round a disaster hits the island. The warning card tells you what to do: read it and move!",
 	"Tsunami ve sel: yükseğe, çatıya çık.\nDeprem ve yangın: binalardan uzak, açık alana.\nDolu, yıldırım, asit, kum: kapalı bir yere gir.\nHortum ve volkan: uzaklaş. Kırmızı ok tehlikeyi gösterir.":
 			"Tsunami and flood: get high, onto a roof.\nEarthquake and fire: away from buildings, into the open.\nHail, lightning, acid, sand: get under cover.\nTornado and volcano: get away. The red arrow points at the danger.",
-	"Sol başparmak: hareket. Tam ileri itersen koşarsın; yukarıdaki kilide çekip bırakırsan otomatik koşarsın.\nSağ başparmak: ekranı kaydırarak etrafa bak, büyük tuşla zıpla.\nMerdivenlere doğru yürüyerek tırman.":
-			"Left thumb: move. Push all the way to run; drag up onto the lock and let go to keep running.\nRight thumb: drag to look around, the big button jumps.\nWalk into ladders to climb.",
-	"WASD ile yürü, Shift ile koş, Space ile zıpla, fareyle bak.\nMerdivenlere doğru yürüyerek tırman. Esc menüyü açar.":
-			"WASD to walk, Shift to run, Space to jump, mouse to look.\nWalk into ladders to climb. Esc opens the menu.",
+	"Sol başparmak: hareket. Tam ileri itersen koşarsın; yukarıdaki kilide çekip bırakırsan otomatik koşarsın.\nSağ başparmak: ekranı kaydırarak etrafa bak, büyük tuşla zıpla.\nMerdivenlere doğru yürüyerek tırman.\nParkur: koşarken Çömel = kay. Havada duvara karşı zıpla = duvardan sek. Yüksekten düşerken yere değmeden Çömel = yuvarlan, daha az hasar.":
+			"Left thumb: move. Push all the way to run; drag up onto the lock and let go to keep running.\nRight thumb: drag to look around, the big button jumps.\nWalk into ladders to climb.\nParkour: crouch while running = slide. Jump against a wall in the air = wall kick. Crouch just before landing a big fall = roll, less damage.",
+	"WASD ile yürü, Shift ile koş, Space ile zıpla, fareyle bak.\nMerdivenlere doğru yürüyerek tırman. Esc menüyü açar.\nParkur: koşarken C = kay. Havada duvara karşı Space = duvardan sek. Yüksekten düşerken yere değmeden C = yuvarlan, daha az hasar.":
+			"WASD to walk, Shift to run, Space to jump, mouse to look.\nWalk into ladders to climb. Esc opens the menu.\nParkour: C while running = slide. Space against a wall in the air = wall kick. C just before landing a big fall = roll, less damage.",
 	"Hayatta kaldıkça puan, coin ve XP kazanırsın. Günlük görevleri ve başarımları tamamla, mağazadan güçlendirme ve kıyafet al.\nTakım arkadaşların da hayatta kalmaya çalışıyor: hepiniz kurtulursanız bonus var!":
 			"Staying alive earns points, coins and XP. Finish daily missions and achievements, buy perks and outfits in the shop.\nYour teammates are trying to survive too: everyone making it pays a bonus!",
 	# HUD.
@@ -99,8 +99,8 @@ const EN := {
 	"Beni takip edin!": "Follow me!", "Yakında kimse yok": "Nobody nearby", "Takım: kendi başınıza": "Team: on your own",
 	" elendi": " is out", "%s kurtarıldı!": "%s was rescued!",
 	"Takip": "Follow", "Selam": "Wave", "Kamera": "Camera", "Çömel": "Crouch", "Sargı": "Bandage",
-	"WASD: yürü  Shift: koş  Space: zıpla  C: çömel  F: takip et  G: selam  V: kamera  P: fotoğraf  Esc: menü":
-			"WASD: walk  Shift: run  Space: jump  C: crouch  F: follow me  G: wave  V: camera  P: photo  Esc: menu",
+	"WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  Esc: menü":
+			"WASD: walk  Shift: run  Space: jump (in the air at a wall: kick off)  C: crouch (while running: slide)  F: follow me  G: wave  V: camera  P: photo  Esc: menu",
 	# Round status.
 	"Harita: %s - sonraki felakete hazırlan": "Map: %s - get ready for the next disaster",
 	"UYARI: %s geliyor!": "WARNING: %s is coming!", "UYARI: ÇİFTE FELAKET! %s + %s": "WARNING: DOUBLE DISASTER! %s + %s",

@@ -233,7 +233,12 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   sways footing) and `rumble()` (view only). The head is top-level and placed every frame
   between the last two physics positions (`Engine.get_physics_interpolation_fraction()`),
   so move it with `teleport()`/`set_view()`, not by setting transforms. Dead players
-  watch a bot. Touch screens get auto-jump over knee-high things.
+  watch a bot. Touch screens get auto-jump over knee-high things. Parkour: crouch while
+  running slides (`_start_slide`/`_update_slide`: friction on the flat, speed down slopes,
+  a jump out keeps the speed; `slide_ended` drops the touch crouch toggle), jump in the air
+  against a wall kicks off it (`_wall_jump`, twice per landing), crouch just before a big
+  landing rolls (a third of the fall damage). Crouch taps are edge-detected in physics
+  (`_crouch_held`); `floor_snap_length` keeps the player on ramps.
 - `scripts/ui/`: HUD (FPS / quality readout, warning card on `disaster_warned`, who-fell
   feed, red flash when hurt, toasts, an arrow toward `DisasterManager.danger_for()`,
   i.e. each disaster's `danger_point()`) and touch controls (shown on phones

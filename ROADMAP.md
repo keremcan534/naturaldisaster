@@ -166,6 +166,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Gamepad desteği (sol çubuk yürü, sağ çubuk bak, tuşlar)
 - ✅ Çömelme / koşma tuşu ayrı
 - ✅ Hızlı eşya kullanma tuşları (1/2/3, dokunmatikte zıplamanın çevresinde)
+- ✅ Parkur: koşarken çömel = kayma (rampada hızlanır, kayarken zıplayınca hız korunur), havada duvara zıpla = duvardan sekme (2 kez), düşerken yere değmeden çömel = yuvarlanma (hasarın üçte biri)
 
 ## 9. Ekonomi ve mağaza
 - ✅ Coin, güçlendirmeler, kıyafet renkleri, günlük hediye

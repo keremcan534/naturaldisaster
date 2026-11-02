@@ -239,7 +239,7 @@ func _ready() -> void:
 	hint.offset_right = -16
 	hint.offset_bottom = -16
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hint.text = "WASD: yürü  Shift: koş  Space: zıpla  C: çömel  F: takip et  G: selam  V: kamera  P: fotoğraf  Esc: menü"
+	hint.text = "WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  Esc: menü"
 	hint.visible = not touch_mode
 
 	_compass = Control.new()

@@ -23,6 +23,8 @@ signal photo_requested
 signal rescued_now
 ## Grabbed a pickup: "coin" (value: points) or "kit" (value: health).
 signal picked(kind: String, value: int)
+## A slide ended (touch controls drop their crouch toggle, so the run goes on).
+signal slide_ended
 
 const Settings := preload("res://scripts/core/settings.gd")
 const Profile := preload("res://scripts/core/profile.gd")
@@ -40,6 +42,26 @@ const PowerGear := preload("res://scripts/player/power_gear.gd")
 ## Power-ups (pickups.gd): speed and jump multipliers.
 const POWER_SPEED := 1.6
 const POWER_JUMP := 1.75
+
+## Parkour. Crouch while running: a slide (a burst of speed that fades on flat
+## ground and builds up down a slope; jump out of it to carry the speed).
+const SLIDE_BOOST := 1.25
+const SLIDE_MAX_SPEED := 13.0
+const SLIDE_MIN_SPEED := 2.8
+const SLIDE_FRICTION := 4.0
+const SLIDE_TIME := 1.0
+## Jump while in the air against a wall: kick off it (up and away), twice before
+## touching the ground again; for a moment the stick steers less.
+const WALL_JUMP_UP := 5.6
+const WALL_JUMP_OUT := 6.5
+const WALL_GRACE := 0.2
+const WALL_JUMPS := 2
+const WALL_AIR_LOCK := 0.35
+## Crouch just before landing a big fall: roll out of it (a third of the
+## damage, and the speed goes into a short slide).
+const ROLL_WINDOW := 0.4
+const ROLL_DAMAGE := 0.35
+const ROLL_TIME := 0.5
 
 ## Human scale: a brisk walk, a run, and a jump of about 1.3 m.
 const SPEED := 4.5
@@ -217,6 +239,16 @@ var _hand_phase := 0.0
 var _stride := 0.0
 var _muffled := false
 var _shield: MeshInstance3D
+var _slide := 0.0
+var _slide_vel := Vector3.ZERO
+var _slide_air := 0.0
+var _wall_time := 0.0
+var _wall_normal := Vector3.ZERO
+var _wall_jumps := 0
+var _air_lock := 0.0
+var _roll_window := 0.0
+var _crouch_held := false
+var _roll := 0.0
 
 
 func _ready() -> void:
@@ -225,6 +257,9 @@ func _ready() -> void:
 	collision_mask = 1 | 2
 	# Building ramps are just under 42 degrees.
 	floor_max_angle = deg_to_rad(48.0)
+	# Stick to ramps and slopes when running or sliding down them, instead of
+	# skipping down in little falls.
+	floor_snap_length = 0.45
 
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = BODY_RADIUS
@@ -402,6 +437,20 @@ func _physics_process(delta: float) -> void:
 		_fall_speed = 0.0
 		Prof.end("player_phys", _p)
 		return
+	# Crouch pressed this step (tracked here: a touch toggle or a key, the same
+	# frame the body would start crouching).
+	var crouch_now := controls_enabled and Input.is_action_pressed("crouch")
+	var crouch_tap := crouch_now and not _crouch_held
+	_crouch_held = crouch_now
+	# (Just off the ground counts as on it: running down a slope skips a little.)
+	var grounded := is_on_floor() or (_coyote > 0.0 and velocity.y <= 0.5)
+	if crouch_tap and grounded and _slide <= 0.0 and Vector2(_walk.x, _walk.z).length() > SPEED + 0.8 \
+			and not _in_water():
+		# Running, then crouch: slide.
+		_start_slide(Vector3(_walk.x, 0, _walk.z) * SLIDE_BOOST)
+	elif crouch_tap and not grounded:
+		# Just before landing: roll.
+		_roll_window = ROLL_WINDOW
 	_update_crouch()
 	_use_items()
 	_help_teammates(delta)
@@ -412,9 +461,24 @@ func _physics_process(delta: float) -> void:
 		_jump_buffer = JUMP_BUFFER
 	_jump_buffer -= delta
 	_coyote = COYOTE_TIME if is_on_floor() else _coyote - delta
+	_roll_window -= delta
+	_roll -= delta
+	_air_lock -= delta
 	if is_on_floor():
-		# Super jump boots land softly.
-		if _fall_speed > _fall_damage_speed and not powers.has("jump"):
+		_wall_jumps = 0
+		var hard := _fall_speed > _fall_damage_speed and not powers.has("jump")
+		if _roll_window > 0.0 and _fall_speed > 8.0:
+			# Rolled out of the landing: less damage, and the speed carries on.
+			_roll_window = 0.0
+			_roll = ROLL_TIME
+			if hard:
+				take_damage((_fall_speed - _fall_damage_speed) * 6.0 * ROLL_DAMAGE)
+			var ahead := Vector3(_walk.x, 0, _walk.z)
+			if ahead.length() < 1.0:
+				ahead = -transform.basis.z
+			_start_slide(ahead.normalized() * maxf(ahead.length(), 6.0))
+			get_tree().call_group("sound", "play", "step", null, -6.0, 0.7)
+		elif hard:
 			take_damage((_fall_speed - _fall_damage_speed) * 6.0)
 		_fall_speed = 0.0
 	else:
@@ -424,6 +488,13 @@ func _physics_process(delta: float) -> void:
 		velocity.y = _jump_velocity * (POWER_JUMP if powers.has("jump") else 1.0)
 		_jump_buffer = 0.0
 		_coyote = 0.0
+		if _slide > 0.0:
+			# Jumping out of a slide keeps its speed.
+			_push += _slide_vel * 0.55
+			_end_slide()
+	elif _jump_buffer > 0.0 and _wall_time > 0.0 and _wall_jumps < WALL_JUMPS and not in_water \
+			and _ladder <= 0.0 and _hook_time <= 0.0:
+		_wall_jump()
 
 	var drag := PUSH_DRAG_GROUND if is_on_floor() else PUSH_DRAG_AIR
 	if in_water:
@@ -472,12 +543,23 @@ func _physics_process(delta: float) -> void:
 	# A shaking ground makes footing unreliable (a smooth sway, not jitter).
 	var sway_t := _shake_time * 3.0
 	var wobble := Vector3(sin(sway_t), 0, cos(sway_t * 1.3)) * _quake * 1.2
-	_walk = _walk.move_toward(dir * speed + wobble, speed * (1.6 if _icy else 10.0) * delta)
+	if _slide > 0.0:
+		_update_slide(delta, dir, in_water)
+	else:
+		# Right after a wall kick the stick steers less, so the kick carries.
+		var grip := 1.6 if _icy else (2.0 if _air_lock > 0.0 else 10.0)
+		_walk = _walk.move_toward(dir * speed + wobble, speed * grip * delta)
 	_push = _push.lerp(Vector3.ZERO, minf(drag * delta, 1.0))
 	velocity.x = _walk.x + _push.x
 	velocity.z = _walk.z + _push.z
 	move_and_slide()
 	_touch_pieces()
+	# A wall within reach in the air: a jump kicks off it.
+	if is_on_wall() and not is_on_floor() and not in_water:
+		_wall_time = WALL_GRACE
+		_wall_normal = get_wall_normal()
+	else:
+		_wall_time -= delta
 	max_height = maxf(max_height, global_position.y)
 	# Grass and flowers bend away from the player's legs.
 	RenderingServer.global_shader_parameter_set("player_pos", global_position)
@@ -488,6 +570,67 @@ func _physics_process(delta: float) -> void:
 			teleport(Vector3(0, 30, 0))
 		take_damage(MAX_HEALTH)
 	Prof.end("player_phys", _p)
+
+
+func _start_slide(velocity_h: Vector3) -> void:
+	_slide = SLIDE_TIME
+	_slide_air = 0.0
+	_slide_vel = velocity_h.limit_length(SLIDE_MAX_SPEED)
+	get_tree().call_group("sound", "play", "step", null, -8.0, 0.55)
+
+
+func _end_slide() -> void:
+	if _slide <= 0.0:
+		return
+	_slide = 0.0
+	# Back to running speed from here (not a dead stop).
+	_walk = _slide_vel.limit_length(_sprint_speed)
+	slide_ended.emit()
+
+
+## Sliding: friction on the flat, speed from slopes going down (it lasts as
+## long as it keeps going), a little steering; ends when slow, in water, or
+## off the ground for a moment.
+func _update_slide(delta: float, dir: Vector3, in_water: bool) -> void:
+	_slide -= delta
+	var speed_now := _slide_vel.length()
+	var heading := _slide_vel / maxf(speed_now, 0.01)
+	var accel := -SLIDE_FRICTION
+	if is_on_floor():
+		_slide_air = 0.0
+		# The floor normal leans downhill: gravity along the slope.
+		var n := get_floor_normal()
+		var downhill := Vector3(n.x, 0, n.z).dot(heading) * _gravity * 1.4
+		accel += downhill
+		if downhill > SLIDE_FRICTION:
+			_slide = maxf(_slide, 0.25)
+	else:
+		_slide_air += delta
+	speed_now = clampf(speed_now + accel * delta, 0.0, SLIDE_MAX_SPEED)
+	if dir.length() > 0.2:
+		heading = heading.lerp(dir.normalized(), minf(delta * 1.8, 1.0)).normalized()
+	_slide_vel = heading * speed_now
+	_walk = _slide_vel
+	get_tree().call_group("sound", "loop", "wind", 0.25, 1.6)
+	if _slide <= 0.0 or speed_now < SLIDE_MIN_SPEED or in_water or _slide_air > 0.25 \
+			or (is_on_wall() and get_wall_normal().dot(heading) < -0.7):
+		_end_slide()
+
+
+## Kick off the wall we are touching: up and away from it.
+func _wall_jump() -> void:
+	var out := Vector3(_wall_normal.x, 0, _wall_normal.z).normalized()
+	velocity.y = WALL_JUMP_UP
+	# Keep the run along the wall, drop what pushed into it, add the kick.
+	_walk = Vector3(_walk.x, 0, _walk.z).slide(out)
+	_push = out * WALL_JUMP_OUT
+	_jump_buffer = 0.0
+	_wall_time = 0.0
+	_wall_jumps += 1
+	_air_lock = WALL_AIR_LOCK
+	_fall_speed = 0.0
+	_rumble = maxf(_rumble, 0.12)
+	get_tree().call_group("sound", "play", "step", null, -4.0, 1.25)
 
 
 ## Walked into a pickup (pickups.gd): coins are already counted in bonus_points.
@@ -564,7 +707,7 @@ func _touch_pieces() -> void:
 
 ## Crouch while the action is held (a toggle on touch); standing up needs room.
 func _update_crouch() -> void:
-	var want := controls_enabled and Input.is_action_pressed("crouch") and is_on_floor()
+	var want := (controls_enabled and Input.is_action_pressed("crouch") and is_on_floor()) or _slide > 0.0
 	if want == _crouching:
 		return
 	if not want:
@@ -764,7 +907,8 @@ func _process(delta: float) -> void:
 		_muffled = under
 		get_tree().call_group("sound", "muffle", under)
 	_wave_time -= delta
-	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() else 0.0
+	# Sliding: no steps (and no stride on the avatar).
+	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() and _slide <= 0.0 else 0.0
 	_body.animate(delta, ground_speed, 1.0 if _ladder > 0.0 or _wave_time > 0.0 or _chute > 0.0 else 0.0)
 	_footsteps(delta, ground_speed)
 	Prof.end("player", _p)
@@ -892,8 +1036,15 @@ func _place_camera(delta: float) -> void:
 	var t := _shake_time * 22.0
 	var shake := maxf(_quake, _rumble) * SHAKE_AMOUNT
 	var body := _prev_pos.lerp(global_position, Engine.get_physics_interpolation_fraction())
-	var view := Basis.from_euler(Vector3(_pitch, _yaw, 0))
-	var eye := body + Vector3.UP * _eye
+	var pitch := _pitch
+	var eye_height := _eye
+	if _roll > 0.0:
+		# Rolling out of a landing: the view ducks forward and comes back up.
+		var k := sin((1.0 - _roll / ROLL_TIME) * PI)
+		pitch -= k * 1.1
+		eye_height -= k * 0.6
+	var view := Basis.from_euler(Vector3(pitch, _yaw, 0))
+	var eye := body + Vector3.UP * eye_height
 	if Settings.third_person:
 		# Over the shoulder, pulled in where a wall or ceiling is in the way.
 		var want := eye + view * Vector3(THIRD_SIDE, 0.25, THIRD_DISTANCE)
@@ -907,13 +1058,15 @@ func _place_camera(delta: float) -> void:
 	# Not on touch screens: there it only makes aiming harder.
 	var ground_speed := Vector2(_walk.x, _walk.z).length() if is_on_floor() and alive else 0.0
 	_bob_phase += ground_speed * BOB_RATE * delta * TAU * 0.5
-	var bob := BOB_HEIGHT * clampf(ground_speed / SPEED, 0.0, 1.3) if use_mouse else 0.0
+	var bob := BOB_HEIGHT * clampf(ground_speed / SPEED, 0.0, 1.3) if use_mouse and _slide <= 0.0 else 0.0
 	_bob = lerpf(_bob, bob, minf(delta * 8.0, 1.0))
 	_camera.v_offset = (sin(t * 1.3 + 0.5) + sin(t * 2.9 + 2.1)) * 0.5 * shake + sin(_bob_phase * 2.0) * _bob
 	var sprinting := use_mouse and Input.is_action_pressed("sprint") and ground_speed > SPEED
 	var fov := SPRINT_FOV if sprinting else FOV
 	if powers.has("speed") and ground_speed > SPEED:
 		fov += 8.0
+	if _slide > 0.0:
+		fov += 7.0
 	_camera.fov = lerpf(_camera.fov, fov, minf(delta * 6.0, 1.0))
 
 
@@ -1047,6 +1200,11 @@ func respawn(pos: Vector3) -> void:
 	helps_round = 0
 	powers.clear()
 	_show_powers()
+	_slide = 0.0
+	_roll = 0.0
+	_roll_window = 0.0
+	_wall_jumps = 0
+	_air_lock = 0.0
 	_chute = 0.0
 	_hook_time = 0.0
 	_mantle = 0.0
