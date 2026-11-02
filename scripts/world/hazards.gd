@@ -91,6 +91,8 @@ func _physics_process(delta: float) -> void:
 	for i in _sparks.size():
 		_sparks[i].emitting = i < _live.size()
 		if i < _live.size():
+			_sparks[i].visible = true
+		if i < _live.size():
 			_sparks[i].global_position = _live[i][0]
 	if _live.is_empty():
 		return

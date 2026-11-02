@@ -9,6 +9,7 @@ const Prof := preload("res://scripts/core/prof.gd")
 ## global uniforms (project.godot [shader_globals]).
 
 const Look := preload("res://scripts/world/look.gd")
+const Quality := preload("res://scripts/core/quality.gd")
 const SKY_SHADER := preload("res://shaders/sky.gdshader")
 const SEA_SHADER := preload("res://shaders/sea.gdshader")
 
@@ -341,6 +342,9 @@ func set_mood(mood: String) -> void:
 	_blend = 0.0
 	_rain.emitting = MOODS[_mood].rain
 	_splashes.emitting = _rain.emitting
+	if _rain.emitting:
+		_rain.visible = true
+		_splashes.visible = true
 	# After the rain, with the sun out: a rainbow (gone again if rain returns).
 	if was_raining and not _rain.emitting and _time != "night":
 		_rainbow_age = 0.0
@@ -432,6 +436,8 @@ func _process(delta: float) -> void:
 	var camera := get_viewport().get_camera_3d()
 	var windy: bool = _now.get("wind", 0.0) > 0.75
 	_leaves.emitting = windy
+	if windy:
+		_leaves.visible = true
 	if camera and windy:
 		_leaves.global_position = camera.global_position + Vector3(-6.0, 1.0, 0.0)
 	if camera:
@@ -596,21 +602,25 @@ func _draw_flare() -> void:
 
 ## A disc of rings around the island, denser near the middle.
 func _sea_mesh() -> ArrayMesh:
+	# Low quality: half the rings and fewer segments (a quarter of the vertices,
+	# each running the swell in the vertex shader).
+	var rings: int = SEA_RINGS if Quality.level > 0 else SEA_RINGS / 2
+	var segments: int = SEA_SEGMENTS if Quality.level > 0 else SEA_SEGMENTS * 5 / 8
 	var verts := PackedVector3Array()
 	var indices := PackedInt32Array()
 	verts.append(Vector3.ZERO)
-	for ring in range(1, SEA_RINGS + 1):
-		var r := SEA_RADIUS * pow(float(ring) / SEA_RINGS, 2.2)
-		for seg in SEA_SEGMENTS:
-			var a := TAU * seg / SEA_SEGMENTS
+	for ring in range(1, rings + 1):
+		var r := SEA_RADIUS * pow(float(ring) / rings, 2.2)
+		for seg in segments:
+			var a := TAU * seg / segments
 			verts.append(Vector3(cos(a) * r, 0, sin(a) * r))
-	for seg in SEA_SEGMENTS:
-		indices.append_array([0, 1 + seg, 1 + (seg + 1) % SEA_SEGMENTS])
-	for ring in range(1, SEA_RINGS):
-		var inner := 1 + (ring - 1) * SEA_SEGMENTS
-		var outer := inner + SEA_SEGMENTS
-		for seg in SEA_SEGMENTS:
-			var next := (seg + 1) % SEA_SEGMENTS
+	for seg in segments:
+		indices.append_array([0, 1 + seg, 1 + (seg + 1) % segments])
+	for ring in range(1, rings):
+		var inner := 1 + (ring - 1) * segments
+		var outer := inner + segments
+		for seg in segments:
+			var next := (seg + 1) % segments
 			indices.append_array([inner + seg, outer + seg, inner + next])
 			indices.append_array([inner + next, outer + seg, outer + next])
 	var normals := PackedVector3Array()

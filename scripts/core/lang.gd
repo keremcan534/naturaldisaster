@@ -36,6 +36,7 @@ const EN := {
 	"Bot seviyesi": "Bot level", "Kolay": "Easy", "Normal": "Normal", "Zor": "Hard",
 	"Performans bilgisi göster (takılma olursa ekran görüntüsü at)": "Show performance info (send a screenshot if it stutters)",
 	"Grafik kalitesi (takılıyorsa düşür)": "Graphics quality (lower it if it stutters)",
+	"Tam çözünürlük (çok keskin ama yavaş, sayfayı yenile)": "Full resolution (sharpest but slow, reload the page)",
 	"Otomatik": "Auto", "Düşük": "Low", "Orta": "Medium", "Yüksek": "High", "Adın": "Your name", "Dil": "Language",
 	# Modes and events.
 	"Klasik": "Classic", "Kaos": "Chaos", "Sadece Su": "Water Only", "Son Kalan": "Last Standing",

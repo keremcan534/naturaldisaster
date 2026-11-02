@@ -73,6 +73,10 @@ var _fps_settle := FPS_SETTLE
 var _pending_quality := -1
 var _nav_timer := 0.0
 var _nav_dirty := false
+## Pooled particle emitters (explosions, dust, smoke, rain, sparks): an idle one
+## still costs a draw call every frame, so it is hidden once its last particle
+## is gone (whoever starts it shows it again). [emitter, seconds idle]
+var _emitters: Array = []
 var _player: Player
 var _hud: Hud
 var _controls: TouchControls
@@ -180,6 +184,10 @@ func _ready() -> void:
 	debug.manager = _manager
 	add_child(debug)
 
+	for node: Node in find_children("*", "CPUParticles3D", true, false):
+		_emitters.append([node, 0.0])
+		if not node.emitting:
+			node.visible = false
 	load_next_map()
 	get_tree().call_group("bots", "respawn", spawn_point)
 	if "--play" in args or "--fast" in args or "--selftest" in args:
@@ -387,10 +395,22 @@ func set_quality(level: int, auto: bool) -> void:
 
 func _apply_quality() -> void:
 	Quality.apply_viewport(get_viewport())
+	# Low quality: physics (and everything run in its steps: bots, collapses,
+	# disasters' pushes) 30 times a second instead of 60. Moving things are drawn
+	# between steps (physics interpolation), so motion stays smooth.
+	Engine.physics_ticks_per_second = 30 if Quality.level == 0 else 60
 	_weather.apply_quality(Quality.current())
 
 
 func _process(delta: float) -> void:
+	for entry: Array in _emitters:
+		var p: CPUParticles3D = entry[0]
+		if p.emitting:
+			entry[1] = 0.0
+		elif p.visible:
+			entry[1] += delta
+			if entry[1] > p.lifetime + 0.3:
+				p.visible = false
 	# Collapses change the ground the bots walk on: refresh their grid now and
 	# then while pieces move (and once after they settle).
 	_nav_timer -= delta

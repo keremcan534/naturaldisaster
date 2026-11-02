@@ -34,6 +34,8 @@ var _next := 0
 var _time := 0.0
 var _rng := RandomNumberGenerator.new()
 var _solid: MultiMesh
+## The two MultiMeshInstance3Ds (solid, glass).
+var _nodes: Array[MultiMeshInstance3D] = []
 var _shards: MultiMesh
 
 
@@ -79,7 +81,10 @@ func _batch(count: int, material: Material) -> MultiMesh:
 	instance.multimesh = mm
 	instance.material_override = material
 	instance.custom_aabb = AABB(Vector3(-300, -60, -300), Vector3(600, 260, 600))
+	# Hidden while no chunk flies (an empty pool still costs a draw call).
+	instance.visible = false
 	add_child(instance)
+	_nodes.append(instance)
 	return mm
 
 
@@ -147,15 +152,23 @@ func _physics_process(delta: float) -> void:
 ## Every frame: each live chunk's batch instance follows its body.
 func _process(_delta: float) -> void:
 	var _p := Prof.begin()
+	var solid := 0
+	var glass := 0
 	for i in _bodies.size():
 		if _born[i] < 0.0:
 			continue
+		if _glass[i]:
+			glass += 1
+		else:
+			solid += 1
 		var body := _bodies[i]
 		var age := _time - _born[i]
 		var shrink := clampf((LIFETIME - age) / SHRINK_TIME, 0.01, 1.0)
 		var t := body.get_global_transform_interpolated()
 		var mm := _shards if _glass[i] else _solid
 		mm.set_instance_transform(i, Transform3D(t.basis * Basis.from_scale(_sizes[i] * shrink), t.origin))
+	_nodes[0].visible = solid > 0
+	_nodes[1].visible = glass > 0
 	Prof.end("debris", _p)
 
 

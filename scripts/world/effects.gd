@@ -57,12 +57,14 @@ func _ready() -> void:
 	_scorch.material_override = material
 	_scorch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_scorch.custom_aabb = AABB(Vector3(-400, -50, -400), Vector3(800, 150, 800))
+	_scorch.visible = false
 	add_child(_scorch)
 
 
 ## New map: the burn marks go.
 func clear() -> void:
 	_scorch.multimesh.visible_instance_count = 0
+	_scorch.visible = false
 	_next_scorch = 0
 
 
@@ -80,6 +82,7 @@ func scorch(pos: Vector3, radius: float) -> void:
 	marks.set_instance_custom_data(_next_scorch, Color(randf(), 0, 0, 0))
 	_next_scorch = (_next_scorch + 1) % SCORCH_SLOTS
 	marks.visible_instance_count = maxi(marks.visible_instance_count, _next_scorch if _next_scorch > 0 else SCORCH_SLOTS)
+	_scorch.visible = true
 
 
 func explosion(pos: Vector3, radius: float) -> void:
@@ -89,6 +92,7 @@ func explosion(pos: Vector3, radius: float) -> void:
 	slot.scale = Vector3.ONE * clampf(radius / 5.0, 0.5, 1.5)
 	get_tree().call_group("sound", "play", "boom", pos, 4.0)
 	for emitter: CPUParticles3D in slot.get_children():
+		emitter.visible = true
 		emitter.restart()
 	scorch(pos, clampf(radius * 0.7, 1.2, 5.0))
 
@@ -99,6 +103,7 @@ func cloud(pos: Vector3, size: float) -> void:
 	_next_cloud = (_next_cloud + 1) % _clouds.size()
 	emitter.global_position = pos
 	emitter.scale = Vector3.ONE * clampf(size / 6.0, 0.6, 2.0)
+	emitter.visible = true
 	emitter.restart()
 	get_tree().call_group("sound", "play", "boom", pos, 2.0, 0.45)
 	get_tree().call_group("player", "rumble", pos, 600.0)
@@ -109,6 +114,7 @@ func dust(pos: Vector3) -> void:
 	var emitter := _dusts[_next_dust]
 	_next_dust = (_next_dust + 1) % _dusts.size()
 	emitter.global_position = pos
+	emitter.visible = true
 	emitter.restart()
 	get_tree().call_group("sound", "play", "crash", pos)
 

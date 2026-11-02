@@ -73,6 +73,8 @@ func barks() -> void:
 func volcano_smoke(pos: Vector3, on: bool) -> void:
 	_smoke.global_position = pos + Vector3.UP * 2.0
 	_smoke.emitting = on
+	if on:
+		_smoke.visible = true
 
 
 func _volcano_plume() -> CPUParticles3D:

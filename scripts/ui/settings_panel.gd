@@ -131,6 +131,12 @@ func _ready() -> void:
 			Settings.save_settings())
 		bots.add_child(choice)
 	box.add_child(bots)
+	if OS.has_feature("web"):
+		# The page draws at most 2 device pixels per screen point (sharp on any
+		# phone, a fraction of the work on 3x screens); this lifts the cap.
+		var sharp: bool = JavaScriptBridge.eval("localStorage.getItem('nd_sharp') === '1'", true) == true
+		box.add_child(_toggle("Tam çözünürlük (çok keskin ama yavaş, sayfayı yenile)", sharp, func(on: bool) -> void:
+			JavaScriptBridge.eval("localStorage.setItem('nd_sharp', '%s')" % ("1" if on else "0"), true)))
 	box.add_child(_toggle("Performans bilgisi göster (takılma olursa ekran görüntüsü at)", Settings.perf_overlay, func(on: bool) -> void:
 		Settings.perf_overlay = on))
 	box.add_child(Ui.text("Grafik kalitesi (takılıyorsa düşür)", 20))

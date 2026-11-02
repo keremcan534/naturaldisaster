@@ -151,6 +151,8 @@ func _place_smoke_and_lights() -> void:
 	for i in _smokes.size():
 		_smokes[i].emitting = i < used.size()
 		if i < used.size():
+			_smokes[i].visible = true
+		if i < used.size():
 			_smokes[i].global_position = used[i] + Vector3.UP * 1.5
 	# Lights a little out toward the camera: inside a burning wall they would
 	# flood its panels with flat orange. Only on high quality: in the web

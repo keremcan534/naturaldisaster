@@ -96,7 +96,16 @@ func _copy_pools() -> Node:
 	for node: Node in _idle_geometry(world):
 		var copy := node.duplicate(0)
 		if copy is MultiMeshInstance3D and copy.multimesh:
-			copy.multimesh = copy.multimesh.duplicate()
+			# A fresh one with the same layout (copying the buffer trips over
+			# visible counts).
+			var source: MultiMesh = copy.multimesh
+			var mm := MultiMesh.new()
+			mm.transform_format = source.transform_format
+			mm.use_colors = source.use_colors
+			mm.use_custom_data = source.use_custom_data
+			mm.mesh = source.mesh
+			mm.instance_count = 2
+			copy.multimesh = mm
 		holder.add_child(copy)
 	_show(holder)
 	print_verbose("[rehearsal] idle effects: %d nodes" % holder.get_child_count())

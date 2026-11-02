@@ -21,6 +21,8 @@ const SPAWN_GAP := Vector2(2.0, 3.5)
 ## [position, kind ("coin"/"kit"), age]
 var _items: Array = []
 var _coins: MultiMesh
+var _coin_node: MultiMeshInstance3D
+var _kit_node: MultiMeshInstance3D
 var _kits: MultiMesh
 var _spawning := false
 var _spawn_timer := 0.0
@@ -46,6 +48,7 @@ func _ready() -> void:
 	gold.emission_energy_multiplier = 0.6
 	coin.material = gold
 	_coins = _batch(coin)
+	_coin_node = get_child(get_child_count() - 1)
 	var kit := BoxMesh.new()
 	kit.size = Vector3(0.5, 0.36, 0.3)
 	var red := StandardMaterial3D.new()
@@ -55,6 +58,7 @@ func _ready() -> void:
 	red.emission_energy_multiplier = 0.5
 	kit.material = red
 	_kits = _batch(kit)
+	_kit_node = get_child(get_child_count() - 1)
 
 
 func _batch(mesh: Mesh) -> MultiMesh:
@@ -204,3 +208,6 @@ func _redraw() -> void:
 			kits += 1
 	_coins.visible_instance_count = coins
 	_kits.visible_instance_count = kits
+	# Nothing to draw: skip the draw calls too.
+	_coin_node.visible = coins > 0
+	_kit_node.visible = kits > 0

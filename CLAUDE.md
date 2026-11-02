@@ -249,7 +249,13 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
 
 Mobile and web are the targets, so: nothing is instanced during a round (pool it),
 intact geometry stays frozen, disasters touch physics on a fixed 0.1 s tick, and
-shared meshes/materials/shapes come from caches. Web builds use the Compatibility
+shared meshes/materials/shapes come from caches. Idle pools must not draw: an idle
+CPUParticles3D still updates and uploads its buffer every frame (main.gd hides idle
+pooled emitters; whoever starts one sets `visible = true`), and empty MultiMeshes hide
+themselves (debris, pickups, scorch marks). Hiding the ~50 idle emitters tripled the
+frame rate under software rendering. On Düşük physics runs at 30 Hz (`_apply_quality`;
+interpolation keeps motion smooth; fast projectiles use continuous collision) and the
+sea mesh has a quarter of the vertices. Web builds use the Compatibility
 (OpenGL) renderer; check visuals there too (`--rendering-method gl_compatibility`).
 The web page (`export_presets.cfg` head include) shows uncaught JS errors and a lost
 WebGL context in a red box, so the user can screenshot them.
@@ -258,8 +264,10 @@ WebGL context in a red box, so the user can screenshot them.
 measures FPS and moves between them; phones start on Düşük. Levels change MSAA,
 shadows, glow, grass count and draw distance (grass is chunked so far chunks are not
 drawn), rain, the lens flare, and the `quality` shader global that shaders check to
-skip expensive parts. Never lower the render resolution: the user does not want a
-pixelated picture. New expensive shader work needs a cheap path under `quality`.
+skip expensive parts. Never scale the 3D render below the screen: the user does not
+want a pixelated picture. The web page (`export_presets.cfg` head include) caps
+`devicePixelRatio` at 2, still sharp on phones but less than half the pixels of a 3x
+screen; Ayarlar "Tam çözünürlük" (web) lifts it via localStorage `nd_sharp`. New expensive shader work needs a cheap path under `quality`.
 Software rendering under xvfb is slow but its FPS (`--perf`) still compares costs.
 
 ## Checking changes
