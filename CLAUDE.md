@@ -44,6 +44,11 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   `load_next_map(choice)` takes the winner. `scripts/world/rescue_heli.gd` (group "rescue")
   sometimes flies to the highest refuge roof mid-disaster; reaching its ladder calls
   `rescue()` on players/bots (no more damage that round, bonus points).
+- Round spice: `scripts/world/pickups.gd` (group "pickups", phases from the manager) puts gold
+  coins (round points) and first-aid kits around the map and on roofs; anyone walking
+  into one gets it (`collected()` on players and bots). Each round has a goal for the
+  player (`DisasterManager.CHALLENGES`, bonus points, HUD line), and halfway through a
+  disaster another may join it (`_surprise()`, `SURPRISE_CHANCE` per mode).
 - Player extras: crouch, mantling ledges, items bought in the shop (`items`, parachute /
   bandage / hook, keys 1-3), helping hurt bots (stand next to them), F makes the nearest bots
   `follow()`, G waves, P takes a photo (`scripts/core/photo.gd`: a download on the web),
@@ -54,7 +59,15 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   through the door and up the ramps, or a ladder), quake → open ground (`Maps.buildings`),
   meteors → inside, tornado → away from `danger_center()`, volcano → the +Z side, fire →
   open ground, lightning/hail/acid/sand → inside. They shout lines (`SHOUTS`) in a bubble.
-  `--botlog` prints what they do. Each has a personality (korkak / cesur / şakacı) and a
+  `--botlog` prints what they do. They walk on `scripts/player/bot_nav.gd`'s 0.5 m ground grid
+  (AStarGrid2D; cells solid where any piece stands between knee and head height, rebuilt
+  per map and every 3 s while pieces move) through `_go_to()`, so they go around walls and
+  through doors. Floods: strong, tall refuges first (weak houses fall), else the lifeboat;
+  "inside" spreads them over the building's floor; quakes pick open spots with clearance.
+  Every think they step out of `DisasterManager.hazards()` ([position, radius]: lightning
+  rings, the big meteor's ring, the sinkhole, the UFO beam, burning spots; disasters add
+  theirs in `hazards()`), help hurt teammates nearby when safe, grab pickups, react to
+  nearby collapses (`rumble`). Each has a personality (korkak / cesur / şakacı) and a
   skill drawn from the bot level setting; they shout for help when hurt and cheer after a
   round. `avatar.gd` + `shaders/avatar.gdshader`: blocky
   character in one draw call (limbs swing in the shader); also the player's shadow.

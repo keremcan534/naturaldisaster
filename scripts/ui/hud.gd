@@ -64,6 +64,10 @@ var _compass: Control
 var _danger_at := Vector3.INF
 var _compass_key := Vector3.INF
 var _vignette: TextureRect
+## This round's goal, and a quick "+15" over the crosshair for pickups.
+var _challenge: Label
+var _pop: Label
+var _pop_time := 0.0
 
 
 func _ready() -> void:
@@ -230,6 +234,15 @@ func _ready() -> void:
 
 	_vote = _build_vote()
 	add_child(_vote)
+	_challenge = _label(17)
+	_challenge.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_challenge.offset_top = 150
+	_challenge.add_theme_color_override("font_color", Color(1.0, 0.88, 0.45))
+	_pop = _label(26)
+	_pop.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_pop.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_pop.offset_top = -80
+	_pop.visible = false
 	# Desktop: what the number keys hold this round.
 	_items = _label(18)
 	_items.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
@@ -262,6 +275,11 @@ func _process(delta: float) -> void:
 		if _board_time <= 0.0:
 			_board.visible = false
 	_update_vote()
+	if _pop_time > 0.0:
+		_pop_time -= delta
+		_pop.modulate.a = clampf(_pop_time / 0.4, 0.0, 1.0)
+		_pop.offset_top = -80 - (0.9 - _pop_time) * 40.0
+		_pop.visible = _pop_time > 0.0
 	_redraw_compass()
 	_time += delta
 	_update_toast(delta)
@@ -285,6 +303,16 @@ func bind(manager: Node, player: Node) -> void:
 			_center.text = Lang.t("Elendin! Son kalan belirlenince döneceksin")
 			_center.visible = true)
 	manager.vote_started.connect(_open_vote)
+	manager.challenge_set.connect(func(text: String) -> void:
+		_challenge.text = Lang.t("Tur görevi: %s") % text)
+	manager.challenge_done.connect(func(text: String, points: int) -> void:
+		toast(Lang.t("Tur görevi tamam! +%d puan") % points, 0)
+		_challenge.text = "")
+	player.picked.connect(func(kind: String, value: int) -> void:
+		_pop.text = ("+%d" % value) if kind == "coin" else Lang.t("+%d can") % value
+		_pop.add_theme_color_override("font_color", Ui.COIN if kind == "coin" else Color(0.5, 1.0, 0.55))
+		_pop.visible = true
+		_pop_time = 0.9)
 	player.helped.connect(func(bot_name: String) -> void:
 		toast(Lang.t("%s ayağa kalktı! +25 puan") % bot_name, 0))
 	player.rescued_now.connect(func() -> void:

@@ -30,6 +30,10 @@ const Events := preload("res://scripts/core/events.gd")
 const RescueHeli := preload("res://scripts/world/rescue_heli.gd")
 const Doors := preload("res://scripts/world/doors.gd")
 const Boat := preload("res://scripts/world/boat.gd")
+const Pickups := preload("res://scripts/world/pickups.gd")
+const BotNav := preload("res://scripts/player/bot_nav.gd")
+## Bots' ground grid is rebuilt this often while pieces are moving.
+const NAV_REFRESH := 3.0
 const Photo := preload("res://scripts/core/photo.gd")
 const Season := preload("res://scripts/core/season.gd")
 
@@ -67,6 +71,8 @@ var _fps_frames := 0
 var _fps_settle := FPS_SETTLE
 ## Auto quality's next level, applied when the next map loads (-1: none).
 var _pending_quality := -1
+var _nav_timer := 0.0
+var _nav_dirty := false
 var _player: Player
 var _hud: Hud
 var _controls: TouchControls
@@ -114,6 +120,7 @@ func _ready() -> void:
 	add_child(_ambience)
 	add_child(RescueHeli.new())
 	add_child(Doors.new())
+	add_child(Pickups.new())
 	_apply_quality()
 
 	_player = Player.new()
@@ -319,6 +326,7 @@ func load_next_map(choice := -1) -> void:
 	dam = info.get("dam", Vector3.INF)
 	dam_lake = _map_root.find_child("DamLake", true, false)
 	_place_boat()
+	BotNav.build(get_tree(), map_size, spawn_point.y - 0.5)
 	_weather.set_island(map_size * 0.5)
 	_weather.new_day()
 	_ambience.set_island(map_size * 0.5)
@@ -383,6 +391,14 @@ func _apply_quality() -> void:
 
 
 func _process(delta: float) -> void:
+	# Collapses change the ground the bots walk on: refresh their grid now and
+	# then while pieces move (and once after they settle).
+	_nav_timer -= delta
+	if _nav_timer <= 0.0:
+		_nav_timer = NAV_REFRESH
+		if Structure.awake > 0 or _nav_dirty:
+			_nav_dirty = Structure.awake > 0
+			BotNav.build(get_tree(), map_size, spawn_point.y - 0.5)
 	# A browser drops the pointer lock on Esc without telling the game: open the
 	# pause menu, whose DEVAM click locks it again.
 	if _playing and _player.use_mouse and auto_pause and not _menu.is_open():

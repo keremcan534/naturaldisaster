@@ -247,6 +247,20 @@ func world_bounds() -> AABB:
 	return global_transform * _bounds
 
 
+## Ground plans (world XZ) of every piece still there that reaches into the
+## height band [low, high]: what blocks a walker (bot_nav.gd).
+func obstacles(low: float, high: float, out: Array[Rect2]) -> void:
+	if not world_bounds().intersects(AABB(Vector3(-1e4, low, -1e4), Vector3(2e4, high - low, 2e4))):
+		return
+	for i in _pieces.size():
+		if _gone[i]:
+			continue
+		var box := _pieces[i].global_transform * AABB(-_sizes[i] * 0.5, _sizes[i])
+		if box.end.y < low or box.position.y > high:
+			continue
+		out.append(Rect2(box.position.x, box.position.z, box.size.x, box.size.z))
+
+
 ## center is in this node's local space. A rotated piece links to its neighbours
 ## through its axis-aligned bounds. visual replaces the box mesh (tree canopies,
 ## trunks); the collision shape stays a box. material replaces Look.surface(color)

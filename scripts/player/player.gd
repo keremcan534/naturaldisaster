@@ -20,6 +20,8 @@ signal helped(bot_name: String)
 signal photo_requested
 ## Lifted by the rescue helicopter.
 signal rescued_now
+## Grabbed a pickup: "coin" (value: points) or "kit" (value: health).
+signal picked(kind: String, value: int)
 
 const Settings := preload("res://scripts/core/settings.gd")
 const Profile := preload("res://scripts/core/profile.gd")
@@ -126,6 +128,11 @@ var bonus_points := 0
 var items := {}
 ## Reached the rescue helicopter: nothing hurts any more this round.
 var rescued := false
+## This round: coins and first-aid kits grabbed, teammates patched up (the
+## round's challenge reads them).
+var coins_round := 0
+var kits_round := 0
+var helps_round := 0
 ## Map votes are open: the number keys vote instead of using items (hud.gd).
 var voting := false
 
@@ -463,6 +470,26 @@ func _physics_process(delta: float) -> void:
 		take_damage(MAX_HEALTH)
 
 
+## Walked into a pickup (pickups.gd): coins are already counted in bonus_points.
+func collected(kind: String, value: int) -> void:
+	if kind == "coin":
+		coins_round += 1
+	else:
+		kits_round += 1
+		health = minf(health + value, max_health)
+		health_changed.emit(health, max_health)
+	picked.emit(kind, value)
+
+
+## A bot patched us up.
+func heal_by(amount: float, who: String) -> void:
+	if not alive:
+		return
+	health = minf(health + amount, max_health)
+	health_changed.emit(health, max_health)
+	get_tree().call_group("hud", "toast", String(TranslationServer.translate("%s seni iyileştirdi!")) % who, 0)
+
+
 ## The rescue helicopter picked us up: full health, bonus, safe till the round ends.
 func rescue(bonus: int) -> void:
 	if not alive or rescued:
@@ -631,6 +658,7 @@ func _help_teammates(delta: float) -> void:
 	if _help_time >= HELP_TIME:
 		_help_target.heal(HELP_HEAL)
 		bonus_points += HELP_POINTS
+		helps_round += 1
 		helped.emit(_help_target.display_name)
 		_help_target = null
 		_help_time = 0.0
@@ -962,6 +990,9 @@ func respawn(pos: Vector3) -> void:
 	damage_taken = 0.0
 	bonus_points = 0
 	rescued = false
+	coins_round = 0
+	kits_round = 0
+	helps_round = 0
 	_chute = 0.0
 	_hook_time = 0.0
 	_mantle = 0.0

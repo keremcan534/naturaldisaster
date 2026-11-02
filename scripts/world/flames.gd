@@ -95,6 +95,11 @@ func _physics_process(delta: float) -> void:
 	_place_smoke_and_lights()
 
 
+## Burning spots (x, y, z, how far gone), refreshed every tick.
+func burning() -> Array:
+	return _points
+
+
 func _hide_all() -> void:
 	_flame_instance.visible = false
 	for smoke in _smokes:

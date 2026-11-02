@@ -118,6 +118,13 @@ func _strike(at: Vector3) -> void:
 
 
 
+func hazards() -> Array:
+	var out: Array = []
+	for strike: Array in _pending:
+		out.append([strike[0], BLAST_RADIUS])
+	return out
+
+
 ## The nearest marked strike.
 func danger_point(from: Vector3) -> Vector3:
 	var best := Vector3.INF

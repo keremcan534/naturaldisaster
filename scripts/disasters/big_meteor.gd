@@ -148,3 +148,7 @@ func _explode() -> void:
 
 func danger_center() -> Vector3:
 	return Vector3.INF if _hit else _impact
+
+
+func hazards() -> Array:
+	return [] if _hit else [[_impact, BLAST_RADIUS]]

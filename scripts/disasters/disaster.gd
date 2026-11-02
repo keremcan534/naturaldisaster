@@ -39,6 +39,12 @@ func end() -> void:
 	pass
 
 
+## Marked spots to get out of right now, as [position, radius] (bots step out
+## of them whatever they are doing): a lightning ring, the meteor's ring...
+func hazards() -> Array:
+	return []
+
+
 ## Where the danger is (bots run from it), or Vector3.INF when it is everywhere.
 func danger_center() -> Vector3:
 	return Vector3.INF

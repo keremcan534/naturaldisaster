@@ -124,3 +124,7 @@ func _physics_process(delta: float) -> void:
 
 func danger_center() -> Vector3:
 	return Vector3(_pos.x, 0, _pos.z)
+
+
+func hazards() -> Array:
+	return [[Vector3(_pos.x, 0, _pos.z), BEAM_RADIUS + 1.0]]

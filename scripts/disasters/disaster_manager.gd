@@ -10,6 +10,9 @@ signal round_started
 signal disaster_warned(title: String, hint: String)
 ## Results: three maps to vote on for the next round, as [[index, name], ...].
 signal vote_started(options: Array)
+## This round's extra goal for the player, and when it was met (bonus points).
+signal challenge_set(text: String)
+signal challenge_done(text: String, points: int)
 
 const Settings := preload("res://scripts/core/settings.gd")
 const Events := preload("res://scripts/core/events.gd")
@@ -73,10 +76,24 @@ const POWER_KINDS := ["earthquake", "tornado", "hurricane", "lightning", "ufo", 
 const LAST_BONUS := 150
 ## Rescue helicopter: how often it comes, and when (fraction of the disaster).
 const RESCUE_AT := 0.45
+## A surprise second disaster halfway through (when none came with the first),
+## per mode.
+const SURPRISE_CHANCE := {"classic": 0.35, "hard": 0.5, "last": 0.35}
+const SURPRISE_AT := 0.5
+## Each round's extra goal for the player.
+const CHALLENGES := [
+	{"id": "coins", "text": "Bu tur 3 altın topla"},
+	{"id": "high", "text": "Turu 8 metreden yüksekte bitir"},
+	{"id": "flawless", "text": "Hiç hasar almadan hayatta kal"},
+	{"id": "team", "text": "Bütün takım hayatta kalsın"},
+	{"id": "kit", "text": "Bir sağlık kiti al ve hayatta kal"},
+	{"id": "help", "text": "Bir takım arkadaşını iyileştir"},
+]
+const CHALLENGE_POINTS := 60
 
 enum State { INTERMISSION, WARNING, ACTIVE, RESULTS }
 
-var intermission_time := 15.0
+var intermission_time := 12.0
 var warning_time := 5.0
 var results_time := 8.0
 ## Debug: values below 1 shorten every timer (see debug_tools.gd).
@@ -100,6 +117,8 @@ var _keep_map := false
 var vote_options: Array = []
 var votes := {}
 var _rescue_time := INF
+var _surprise_time := -INF
+var challenge := {}
 var rescue_chance := 0.4
 
 
@@ -126,6 +145,7 @@ func start(keep_map := false) -> void:
 ## Ends the session (back to the menu): the disaster stops where it is.
 func stop() -> void:
 	set_process(false)
+	get_tree().call_group("pickups", "phase", "off")
 	get_tree().call_group("rescue", "leave")
 	get_tree().call_group("weather", "power_flicker", false)
 	vote_options = []
@@ -170,6 +190,20 @@ func safe_height() -> float:
 	return 0.0
 
 
+## Spots to get out of right now (see Disaster.hazards()), plus anything burning.
+func hazards() -> Array:
+	var out: Array = []
+	if _state == State.ACTIVE:
+		for d: Node in [_current, _extra]:
+			if d:
+				out.append_array(d.hazards())
+	var flames := get_tree().get_first_node_in_group("flames")
+	if flames:
+		for p: Vector4 in flames.burning():
+			out.append([Vector3(p.x, p.y, p.z), 1.8])
+	return out
+
+
 func danger_center() -> Vector3:
 	if _current and _state == State.ACTIVE:
 		return _current.danger_center()
@@ -182,6 +216,9 @@ func _process(delta: float) -> void:
 	if _state == State.ACTIVE and _time_left < _rescue_time:
 		_rescue_time = -INF
 		get_tree().call_group("rescue", "arrive")
+	if _state == State.ACTIVE and _time_left < _surprise_time:
+		_surprise_time = -INF
+		_surprise()
 	if _state == State.RESULTS:
 		_bot_votes()
 	if _time_left > 0.0:
@@ -211,8 +248,11 @@ func _enter(state: State) -> void:
 			for p: Node in get_tree().get_nodes_in_group("player"):
 				if everyone or p.alive:
 					p.respawn(world.spawn_point)
-			_time_left = (10.0 if mode_id() == "hard" else intermission_time) * time_scale
+			_time_left = (9.0 if mode_id() == "hard" else intermission_time) * time_scale
 			round_started.emit()
+			challenge = CHALLENGES.pick_random()
+			challenge_set.emit(Lang.t(challenge.text))
+			get_tree().call_group("pickups", "phase", "wait")
 			status_changed.emit(Lang.t("Harita: %s - sonraki felakete hazırlan") % Lang.t(world.map_name))
 		State.WARNING:
 			_current = _pick_disaster()
@@ -242,6 +282,9 @@ func _enter(state: State) -> void:
 			_current.duration *= time_scale
 			_time_left = _current.duration
 			_rescue_time = _current.duration * (1.0 - RESCUE_AT) if randf() < rescue_chance else -INF
+			_surprise_time = _current.duration * (1.0 - SURPRISE_AT) \
+					if _extra == null and randf() < SURPRISE_CHANCE.get(mode_id(), 0.0) else -INF
+			get_tree().call_group("pickups", "phase", "active")
 			add_child(_current)
 			_current.begin()
 			var title: String = Lang.t(_current.display_name).to_upper()
@@ -262,8 +305,11 @@ func _enter(state: State) -> void:
 			_current = null
 			_extra = null
 			_rescue_time = INF
+			_surprise_time = -INF
 			get_tree().call_group("rescue", "leave")
 			get_tree().call_group("weather", "power_flicker", false)
+			get_tree().call_group("pickups", "phase", "results")
+			_check_challenge()
 			_time_left = results_time * time_scale
 			status_changed.emit(_results_text())
 			get_tree().call_group("bots", "celebrate")
@@ -298,6 +344,8 @@ func _pick_disaster() -> Node:
 		"chaos":
 			disaster.severity = maxi(disaster.severity, 2)
 	disaster.power = SEVERITY_POWER[disaster.severity - 1]
+	# Stronger waves reach higher (they scale with the square root of power).
+	disaster.safe_height *= sqrt(disaster.power)
 	return disaster
 
 
@@ -422,3 +470,45 @@ func _vote_winner() -> int:
 		if best < 0 or counts[k] > counts[best] or (counts[k] == counts[best] and k == mine):
 			best = k
 	return vote_options[best][0]
+
+
+## Halfway through, another disaster joins the one already under way.
+func _surprise() -> void:
+	if _current == null or _extra != null:
+		return
+	_extra = _pick_partner()
+	if _extra == null:
+		return
+	_extra.duration = maxf(_time_left, 5.0)
+	add_child(_extra)
+	_extra.begin()
+	var name := Lang.t(_extra.display_name)
+	status_changed.emit("%s + %s" % [Lang.t(_current.display_name).to_upper(), name.to_upper()])
+	disaster_warned.emit(Lang.t("SÜRPRİZ: %s") % name, Lang.t("Bir felaket daha geliyor! ") + Lang.t(_extra.warning))
+
+
+## Results: did the player meet this round's goal? Bonus points if so.
+func _check_challenge() -> void:
+	if challenge.is_empty():
+		return
+	for p: Node in get_tree().get_nodes_in_group("player"):
+		if p.is_bot:
+			continue
+		var players := get_tree().get_nodes_in_group("player")
+		var done := false
+		match challenge.id:
+			"coins":
+				done = p.coins_round >= 3
+			"high":
+				done = p.alive and p.global_position.y >= 8.0
+			"flawless":
+				done = p.alive and p.damage_taken < 0.5
+			"team":
+				done = players.all(func(q: Node) -> bool: return q.alive)
+			"kit":
+				done = p.alive and p.kits_round >= 1
+			"help":
+				done = p.helps_round >= 1
+		if done:
+			p.bonus_points += CHALLENGE_POINTS
+			challenge_done.emit(Lang.t(challenge.text), CHALLENGE_POINTS)

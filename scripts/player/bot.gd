@@ -11,6 +11,7 @@ signal died
 const Avatar := preload("res://scripts/player/avatar.gd")
 const Maps := preload("res://scripts/world/maps.gd")
 const Settings := preload("res://scripts/core/settings.gd")
+const BotNav := preload("res://scripts/player/bot_nav.gd")
 
 ## Personalities: how quickly they react and what they do between disasters.
 ## korkak: runs at the first warning; cesur: waits until the last moment;
@@ -21,6 +22,11 @@ const SKILL_RANGES := [Vector2(0.1, 0.55), Vector2(0.35, 1.0), Vector2(0.75, 1.0
 const CHEERS := ["Yaşasın!", "Hayattayız!", "Az kalsın!", "Kolaydı!", "Bir tur daha!", "Ohh be!"]
 const JOKES := ["Hop hop!", "Beni yakala!", "Felaket mi? Hangi felaket?", "Dans zamanı!"]
 const GREETINGS := ["Selam!", "Merhaba!", "Naber?", "Hey!"]
+const DODGES := ["Çekil!", "Kaçın!", "Ohaa!", "Uzak durun!"]
+const COLLAPSES := ["Bina çöktü!", "Eyvah!", "Dikkat, enkaz!", "Çok yakındı!", "Gördün mü onu?!"]
+const WAITING := ["Dayanın!", "Az kaldı!", "Burada güvendeyiz.", "Herkes iyi mi?", "Kıpırdamayın!"]
+## Plans where a bot is somewhere safe and can look after others.
+const SAFE_PLANS := ["hold", "inside", "open", "far", "boat", "wander"]
 
 ## What bots shout when they react to a disaster.
 const SHOUTS := {
@@ -141,6 +147,17 @@ var _cheer := 0.0
 var _face := -1.0
 ## Voice pitch: everyone sounds a bit different.
 var _voice := 1.0
+## Where the current plan ends (for finding a new way when stuck), how often
+## that happened, and timers for re-aiming, dodging, idling and helping.
+var _goal := Vector3.INF
+var _reroutes := 0
+var _route_timer := 0.0
+var _escape_time := 0.0
+var _idle_time := 0.0
+var _boat: Node3D
+var _help_target: Node3D
+var _help_time := 0.0
+var _help_cooldown := 0.0
 var _wave := 0.0
 
 
@@ -363,13 +380,18 @@ func _decide() -> void:
 		_plan = ""
 		_hurry = false
 		_stop_height = INF
-		# Slow ones take a few seconds to react.
-		_react = lerpf(3.5, 0.3, _skill) + _rng.randf() * 1.0 if coming != "" else 0.0
+		_boat = null
+		# A moment to take it in; the slow ones take longer.
+		_react = lerpf(1.6, 0.2, _skill) + _rng.randf() * 0.6 if coming != "" else 0.0
 		match personality:
 			"korkak":
 				_react *= 0.3
 			"cesur":
-				_react += 1.5
+				_react += 0.8
+	# Reflex, whatever the plan: step out of marked danger at once.
+	if alive and _escape_hazards():
+		_check_stuck()
+		return
 	if _react > 0.0:
 		_react -= THINK_INTERVAL
 		if _react > 0.0:
@@ -381,6 +403,8 @@ func _decide() -> void:
 	if _plan == "":
 		_make_plan(coming)
 	_follow_plan()
+	if _plan in SAFE_PLANS:
+		_help_nearby()
 	_check_stuck()
 
 
@@ -393,8 +417,8 @@ func _make_plan(coming: String) -> void:
 		"earthquake":
 			_go_open()
 		"meteor":
-			if _rng.randf() < 0.5 + _skill * 0.3:
-				_go_inside()
+			if _rng.randf() < 0.6 + _skill * 0.4:
+				_go_inside(1.3)
 			else:
 				_plan = "dodge"
 				_hurry = true
@@ -409,17 +433,13 @@ func _make_plan(coming: String) -> void:
 		"hurricane", "gas":
 			_panic = 1.0
 			_go_up()
-		"sinkhole", "bigmeteor":
-			_panic = 1.0
-			_plan = "flee"
-			_hurry = true
-		"blackhole", "ufo":
+		"sinkhole", "bigmeteor", "blackhole", "ufo":
 			_panic = 1.0
 			_plan = "flee"
 			_hurry = true
 		"lightning", "hail", "acid", "sandstorm", "heat", "flare", "ash", "blizzard":
 			_panic = 1.0 if coming == "lightning" else 0.0
-			_go_inside()
+			_go_inside(1.0 if coming in ["hail", "acid", "ash"] else 0.0)
 		_:
 			_plan = "wander"
 			_hurry = false
@@ -436,100 +456,184 @@ func _say(text: String, seconds := 2.8) -> void:
 	_bubble_time = seconds
 
 
-## Re-aims plans that follow a moving danger, and keeps wandering going.
+## Walks to `target` around obstacles (then on along `then`, e.g. up the stairs).
+func _go_to(target: Vector3, then: Array = []) -> void:
+	var path := BotNav.route(global_position, target)
+	for p: Vector3 in then:
+		path.append(p)
+	_path = path
+	_goal = path[-1] if not path.is_empty() else target
+	_reroutes = 0
+
+
+## Re-aims plans that follow a moving danger, keeps wandering going, and keeps
+## the waiting ones alive (looking around, shifting about).
 func _follow_plan() -> void:
+	_route_timer -= THINK_INTERVAL
 	match _plan:
 		"wander":
 			# Up on a roof or a floor: stay there until the next round.
-			if _path.is_empty() and global_position.y < 1.5:
+			if _path.is_empty() and global_position.y < BotNav.base + 1.0:
 				_wait -= THINK_INTERVAL
 				if _wait <= 0.0:
-					_wait = _rng.randf_range(0.5, 4.0)
-					var target := _island_point(global_position, 12.0)
-					# In the main menu the camera stands just behind the spawn
-					# point: stay out in front of it, not in its face.
-					if manager and not manager.running():
-						target.z = minf(target.z, world.spawn_point.z - 3.0)
-					_path = [target]
-					var hop := 0.6 if personality == "şakacı" else 0.15
-					if _rng.randf() < hop and is_on_floor():
-						velocity.y = JUMP_VELOCITY
-					if personality == "şakacı" and _rng.randf() < 0.08:
-						_say(JOKES[_rng.randi() % JOKES.size()])
+					_wait = _rng.randf_range(0.8, 4.0)
+					_wander()
 		"flee":
-			var center: Vector3 = manager.danger_center()
-			if center == Vector3.INF:
-				# Not there yet: get away from the middle of the map.
-				center = Vector3.ZERO
-			var away := global_position - center
-			away.y = 0.0
-			if away.length() < 0.1:
-				away = Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1))
-			var side := away.cross(Vector3.UP).normalized() * _rng.randf_range(-4.0, 4.0)
-			_path = [_clamp_island(global_position + away.normalized() * 10.0 + side)]
+			if _route_timer <= 0.0 or _path.is_empty():
+				_route_timer = 1.0
+				var center: Vector3 = manager.danger_center()
+				if center == Vector3.INF:
+					# Not there yet: get away from the middle of the map.
+					center = Vector3.ZERO
+				var away := global_position - center
+				away.y = 0.0
+				if away.length() < 0.1:
+					away = Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1))
+				# Away and a little to the side, toward open ground.
+				var best := global_position
+				var best_score := -INF
+				for k in 6:
+					var dir := away.normalized().rotated(Vector3.UP, _rng.randf_range(-0.9, 0.9))
+					var p := _clamp_island(global_position + dir * _rng.randf_range(8.0, 14.0))
+					var value := (p - center).length() + BotNav.clearance(p, 4.0) * 1.5
+					if BotNav.free_at(p) and value > best_score:
+						best_score = value
+						best = p
+				_go_to(best)
 		"dodge":
 			if _path.is_empty():
-				_path = [_island_point(global_position, 9.0)]
+				_go_to(BotNav.random_point(global_position, 9.0, _rng))
+		"escape":
+			_escape_time -= THINK_INTERVAL
+			if _escape_time <= 0.0 or _path.is_empty():
+				_plan = ""
+		_:
+			if _path.is_empty() and _plan in SAFE_PLANS:
+				_idle()
 
 
-## Tsunami: up the best reachable building (stairs inside or a ladder outside),
-## at least SAFE_HEIGHT if it is that tall; without one, to the far side.
+## Intermission and menu: stroll somewhere reachable (pickups first); the sharp
+## ones drift toward a good shelter, ready for whatever comes.
+func _wander() -> void:
+	var pickup := _nearest_pickup(14.0)
+	if pickup != Vector3.INF:
+		_go_to(pickup)
+		return
+	var target := BotNav.random_point(global_position, 12.0, _rng)
+	var running: bool = manager and manager.running()
+	if running and _skill > 0.6 and _rng.randf() < 0.35 and not Maps.refuges.is_empty():
+		var refuge: Dictionary = Maps.refuges.pick_random()
+		if is_instance_valid(refuge.structure):
+			target = BotNav.random_point(refuge.path[0], 4.0, _rng)
+	if not running:
+		# In the main menu the camera stands just behind the spawn point: stay
+		# out in front of it, not in its face.
+		target.z = minf(target.z, world.spawn_point.z - 3.0)
+	_go_to(target)
+	var hop := 0.5 if personality == "şakacı" else 0.08
+	if _rng.randf() < hop and is_on_floor():
+		velocity.y = JUMP_VELOCITY
+	if personality == "şakacı" and _rng.randf() < 0.08:
+		_say(JOKES[_rng.randi() % JOKES.size()])
+
+
+## Waiting it out: look toward the danger or around, now and then shuffle a
+## step (on the ground), grab a pickup close by, mutter something.
+func _idle() -> void:
+	_idle_time -= THINK_INTERVAL
+	if _idle_time > 0.0:
+		return
+	_idle_time = _rng.randf_range(1.5, 4.0)
+	var center: Vector3 = manager.danger_center() if manager else Vector3.INF
+	var look := center if center != Vector3.INF and _rng.randf() < 0.6 else global_position + Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1))
+	var to := look - global_position
+	if Vector2(to.x, to.z).length() > 0.1:
+		rotation.y = atan2(-to.x, -to.z)
+	if global_position.y < BotNav.base + 1.0 and _plan != "boat":
+		var pickup := _nearest_pickup(6.0)
+		if pickup != Vector3.INF and _plan != "inside":
+			_go_to(pickup)
+		elif _rng.randf() < 0.3:
+			_go_to(BotNav.random_point(global_position, 1.5, _rng))
+	if _rng.randf() < 0.12:
+		_say(WAITING[_rng.randi() % WAITING.size()], 2.0)
+
+
+## Tsunami and floods: up the best reachable building (stairs inside or a ladder
+## outside). Big waves knock weak houses down, so strong buildings come first;
+## with none worth it near, the lifeboat; without anything, the far side.
 func _go_up() -> void:
 	var best: Dictionary = {}
 	var best_score := -INF
 	var safe: float = maxf(SAFE_HEIGHT, manager.safe_height())
+	var need := 1.5 if manager.safe_height() > 6.0 else 0.9
 	for refuge: Dictionary in Maps.refuges:
 		if not is_instance_valid(refuge.structure):
 			continue
 		var path: Array = refuge.path
 		var dist := global_position.distance_to(path[0])
-		var value := minf(refuge.height, safe + 3.0) * 3.0 - dist * (0.3 + (1.0 - _skill) * 0.5) + _rng.randf() * 6.0
+		var strong: float = refuge.structure.strength
+		var value := minf(refuge.height, safe + 3.0) * 3.0 - dist * (0.3 + (1.0 - _skill) * 0.5) + _rng.randf() * 4.0
+		if strong < need:
+			value -= 30.0 * (need - strong) * (0.4 + _skill)
+		value -= _crowd_at(path[-1]) * 4.0
 		if value > best_score:
 			best_score = value
 			best = refuge
+	var boat := _free_boat()
+	var weak: bool = best.is_empty() or best.structure.strength < need or best.height < safe * 0.6
+	if boat and (weak or global_position.distance_to(boat.global_position) * 2.0 < global_position.distance_to(best.path[0])):
+		_plan = "boat"
+		_hurry = true
+		_boat = boat
+		_go_to(boat.global_position)
+		if _rng.randf() < 0.6:
+			_say("Tekneye!")
+		return
 	if best.is_empty():
 		_go_far_side()
 		return
 	_plan = "climb"
 	_hurry = true
-	_path.assign(best.path)
-	# Not exactly in each other's footsteps.
-	for k in _path.size():
-		_path[k] += Vector3(_rng.randf_range(-0.25, 0.25), 0, _rng.randf_range(-0.25, 0.25))
-	if best.height > safe + 3.0:
-		_stop_height = safe + _rng.randf() * 4.0
+	var path: Array = best.path
+	var rest: Array = []
+	for k in range(1, path.size()):
+		# Not exactly in each other's footsteps.
+		rest.append(path[k] + Vector3(_rng.randf_range(-0.25, 0.25), 0, _rng.randf_range(-0.25, 0.25)))
+	_go_to(path[0], rest)
+	if best.height > safe + 4.0:
+		_stop_height = safe + 2.0 + _rng.randf() * 3.0
 
 
-## Earthquake: the open spot farthest from buildings among a few tries.
+## Earthquake and fire: open ground, as far from anything that can fall as
+## possible, not on top of each other.
 func _go_open() -> void:
 	_plan = "open"
 	_hurry = true
 	var best := global_position
 	var best_score := -INF
-	for k in 14:
-		var p := _island_point(global_position, world.map_size * 0.5)
-		var clear := INF
-		for rect: Rect2 in Maps.buildings:
-			var grown := rect.grow(1.0)
-			var q := Vector2(p.x, p.z)
-			var closest := q.clamp(grown.position, grown.end)
-			clear = minf(clear, q.distance_to(closest))
-		var value := minf(clear, 12.0) - global_position.distance_to(p) * 0.15 * (1.0 - _skill * 0.5)
+	for k in 16:
+		var p := BotNav.random_point(global_position, world.map_size * 0.45, _rng)
+		var value := BotNav.clearance(p, 12.0) - global_position.distance_to(p) * 0.12 * (1.0 - _skill * 0.5) - _crowd_at(p) * 5.0
 		if value > best_score:
 			best_score = value
 			best = p
-	_path = [best]
+	_go_to(best)
 
 
-## Meteors: into the nearest building with stairs, a little way past the door.
-func _go_inside() -> void:
+## Meteors, hail, lightning...: into the nearest building with stairs (strong
+## enough, when that matters), and well inside, each in their own spot.
+func _go_inside(min_strength := 0.0) -> void:
 	var best: Dictionary = {}
-	var best_dist := INF
+	var best_score := INF
 	for refuge: Dictionary in Maps.refuges:
 		if refuge.stairs and is_instance_valid(refuge.structure):
-			var dist := global_position.distance_to(refuge.path[0])
-			if dist < best_dist:
-				best_dist = dist
+			var cost := global_position.distance_to(refuge.path[0])
+			if refuge.structure.strength < min_strength:
+				cost += 25.0
+			cost += _crowd_at(refuge.path[0]) * 3.0
+			if cost < best_score:
+				best_score = cost
 				best = refuge
 	if best.is_empty():
 		_plan = "dodge"
@@ -538,7 +642,13 @@ func _go_inside() -> void:
 	_plan = "inside"
 	_hurry = true
 	var path: Array = best.path
-	_path.assign(path.slice(0, 3))
+	var rest: Array = path.slice(1, 2)
+	var b: AABB = best.structure.world_bounds()
+	var floor_rect := Rect2(b.position.x + 1.4, b.position.z + 1.4, b.size.x - 2.8, b.size.z - 2.8)
+	var spot := BotNav.point_in(floor_rect, _rng)
+	if spot != Vector3.INF:
+		rest.append(spot)
+	_go_to(path[0], rest)
 
 
 ## Volcano: it rises off the -Z edge and its lava runs down the middle, so the
@@ -548,7 +658,119 @@ func _go_far_side() -> void:
 	_hurry = true
 	var half: float = world.map_size * 0.5 - EDGE_MARGIN
 	var x := _rng.randf_range(6.0, maxf(half, 7.0)) * (1.0 if global_position.x >= 0.0 else -1.0)
-	_path = [_clamp_island(Vector3(x, 0, half * _rng.randf_range(0.5, 1.0)))]
+	_go_to(BotNav.random_point(_clamp_island(Vector3(x, 0, half * _rng.randf_range(0.5, 1.0))), 3.0, _rng))
+
+
+## Out of any marked danger nearby (a lightning ring, the meteor's ring, a
+## burning wall, the edge of the sinkhole): true while escaping.
+func _escape_hazards() -> bool:
+	if _plan == "escape" and _escape_time > 0.0 and not _path.is_empty():
+		return false
+	if not manager or not manager.running():
+		return false
+	var pos := global_position
+	for hazard: Array in manager.hazards():
+		var at: Vector3 = hazard[0]
+		var radius: float = hazard[1]
+		var flat := Vector2(pos.x - at.x, pos.z - at.z)
+		if flat.length() > radius + 0.6 or absf(pos.y - at.y) > 3.0:
+			continue
+		# The sharper they are, the more often they see it in time.
+		if _rng.randf() > 0.35 + _skill * 0.65:
+			continue
+		var away := Vector3(flat.x, 0, flat.y).normalized() if flat.length() > 0.1 else Vector3(_rng.randf_range(-1, 1), 0, _rng.randf_range(-1, 1)).normalized()
+		# Out of the ring, but never off a roof's edge or into a wall.
+		var target := Vector3.INF
+		for turn: float in [0.0, 0.6, -0.6, 1.2, -1.2, PI]:
+			var t := at + away.rotated(Vector3.UP, turn) * (radius + 1.8)
+			t.y = pos.y
+			if _standable(t):
+				target = t
+				break
+		if target == Vector3.INF:
+			continue
+		_plan = "escape"
+		_escape_time = 1.6
+		_hurry = true
+		_path = [target] if pos.y > BotNav.base + 1.0 else BotNav.route(pos, target)
+		if _rng.randf() < 0.4:
+			_say(DODGES[_rng.randi() % DODGES.size()], 1.5)
+		return true
+	return false
+
+
+## Solid footing at p (about the same height) and room to stand.
+func _standable(p: Vector3) -> bool:
+	if p.y < BotNav.base + 1.0:
+		return BotNav.free_at(p)
+	var space := get_world_3d().direct_space_state
+	var down := PhysicsRayQueryParameters3D.create(p + Vector3.UP * 1.0, p + Vector3.DOWN * 1.2, 1 | 2, [get_rid()])
+	return not space.intersect_ray(down).is_empty()
+
+
+## Waiting somewhere safe: patch up a hurt teammate standing close by.
+func _help_nearby() -> void:
+	_help_cooldown -= THINK_INTERVAL
+	if _help_target:
+		if not is_instance_valid(_help_target) or not _help_target.alive or _help_target.health >= 60.0:
+			_help_target = null
+			return
+		var gap := _help_target.global_position.distance_to(global_position)
+		if gap > 8.0:
+			_help_target = null
+			return
+		if gap > 1.6:
+			if _path.is_empty():
+				_path = [_help_target.global_position]
+			return
+		_help_time += THINK_INTERVAL
+		rotation.y = atan2(-(_help_target.global_position.x - global_position.x), -(_help_target.global_position.z - global_position.z))
+		if _help_time >= 1.5:
+			if _help_target.is_bot:
+				_help_target.heal(35.0)
+			else:
+				_help_target.heal_by(35.0, display_name)
+			bonus_points += 25
+			_help_target = null
+			_help_cooldown = 8.0
+		return
+	if _help_cooldown > 0.0:
+		return
+	for p: Node3D in get_tree().get_nodes_in_group("player"):
+		if p != self and p.alive and p.health < 40.0 and absf(p.global_position.y - global_position.y) < 1.5 \
+				and p.global_position.distance_to(global_position) < 6.0:
+			_help_target = p
+			_help_time = 0.0
+			_say("Dayan, geliyorum!")
+			return
+
+
+## How many other bots are headed for (or standing at) a spot.
+func _crowd_at(p: Vector3) -> int:
+	var count := 0
+	for bot: Node3D in get_tree().get_nodes_in_group("bots"):
+		if bot != self and bot.alive and (bot._goal.distance_to(p) < 3.0 or bot.global_position.distance_to(p) < 2.5):
+			count += 1
+	return count
+
+
+## The nearest lifeboat with room (at most three aboard), or null.
+func _free_boat() -> Node3D:
+	var best: Node3D = null
+	for boat: Node3D in get_tree().get_nodes_in_group("boats"):
+		var aboard := 0
+		for bot: Node3D in get_tree().get_nodes_in_group("bots"):
+			if bot != self and bot._boat == boat:
+				aboard += 1
+		if aboard < 3 and global_position.distance_to(boat.global_position) < 30.0:
+			if best == null or global_position.distance_to(boat.global_position) < global_position.distance_to(best.global_position):
+				best = boat
+	return best
+
+
+func _nearest_pickup(reach: float) -> Vector3:
+	var pickups := get_tree().get_first_node_in_group("pickups")
+	return pickups.nearest(global_position, reach) if pickups else Vector3.INF
 
 
 func _check_stuck() -> void:
@@ -562,6 +784,21 @@ func _check_stuck() -> void:
 		return
 	_stuck = 0.0
 	_stuck_count += 1
+	# On the ground the way may have changed (rubble): find a new one first.
+	if _stuck_count == 2 and _reroutes < 2 and global_position.y < BotNav.base + 1.0:
+		var first_high := -1
+		for k in _path.size():
+			if _path[k].y > BotNav.base + 1.0:
+				first_high = k
+				break
+		if first_high != 0:
+			_reroutes += 1
+			var ground := _path[-1] if first_high < 0 else _path[first_high - 1]
+			var path := BotNav.route(global_position, ground)
+			if first_high > 0:
+				path.append_array(_path.slice(first_high))
+			_path = path
+			return
 	# Step aside and hop; after a few tries, skip this waypoint.
 	var to := _path[0] - global_position
 	var side := Vector3(to.x, 0, to.z).normalized().cross(Vector3.UP) * (1.0 if _rng.randf() < 0.5 else -1.0)
@@ -584,7 +821,7 @@ func _island_point(from: Vector3, reach: float) -> Vector3:
 
 func _clamp_island(p: Vector3) -> Vector3:
 	var half: float = world.map_size * 0.5 - EDGE_MARGIN if world else 20.0
-	return Vector3(clampf(p.x, -half, half), 0.0, clampf(p.z, -half, half))
+	return Vector3(clampf(p.x, -half, half), BotNav.base, clampf(p.z, -half, half))
 
 
 ## One line for --botlog.
@@ -608,7 +845,10 @@ func _follow_leader() -> void:
 		_hurry = false
 		return
 	_hurry = flat.length() > 6.0
-	_path = [leader.global_position - flat.normalized() * 1.8]
+	_route_timer -= THINK_INTERVAL
+	if _route_timer <= 0.0 or _path.is_empty():
+		_route_timer = 0.6
+		_go_to(leader.global_position - flat.normalized() * 1.8)
 
 
 ## "Beni takip et!" (player.gd), or null to stop following.
@@ -668,6 +908,14 @@ func rescue(bonus: int) -> void:
 	_say("Kurtarıldım!")
 
 
+## Walked into a pickup (pickups.gd).
+func collected(kind: String, value: int) -> void:
+	if kind == "kit":
+		health = minf(health + value, MAX_HEALTH)
+	if _bubble_time <= 0.0 and _rng.randf() < 0.4:
+		_say("Altın!" if kind == "coin" else "Can kiti!", 1.5)
+
+
 ## A teammate patched us up.
 func heal(amount: float) -> void:
 	if alive:
@@ -679,8 +927,14 @@ func add_shake(_amount: float) -> void:
 	pass
 
 
-func rumble(_pos: Vector3, _energy: float) -> void:
-	pass
+## Something big came down nearby: turn to it and say so.
+func rumble(pos: Vector3, energy: float) -> void:
+	if not alive or energy < 400.0 or _bubble_time > 0.0 or global_position.distance_to(pos) > 25.0:
+		return
+	if _rng.randf() < 0.35:
+		var to := pos - global_position
+		rotation.y = atan2(-to.x, -to.z)
+		_say(COLLAPSES[_rng.randi() % COLLAPSES.size()], 2.0)
 
 
 func explode_at(pos: Vector3, radius: float, damage: float) -> void:
@@ -753,6 +1007,10 @@ func respawn(pos: Vector3) -> void:
 	rescued = false
 	leader = null
 	_cheer = 0.0
+	_goal = Vector3.INF
+	_boat = null
+	_help_target = null
+	_escape_time = 0.0
 	_apply_level()
 	alive = true
 	_avatar.visible = true
