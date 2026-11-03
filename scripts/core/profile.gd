@@ -66,6 +66,10 @@ static var login_streak := 0
 ## Dayanıklılık runs, best first (at most RUNS_KEPT): {"rounds", "score", "day"}.
 static var runs: Array = []
 const RUNS_KEPT := 10
+## Günün Felaketi: today's best total and tries ({"day", "best", "tries"}).
+static var daily := {}
+## Görev modu: stars per scenario id (Missions.LIST).
+static var mission_stars := {}
 ## Lifetime numbers for the statistics screen: per disaster kind [played,
 ## survived], best streak, coins earned, rescues by helicopter, teammates helped.
 static var stats := {}
@@ -86,6 +90,8 @@ static func load_profile() -> void:
 	gift_day = config.get_value("profile", "gift_day", -1)
 	login_streak = config.get_value("profile", "login_streak", 0)
 	runs = config.get_value("profile", "runs", [])
+	daily = config.get_value("profile", "daily", {})
+	mission_stars = config.get_value("profile", "mission_stars", {})
 	stats = config.get_value("profile", "stats", {})
 
 
@@ -104,6 +110,8 @@ static func save_profile() -> void:
 	config.set_value("profile", "gift_day", gift_day)
 	config.set_value("profile", "login_streak", login_streak)
 	config.set_value("profile", "runs", runs)
+	config.set_value("profile", "daily", daily)
+	config.set_value("profile", "mission_stars", mission_stars)
 	config.set_value("profile", "stats", stats)
 	config.save(PATH)
 
@@ -177,6 +185,29 @@ static func claim_gift() -> int:
 	coins += amount
 	save_profile()
 	return amount
+
+
+## Today's day number (days since 1970).
+static func today() -> int:
+	return _today()
+
+
+## Today's best Günün Felaketi score (0 before the first try).
+static func daily_best() -> int:
+	return daily.get("best", 0) if daily.get("day", -1) == _today() else 0
+
+
+static func daily_tries() -> int:
+	return daily.get("tries", 0) if daily.get("day", -1) == _today() else 0
+
+
+## Records today's try; true when it beats today's earlier ones.
+static func add_daily(score: int) -> bool:
+	var record := score > daily_best()
+	daily = {"day": _today(), "best": maxi(score, daily_best()), "tries": daily_tries() + 1}
+	count("daily_sets")
+	save_profile()
+	return record
 
 
 ## Most rounds survived in one Dayanıklılık run.

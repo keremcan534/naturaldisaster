@@ -41,7 +41,15 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   out until one is left), Dayanıklılık (one life; health carries over with +30 between
   rounds; severity climbs per round, always double from round 4, power past Kıyamet up to
   `ENDURANCE_MAX_POWER`; when the player falls `run_ended` fires and `Profile.add_run`
-  keeps the top 10 runs, shown under GÖREVLER; the next round starts a new run). `scripts/core/events.gd`: the week's event (from the week number)
+  keeps the top 10 runs, shown under GÖREVLER; the next round starts a new run), Günün Felaketi
+  (`DAILY_ROUNDS` rounds whose map, disaster, severity and double come from the day number
+  via `_daily_seed()`, so everyone gets the same set; no map vote; `daily_ended` and
+  `Profile.add_daily` keep today's best; the next round starts the set again). Görev modu
+  (menu SENARYO, `scripts/core/missions.gd` LIST: hand-made scenarios fixing map, disaster,
+  severity, time, civilians, blackout/extinguisher/helicopter and a goal; `main.play_mission`
+  -> `DisasterManager.start_mission`, `mode_id()` is "mission"; one round, `Missions.grade`
+  gives 0-3 stars, `mission_ended`/`mission_closed` and back to the menu's list; each opens
+  once the one before has a star; `--mission=<i>` plays one). `scripts/core/events.gd`: the week's event (from the week number)
   favors some disasters, doubles coins for surviving them and sells an event outfit.
   Results open a map vote (`vote_started`, HUD buttons or keys 1-3; bots vote too) and
   `load_next_map(choice)` takes the winner. `scripts/world/rescue_heli.gd` (group "rescue")
@@ -206,7 +214,11 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   (`Structure.door_spots`), opening when anyone is near, shattering when the wall around
   them breaks; one MultiMesh for all. `scripts/world/boat.gd`: a lifeboat by the spawn
   (`main._place_boat`) that water disasters float (`set_water`, group "boats") and the
-  player drives by standing in it and pushing forward.
+  player drives by standing in it and pushing forward. `scripts/world/vehicle.gd`: a quad
+  (CharacterBody3D, groups "vehicles" and "boats" for set_water; bots skip it) near the
+  spawn (`main._place_vehicle`); E / the touch "Bin"/"İn" button gets on and off
+  (player `vehicle`, `ride_to()` from the quad's own physics step so the rider never lags);
+  the stick is throttle and steering, hard hits hurt, deep water kills the engine.
 - Tension: quakes die down to a false calm (random moment) and then an aftershock hits
   (`earthquake.gd` `_lull`/`_after`); after a quake round the break may get a short
   aftershock too (`aftershock_chance`, off in `--selftest`, `_start_aftershock`, HUD `alert()` card). Below
@@ -214,7 +226,10 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   (`weather.set_hurt`, Orta/Yüksek only); a big blast close by rings the ears and muffles
   the world for a few seconds (player `_deaf`). Game sounds play on the "World" bus (the
   under-water/deaf low-pass lives there); `sound.ears(name)` plays "heart"/"ring" on the
-  master bus, unmuffled. `player.clear_senses()` resets it all.
+  master bus, unmuffled. `player.clear_senses()` resets it all. At night a disaster may cut the
+  power (`BLACKOUT_CHANCE`, likelier for `POWER_KINDS`): `weather.blackout()` darkens the
+  island and kills every lamp, the player's flashlight (a SpotLight3D on the camera, L / the
+  touch "Fener" button that shows only then) comes on, bots show glowing beam cones (no light).
 - Omens (`DisasterManager._omens`): the sea draws back before a tsunami
   (`weather.drain_sea`), the gulls flee before a quake or an eruption (`ambience.scatter`).
 - Severity: every disaster rolls Şiddetli / Felaket / Kıyamet (`power` 1.15 / 1.4 / 1.7,

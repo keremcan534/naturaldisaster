@@ -18,6 +18,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Volkan (yükselen dağ, lav akıntısı, lav bombaları)
 - ✅ Yangın (parça parça yayılır, kömürleşir, çöker)
 - ✅ Deprem ortasında sahte sakinlik, sonra artçı sarsıntı; deprem turundan sonraki molada da artçı gelebilir
+- ✅ Elektrik kesintisi: gece felaketleri elektriği kesebilir; ada kararır, lambalar söner, el fenerinle (L / Fener) yolunu bulursun, botların fenerleri görünür
 
 ### Yeni felaketler
 - ✅ ⭐ Yıldırım fırtınası: en yüksek noktalara ve açıkta kalanlara yıldırım düşer, yere önce ışık halkası, yangın çıkarır
@@ -95,12 +96,14 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Çömelme (C / dokunmatik "Çömel"): masa altına sığarsın, ayağa kalkmak için yer gerekir
 - ✅ Çıkıntıdan tutunup tırmanma: 2 m'ye kadar duvara zıplayıp ileri basınca üstüne çıkarsın
 - ✅ Kapılar kendiliğinden açılıp kapanır (oyuncu da bot da yaklaşınca)
-- ✅ Araçlar: kurtarma helikopteri; her haritada can botu (selde yüzer, içindeyken ileri basınca baktığın yöne gider). Araba / bisiklet: ileride
+- ✅ Araçlar: kurtarma helikopteri; her haritada can botu (selde yüzer, içindeyken ileri basınca baktığın yöne gider); başlangıcın yanında arazi aracı (E / Bin: joystick gaz ve direksiyon, 54 km/s, sert çarpınca hasar, derin suda stop eder, yaralıyı da taşırsın)
 - ✅ Kurtarma helikopteri: bazı turlarda en yüksek çatıya gelir, ip merdivene ulaşan kurtulur (+60, o tur hasar yok)
 - 🚧 Sığınak: beton sığınaklar var; kilitlenen kapı ileride
 - ✅ Selam (G / "Selam"): yakındaki botlar el sallar; tur sonunda hayatta kalan botlar zıplayıp sevinir
 - ✅ Fotoğraf modu (P / menüde "FOTOĞRAF ÇEK"): arayüzsüz ekran görüntüsü, tarayıcıda PNG iner
-- ✅ Oyun modları (ana menüde MOD tuşu): Klasik, Kaos, Zor, Sadece Su, Son Kalan, Dayanıklılık
+- ✅ Oyun modları (ana menüde MOD tuşu): Klasik, Kaos, Zor, Sadece Su, Son Kalan, Dayanıklılık, Günün Felaketi
+- ✅ Görev modu (menüde SENARYO): 5 elle tasarlanmış görev (İlk Sarsıntı, Hastane Tahliyesi, Dalga Geliyor, Alevler Arasında, Son Helikopter), 1-3 yıldız, sırayla açılır, yıldız başı coin; 💡 daha fazla görev
+- ✅ Günün Felaketi: bugün herkes için aynı 5 tur (harita, felaket, şiddet günün tarihinden); bugünkü en iyi puanın saklanır, istediğin kadar yeniden dene
 - ✅ Dayanıklılık: tek can, can turlar arası sadece +30 dolar, her tur felaket ağırlaşır (4. turdan sonra hep çifte, Kıyamet'in de üstüne çıkar); kaç tur dayandığın rekor tablosuna (ilk 10, GÖREVLER ekranında) yazılır
 - 🔒 Özel sunucu / özel oda (arkadaşlarla): gerçek çok oyunculu sunucu gerektirir
 - ✅ Haftalık etkinlik: her hafta değişir (Tsunami, Meteor, Fırtına, Kaos, Ateş ve Buz), o felaketler sıklaşır ve 2 kat coin, haftaya özel kıyafet

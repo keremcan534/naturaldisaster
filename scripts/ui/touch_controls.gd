@@ -103,6 +103,11 @@ func _ready() -> void:
 
 
 ## Shown while playing; hidden (and every finger let go) in menus.
+## Something changed which buttons show (the flashlight's): draw again.
+func refresh() -> void:
+	_canvas.queue_redraw()
+
+
 func set_active(on: bool) -> void:
 	if not on:
 		_release_all()
@@ -146,6 +151,13 @@ func _small_buttons() -> Array:
 			["follow", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() + 14.0, 0), "Takip"],
 			["wave", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() * 3.0 + 26.0, 0), "Selam"],
 			["camera", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() * 5.0 + 38.0, 0), "Kamera"]]
+	# Get on / off a quad.
+	if player.vehicle or player.vehicle_near():
+		list.append(["ride", _around_jump(Vector2(150.0, 2.1)), "İn" if player.vehicle else "Bin"])
+	# The flashlight button only while the power is out.
+	var weather := get_tree().get_first_node_in_group("weather")
+	if weather and weather.blacked_out():
+		list.append(["light", _gear_pos + Vector2(GEAR_RADIUS + _small_radius() * 7.0 + 50.0, 0), "Fener"])
 	var slot := 0
 	for id: String in ITEM_IDS:
 		if _items.get(id, 0) > 0:
@@ -169,6 +181,10 @@ func _press_small(id: String) -> void:
 			player.wave()
 		"camera":
 			player.toggle_camera()
+		"light":
+			player.flashlight(not player.flashlight_on())
+		"ride":
+			player.toggle_vehicle()
 		_:
 			player.use_item(id)
 	_canvas.queue_redraw()
