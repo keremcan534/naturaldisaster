@@ -44,7 +44,12 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   keeps the top 10 runs, shown under GÖREVLER; the next round starts a new run), Günün Felaketi
   (`DAILY_ROUNDS` rounds whose map, disaster, severity and double come from the day number
   via `_daily_seed()`, so everyone gets the same set; no map vote; `daily_ended` and
-  `Profile.add_daily` keep today's best; the next round starts the set again). `scripts/core/events.gd`: the week's event (from the week number)
+  `Profile.add_daily` keep today's best; the next round starts the set again). Görev modu
+  (menu SENARYO, `scripts/core/missions.gd` LIST: hand-made scenarios fixing map, disaster,
+  severity, time, civilians, blackout/extinguisher/helicopter and a goal; `main.play_mission`
+  -> `DisasterManager.start_mission`, `mode_id()` is "mission"; one round, `Missions.grade`
+  gives 0-3 stars, `mission_ended`/`mission_closed` and back to the menu's list; each opens
+  once the one before has a star; `--mission=<i>` plays one). `scripts/core/events.gd`: the week's event (from the week number)
   favors some disasters, doubles coins for surviving them and sells an event outfit.
   Results open a map vote (`vote_started`, HUD buttons or keys 1-3; bots vote too) and
   `load_next_map(choice)` takes the winner. `scripts/world/rescue_heli.gd` (group "rescue")

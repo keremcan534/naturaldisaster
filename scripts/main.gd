@@ -156,6 +156,9 @@ func _ready() -> void:
 	add_child(_manager)
 	_hud.bind(_manager, _player)
 	_manager.round_scored.connect(_on_round_scored)
+	_manager.mission_closed.connect(func(_index: int) -> void:
+		show_menu()
+		_menu.show_missions())
 	_manager.disaster_warned.connect(func(_title: String, _hint: String) -> void:
 		get_tree().call_group("sound", "play", "siren")
 		get_tree().call_group("sound", "music", "tense"))
@@ -174,6 +177,7 @@ func _ready() -> void:
 	_menu.controls = _controls
 	add_child(_menu)
 	_menu.play_pressed.connect(play)
+	_menu.mission_pressed.connect(play_mission)
 	_menu.resume_pressed.connect(_resume)
 	_menu.main_menu_pressed.connect(show_menu)
 	_menu.photo_pressed.connect(func() -> void:
@@ -222,6 +226,13 @@ func play(from_menu := true) -> void:
 		_manager.set_process(false)
 		_set_controls(false)
 		_menu.show_tutorial(_touch)
+
+
+## Görev modu: scenario `index` from the menu's list.
+func play_mission(index: int) -> void:
+	play(false)
+	_manager.stop()
+	_manager.start_mission(index)
 
 
 ## Back to the main menu: the disaster stops, a fresh island loads behind it.

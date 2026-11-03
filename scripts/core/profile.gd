@@ -68,6 +68,8 @@ static var runs: Array = []
 const RUNS_KEPT := 10
 ## Günün Felaketi: today's best total and tries ({"day", "best", "tries"}).
 static var daily := {}
+## Görev modu: stars per scenario id (Missions.LIST).
+static var mission_stars := {}
 ## Lifetime numbers for the statistics screen: per disaster kind [played,
 ## survived], best streak, coins earned, rescues by helicopter, teammates helped.
 static var stats := {}
@@ -89,6 +91,7 @@ static func load_profile() -> void:
 	login_streak = config.get_value("profile", "login_streak", 0)
 	runs = config.get_value("profile", "runs", [])
 	daily = config.get_value("profile", "daily", {})
+	mission_stars = config.get_value("profile", "mission_stars", {})
 	stats = config.get_value("profile", "stats", {})
 
 
@@ -108,6 +111,7 @@ static func save_profile() -> void:
 	config.set_value("profile", "login_streak", login_streak)
 	config.set_value("profile", "runs", runs)
 	config.set_value("profile", "daily", daily)
+	config.set_value("profile", "mission_stars", mission_stars)
 	config.set_value("profile", "stats", stats)
 	config.save(PATH)
 

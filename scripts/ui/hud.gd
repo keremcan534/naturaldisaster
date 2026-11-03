@@ -336,6 +336,13 @@ func bind(manager: Node, player: Node) -> void:
 			_center.text = Lang.t("Elendin! Son kalan belirlenince döneceksin")
 			_center.visible = true)
 	manager.vote_started.connect(_open_vote)
+	manager.mission_ended.connect(func(_index: int, stars: int, coins: int) -> void:
+		var row := Lang.t("%d/3 yıldız") % stars
+		if stars == 0:
+			_show_card(Lang.t("GÖREV BAŞARISIZ"), Lang.t("Tekrar dene: menüden SENARYO"))
+		else:
+			_show_card(Lang.t("GÖREV TAMAM  %s") % row, Lang.t("+%d coin") % coins if coins > 0 else Lang.t("Daha çok yıldız için tekrar dene"))
+			get_tree().call_group("sound", "play", "win", null, 0.0))
 	manager.daily_ended.connect(func(score: int, best: int, record: bool) -> void:
 		_show_card(Lang.t("BUGÜNÜN REKORU!") if record else Lang.t("GÜNÜN FELAKETİ BİTTİ"),
 				Lang.t("%d puan · Bugünkü en iyin: %d\nSonraki turda yeniden deneyebilirsin") % [score, best])

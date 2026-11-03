@@ -17,12 +17,17 @@ signal challenge_done(text: String, points: int)
 signal run_ended(rounds: int, best: int, record: bool)
 ## Günün Felaketi: the day's set is over (score, today's best, a new best?).
 signal daily_ended(score: int, best: int, record: bool)
+## Görev modu: the scenario is over (stars 0-3, coins earned for new stars).
+signal mission_ended(index: int, stars: int, coins: int)
+## ...and its results have been shown: back to the menu (main.gd).
+signal mission_closed(index: int)
 
 const Settings := preload("res://scripts/core/settings.gd")
 const Events := preload("res://scripts/core/events.gd")
 const Maps := preload("res://scripts/world/maps.gd")
 const Lang := preload("res://scripts/core/lang.gd")
 const Profile := preload("res://scripts/core/profile.gd")
+const Missions := preload("res://scripts/core/missions.gd")
 
 ## Round points: surviving, plus half the health left, plus a bonus for every
 ## round survived in a row before this one, plus a team bonus for every other
@@ -142,6 +147,10 @@ var challenge := {}
 var rescue_chance := 0.4
 ## Dayanıklılık: the run ended at the last results; the next round starts a new one.
 var _run_over := false
+## Görev modu: the scenario playing (-1: none) and whether it has finished.
+var mission_index := -1
+var _mission := {}
+var _mission_over := false
 ## After an earthquake: maybe an aftershock during the break (seconds left on
 ## the break clock when it hits, or -1), and the running one.
 var _aftershock_at := -1.0
@@ -149,7 +158,28 @@ var _aftershock: Node
 
 
 func mode_id() -> String:
+	if mission_index >= 0:
+		return "mission"
 	return MODES[clampi(Settings.game_mode, 0, MODES.size() - 1)].id
+
+
+## Görev modu: plays scenario `index` (Missions.LIST), then hands back to the menu.
+func start_mission(index: int) -> void:
+	mission_index = index
+	_mission = Missions.get_mission(index)
+	start(false)
+
+
+func _mission_setup_round() -> void:
+	var weather := get_tree().get_first_node_in_group("weather")
+	if weather:
+		weather.forced_time = _mission.time
+	world.load_next_map(_mission.map)
+	if weather:
+		weather.forced_time = ""
+	var civilians := get_tree().get_first_node_in_group("civilians")
+	if civilians:
+		civilians.count_override = _mission.civilians
 
 
 ## Günün Felaketi: the same random choices for everyone today (`part` keeps
@@ -187,9 +217,10 @@ func start(keep_map := false) -> void:
 		p.score = 0
 		p.streak = 0
 		p.round_points = 0
-	_keep_map = keep_map and mode_id() != "daily"
+	_keep_map = keep_map and mode_id() != "daily" and mode_id() != "mission"
 	_rounds = 0
 	_run_over = false
+	_mission_over = false
 	set_process(true)
 	_enter(State.INTERMISSION)
 
@@ -216,6 +247,8 @@ func _stop_aftershock() -> void:
 
 ## Ends the session (back to the menu): the disaster stops where it is.
 func stop() -> void:
+	mission_index = -1
+	_mission = {}
 	_stop_aftershock()
 	_aftershock_at = -1.0
 	# Leaving a run halfway still counts what was survived.
@@ -322,6 +355,12 @@ func _enter(state: State) -> void:
 	_state = state
 	match state:
 		State.INTERMISSION:
+			if mode_id() == "mission" and _mission_over:
+				# Results shown: back to the menu.
+				var done := mission_index
+				set_process(false)
+				mission_closed.emit(done)
+				return
 			if mode_id() == "daily" and _run_over:
 				# The day's set again from the top (a new try).
 				_run_over = false
@@ -329,7 +368,9 @@ func _enter(state: State) -> void:
 				for p: Node in get_tree().get_nodes_in_group("player"):
 					p.score = 0
 					p.streak = 0
-			if mode_id() == "daily":
+			if mode_id() == "mission":
+				_mission_setup_round()
+			elif mode_id() == "daily":
 				if _rounds == 0:
 					_last_index = -1
 				_daily_seed(1)
@@ -362,14 +403,16 @@ func _enter(state: State) -> void:
 				player.health = minf(carry + ENDURANCE_HEAL, player.max_health)
 				player.health_changed.emit(player.health, player.max_health)
 			var pause := intermission_time
-			if mode_id() == "hard":
+			if mode_id() == "mission":
+				pause = _mission.get("prep", intermission_time)
+			elif mode_id() == "hard":
 				pause = 9.0
 			elif mode_id() == "endurance":
 				pause = maxf(7.0, intermission_time - _rounds)
 			_time_left = pause * time_scale
 			round_started.emit()
-			challenge = CHALLENGES.pick_random()
-			challenge_set.emit(Lang.t(challenge.text))
+			challenge = CHALLENGES.pick_random() if mode_id() != "mission" else {}
+			challenge_set.emit(Lang.t(challenge.text) if mode_id() != "mission" else Lang.t("GÖREV: %s") % Missions.goal_text(_mission))
 			get_tree().call_group("pickups", "phase", "wait")
 			# After a quake the ground is not done: maybe an aftershock in the break.
 			_aftershock_at = -1.0
@@ -379,6 +422,9 @@ func _enter(state: State) -> void:
 				status_changed.emit(Lang.t("Dayanıklılık · Tur %d · Rekor %d · %s") % [_rounds + 1, Profile.best_run(), Lang.t(world.map_name)])
 			elif mode_id() == "daily":
 				status_changed.emit(Lang.t("Günün Felaketi · Tur %d / %d · %s") % [_rounds + 1, DAILY_ROUNDS, Lang.t(world.map_name)])
+			elif mode_id() == "mission":
+				status_changed.emit("%s · %s · %s" % [Lang.t(_mission.title), Lang.t(world.map_name), Lang.t("hazırlan")])
+				get_tree().call_group("hud", "alert", _mission.title, Lang.t(_mission.text))
 			else:
 				status_changed.emit(Lang.t("Harita: %s - sonraki felakete hazırlan") % Lang.t(world.map_name))
 		State.WARNING:
@@ -415,11 +461,16 @@ func _enter(state: State) -> void:
 			_omens(false)
 			_current.duration *= time_scale
 			_time_left = _current.duration
-			_rescue_time = _current.duration * (1.0 - RESCUE_AT) if randf() < rescue_chance else -INF
+			var heli_chance := rescue_chance
+			if mode_id() == "mission":
+				heli_chance = 1.0 if _mission.get("heli", false) else 0.0
+			_rescue_time = _current.duration * (1.0 - RESCUE_AT) if randf() < heli_chance else -INF
 			_surprise_time = _current.duration * (1.0 - SURPRISE_AT) \
 					if _extra == null and randf() < SURPRISE_CHANCE.get(mode_id(), 0.0) else -INF
 			get_tree().call_group("pickups", "phase", "active")
 			get_tree().call_group("civilians", "phase", "active")
+			if mode_id() == "mission" and _mission.get("extinguisher", false) and _human():
+				_human().collected("extinguisher", 0)
 			add_child(_current)
 			_current.begin()
 			var title: String = Lang.t(_current.display_name).to_upper()
@@ -453,7 +504,14 @@ func _enter(state: State) -> void:
 			round_scored.emit(_score_round())
 			if mode_id() == "endurance" and _human() and not _human().alive:
 				_end_run(_rounds - 1)
-			if mode_id() == "daily":
+			if mode_id() == "mission":
+				var civilians := get_tree().get_first_node_in_group("civilians")
+				var player := _human()
+				var got := Missions.grade(_mission, player, civilians.saved_round if civilians else 0,
+						_mission.civilians) if player else 0
+				mission_ended.emit(mission_index, got, Missions.record(mission_index, got))
+				_mission_over = true
+			elif mode_id() == "daily":
 				if _rounds >= DAILY_ROUNDS:
 					var score: int = _human().score if _human() else 0
 					var record := Profile.add_daily(score)
@@ -476,6 +534,8 @@ func _pick_disaster() -> Node:
 		index = choices[randi() % choices.size()]
 	if forced_disaster >= 0:
 		index = forced_disaster
+	if mode_id() == "mission":
+		index = _mission.disaster
 	_last_index = index
 	var disaster: Node = DISASTERS[index].new()
 	disaster.world = world
@@ -491,6 +551,8 @@ func _pick_disaster() -> Node:
 			disaster.severity = maxi(disaster.severity, 2)
 		"endurance":
 			disaster.severity = 1 if _rounds < 1 else (2 if _rounds < 3 else 3)
+		"mission":
+			disaster.severity = _mission.severity
 	disaster.power = SEVERITY_POWER[disaster.severity - 1]
 	if mode_id() == "endurance" and _rounds > 3:
 		# Past Kıyamet: every round a little worse still.
@@ -534,7 +596,10 @@ func _omens(warning: bool) -> void:
 		get_tree().call_group("weather", "power_flicker", true)
 	# At night the power may go out altogether: only flashlights and lightning.
 	var weather := get_tree().get_first_node_in_group("weather")
-	if not warning and weather and weather.time_of_day() == "night" and randf() < (0.75 if power_hit else BLACKOUT_CHANCE):
+	var cut := randf() < (0.75 if power_hit else BLACKOUT_CHANCE)
+	if mode_id() == "mission":
+		cut = _mission.get("blackout", false)
+	if not warning and weather and weather.time_of_day() == "night" and cut:
 		weather.blackout(true)
 		get_tree().call_group("hud", "alert", "ELEKTRİK KESİLDİ!", "Fenerini kullan (L / Fener)")
 		get_tree().call_group("player", "flashlight", true)

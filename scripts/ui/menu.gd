@@ -10,6 +10,8 @@ signal resume_pressed
 signal main_menu_pressed
 signal tutorial_closed
 signal photo_pressed
+## Görev modu: a scenario was picked (Missions.LIST index).
+signal mission_pressed(index: int)
 
 const Profile := preload("res://scripts/core/profile.gd")
 const Progress := preload("res://scripts/core/progress.gd")
@@ -28,6 +30,7 @@ const BuildInfo := preload("res://scripts/core/build_info.gd")
 const Avatar := preload("res://scripts/player/avatar.gd")
 const Ui := preload("res://scripts/ui/ui.gd")
 const SettingsPanel := preload("res://scripts/ui/settings_panel.gd")
+const Missions := preload("res://scripts/core/missions.gd")
 
 ## Set before adding: the world (3D nodes go there) and the touch controls (or null).
 var world: Node3D
@@ -49,6 +52,8 @@ var _mode: Button
 var _mode_desc: Label
 var _event: Label
 var _goals: Control
+var _missions: Control
+var _missions_list: VBoxContainer
 var _goals_list: VBoxContainer
 var _tutorial: Control
 var _tutorial_title: Label
@@ -79,6 +84,8 @@ func _ready() -> void:
 	add_child(_pause)
 	_goals = _build_goals()
 	add_child(_goals)
+	_missions = _build_missions()
+	add_child(_missions)
 	_tutorial = _build_tutorial()
 	add_child(_tutorial)
 	_settings = SettingsPanel.new()
@@ -109,11 +116,12 @@ func hide_all() -> void:
 
 
 func is_open() -> bool:
-	return _main.visible or _shop.visible or _pause.visible or _settings.visible or _goals.visible or _tutorial.visible
+	return _main.visible or _shop.visible or _pause.visible or _settings.visible or _goals.visible or _tutorial.visible \
+			or _missions.visible
 
 
 func _open(screen: Control) -> void:
-	for s: Control in [_main, _shop, _pause, _settings, _goals, _tutorial]:
+	for s: Control in [_main, _shop, _pause, _settings, _goals, _tutorial, _missions]:
 		s.visible = s == screen
 	if screen == _main:
 		_refresh_main()
@@ -181,12 +189,21 @@ func _build_main() -> Control:
 	_mode_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_mode_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(_mode_desc)
-	var goals := Ui.button("GÖREVLER", 26)
+	var scenario := Ui.button("SENARYO", 26)
+	scenario.pressed.connect(show_missions)
+	column.add_child(scenario)
+	# Two to a row, so the column still fits a phone held sideways.
+	var pair := HBoxContainer.new()
+	pair.add_theme_constant_override("separation", 12)
+	var goals := Ui.button("GÖREVLER", 22)
+	goals.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	goals.pressed.connect(func() -> void: _open(_goals))
-	column.add_child(goals)
-	var shop := Ui.button("MAĞAZA", 26)
+	pair.add_child(goals)
+	var shop := Ui.button("MAĞAZA", 22)
+	shop.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	shop.pressed.connect(func() -> void: _open(_shop))
-	column.add_child(shop)
+	pair.add_child(shop)
+	column.add_child(pair)
 	var settings := Ui.button("AYARLAR", 26)
 	settings.pressed.connect(func() -> void:
 		_settings_back = _main
@@ -378,6 +395,79 @@ func _goal_row(text: String, state: String, reward: int, done: bool, fraction: f
 	coins.custom_minimum_size.x = 90
 	coins.modulate.a = 1.0 if reward > 0 else 0.0
 	row.add_child(coins)
+	return row
+
+
+## Görev modu's list: every scenario with its stars; locked ones say what opens them.
+func show_missions() -> void:
+	for child in _missions_list.get_children():
+		child.queue_free()
+	_missions_list.add_child(Ui.text(Lang.t("Toplam yıldız: %d / %d") % [Missions.total_stars(), Missions.LIST.size() * 3], 20, Ui.ACCENT))
+	for k in Missions.LIST.size():
+		_missions_list.add_child(_mission_row(k))
+	_open(_missions)
+
+
+func _build_missions() -> Control:
+	var root := _screen(0.55)
+	var panel := PanelContainer.new()
+	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.offset_left = 60
+	panel.offset_right = -60
+	panel.offset_top = 30
+	panel.offset_bottom = -30
+	panel.add_theme_stylebox_override("panel", Ui.panel_style())
+	root.add_child(panel)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	panel.add_child(box)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 20)
+	var back := Ui.button("GERİ", 22)
+	back.custom_minimum_size.x = 140
+	back.pressed.connect(func() -> void: _open(_main))
+	top.add_child(back)
+	var title := Ui.title("SENARYO", 34)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(title)
+	var spacer := Control.new()
+	spacer.custom_minimum_size.x = 140
+	top.add_child(spacer)
+	box.add_child(top)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
+	_missions_list = VBoxContainer.new()
+	_missions_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_missions_list.add_theme_constant_override("separation", 14)
+	scroll.add_child(_missions_list)
+	return root
+
+
+func _mission_row(k: int) -> Control:
+	var m: Dictionary = Missions.LIST[k]
+	var open := Missions.unlocked(k)
+	var stars := Missions.stars(k)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	var info := VBoxContainer.new()
+	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var head := "%d. %s" % [k + 1, Lang.t(m.title)]
+	info.add_child(Ui.text(head, 24, Ui.ACCENT if open else Color(1, 1, 1, 0.45)))
+	var desc := Ui.text(Lang.t(m.text) if open else Lang.t("Kilitli: önceki görevden en az 1 yıldız al"), 16,
+			Color(1, 1, 1, 0.85 if open else 0.45))
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_child(desc)
+	row.add_child(info)
+	var side := VBoxContainer.new()
+	side.add_child(Ui.text(Lang.t("%d/3 yıldız") % stars, 18, Ui.COIN if stars > 0 else Color(1, 1, 1, 0.6)))
+	var start := Ui.button("BAŞLA" if stars == 0 else "TEKRAR", 22, stars == 0 and open)
+	start.custom_minimum_size.x = 150
+	start.disabled = not open
+	start.pressed.connect(func() -> void: mission_pressed.emit(k))
+	side.add_child(start)
+	row.add_child(side)
 	return row
 
 

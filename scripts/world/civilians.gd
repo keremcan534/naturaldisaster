@@ -32,6 +32,8 @@ var zone := Vector3.INF
 ## Bumped on every change the HUD compass should redraw for.
 var version := 0
 var saved_round := 0
+## Görev modu: how many this round (-1: the usual 2-3).
+var count_override := -1
 ## [avatar, call bubble, state ("off", "waiting", "carried", "saved"), position, yaw, call timer]
 var _people: Array = []
 var _ring: MeshInstance3D
@@ -121,6 +123,7 @@ func phase(name: String) -> void:
 			_clear()
 		_:
 			_clear()
+			count_override = -1
 
 
 ## How many still need carrying out.
@@ -153,6 +156,11 @@ func _spawn_all() -> void:
 	saved_round = 0
 	var size: float = world.map_size if "map_size" in world else 50.0
 	var count := 2 if _rng.randf() < 0.6 else 3
+	if count_override >= 0:
+		count = mini(count_override, POOL)
+	if count == 0:
+		zone = Vector3.INF
+		return
 	for i in count:
 		var at := _spot(size)
 		if at == Vector3.INF:

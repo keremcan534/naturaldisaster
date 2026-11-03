@@ -24,6 +24,7 @@ extends Node
 ##                       reports loose pieces at rest and survivors, then quits
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
 ##   --botlog            prints every bot's plan, position and health each second
+##   --mission=<i>       plays scenario i of the Görev modu (Missions.LIST) at once
 ##   --power=<kind>      every round the player gets this power-up (speed, jump,
 ##                       shield) and each bot a random one
 ##   --pos=x,y,z         puts the player there on the first frame
@@ -127,12 +128,17 @@ func _ready() -> void:
 			preload("res://scripts/core/prof.gd").on = true
 		elif arg == "--botlog":
 			_bot_log = true
+		elif arg.begins_with("--mission="):
+			var index := arg.get_slice("=", 1).to_int()
+			(func() -> void: manager.world.play_mission(index)).call_deferred()
 		elif arg.begins_with("--power="):
 			var kind := arg.get_slice("=", 1)
 			manager.round_started.connect(func() -> void: _give_powers.call_deferred(kind))
 		elif arg == "--log":
 			manager.status_changed.connect(func(text: String) -> void: print("[%.1fs] %s" % [_elapsed, text]))
 			var player: Node = manager.world._player
+			manager.mission_ended.connect(func(index: int, stars: int, coins: int) -> void:
+				print("[%.1fs] GÖREV %d BİTTİ: %d yıldız, +%d coin" % [_elapsed, index, stars, coins]))
 			manager.run_ended.connect(func(rounds: int, best: int, record: bool) -> void:
 				print("[%.1fs] DENEME BİTTİ: %d tur (rekor %d%s)" % [_elapsed, rounds, best, ", YENİ" if record else ""]))
 			player.picked.connect(func(kind: String, value: int) -> void: print("[%.1fs] aldı: %s %d" % [_elapsed, kind, value]))

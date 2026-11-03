@@ -102,6 +102,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Selam (G / "Selam"): yakındaki botlar el sallar; tur sonunda hayatta kalan botlar zıplayıp sevinir
 - ✅ Fotoğraf modu (P / menüde "FOTOĞRAF ÇEK"): arayüzsüz ekran görüntüsü, tarayıcıda PNG iner
 - ✅ Oyun modları (ana menüde MOD tuşu): Klasik, Kaos, Zor, Sadece Su, Son Kalan, Dayanıklılık, Günün Felaketi
+- ✅ Görev modu (menüde SENARYO): 5 elle tasarlanmış görev (İlk Sarsıntı, Hastane Tahliyesi, Dalga Geliyor, Alevler Arasında, Son Helikopter), 1-3 yıldız, sırayla açılır, yıldız başı coin; 💡 daha fazla görev
 - ✅ Günün Felaketi: bugün herkes için aynı 5 tur (harita, felaket, şiddet günün tarihinden); bugünkü en iyi puanın saklanır, istediğin kadar yeniden dene
 - ✅ Dayanıklılık: tek can, can turlar arası sadece +30 dolar, her tur felaket ağırlaşır (4. turdan sonra hep çifte, Kıyamet'in de üstüne çıkar); kaç tur dayandığın rekor tablosuna (ilk 10, GÖREVLER ekranında) yazılır
 - 🔒 Özel sunucu / özel oda (arkadaşlarla): gerçek çok oyunculu sunucu gerektirir
