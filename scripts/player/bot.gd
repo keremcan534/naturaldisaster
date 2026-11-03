@@ -802,6 +802,8 @@ func _crowd_at(p: Vector3) -> int:
 func _free_boat() -> Node3D:
 	var best: Node3D = null
 	for boat: Node3D in get_tree().get_nodes_in_group("boats"):
+		if boat.is_in_group("vehicles"):
+			continue
 		var aboard := 0
 		for bot: Node3D in get_tree().get_nodes_in_group("bots"):
 			if bot != self and bot._boat == boat:

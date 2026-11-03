@@ -241,7 +241,7 @@ func _ready() -> void:
 	hint.offset_right = -16
 	hint.offset_bottom = -16
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hint.text = "WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  L: fener  Esc: menü"
+	hint.text = "WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  L: fener  E: araç  Esc: menü"
 	hint.visible = not touch_mode
 
 	_compass = Control.new()
@@ -398,8 +398,14 @@ func _show_powers() -> void:
 	_powers.text = "  ·  ".join(parts)
 	var civilians := get_tree().get_first_node_in_group("civilians")
 	var waiting: int = civilians.waiting() if civilians else 0
-	if _player.alive and _player.carrying:
+	if _player.alive and _player.vehicle:
+		_task.text = Lang.t("ARAÇ  %d km/h  ·  İn: E / İn") % int(absf(_player.vehicle.speed) * 3.6)
+		if _player.carrying:
+			_task.text += "  ·  " + Lang.t("Yaralı sırtında: yeşil ışığa (T) götür")
+	elif _player.alive and _player.carrying:
 		_task.text = Lang.t("Yaralı sırtında: yeşil ışığa (T) götür")
+	elif _player.alive and _player.vehicle_near():
+		_task.text = Lang.t("Araca bin: E / Bin")
 	elif _player.alive and waiting > 0:
 		_task.text = Lang.t("Yardım bekleyen yaralı: %d (pusulada +)") % waiting
 	else:

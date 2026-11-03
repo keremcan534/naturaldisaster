@@ -14,6 +14,7 @@ const TouchControls := preload("res://scripts/ui/touch_controls.gd")
 const Weather := preload("res://scripts/world/weather.gd")
 const Effects := preload("res://scripts/world/effects.gd")
 const Civilians := preload("res://scripts/world/civilians.gd")
+const Vehicle := preload("res://scripts/world/vehicle.gd")
 const Debris := preload("res://scripts/world/debris.gd")
 const Flames := preload("res://scripts/world/flames.gd")
 const Ambience := preload("res://scripts/world/ambience.gd")
@@ -355,6 +356,7 @@ func load_next_map(choice := -1) -> void:
 	dam = info.get("dam", Vector3.INF)
 	dam_lake = _map_root.find_child("DamLake", true, false)
 	_place_boat()
+	_place_vehicle()
 	BotNav.build(get_tree(), map_size, spawn_point.y - 0.5)
 	_weather.set_island(map_size * 0.5)
 	_weather.new_day()
@@ -380,6 +382,26 @@ func _place_boat() -> void:
 		boat.position = Vector3(at.x, spawn_point.y - 0.5, at.z)
 		boat.rotation.y = randf() * TAU
 		_map_root.add_child(boat)
+		return
+
+
+## A quad on open ground near the spawn (on maps with room for one).
+func _place_vehicle() -> void:
+	for offset: Vector3 in [Vector3(-5, 0, -4), Vector3(5, 0, -4), Vector3(-7, 0, 2), Vector3(7, 0, 2), Vector3(0, 0, -7)]:
+		var at := spawn_point + offset
+		var spot := Rect2(at.x - 1.5, at.z - 2.0, 3.0, 4.0)
+		if absf(at.x) > map_size * 0.5 - 3.0 or absf(at.z) > map_size * 0.5 - 3.0:
+			continue
+		if Maps.buildings.any(func(r: Rect2) -> bool: return r.grow(1.0).intersects(spot)):
+			continue
+		var boats := get_tree().get_nodes_in_group("boats").filter(func(b: Node) -> bool:
+			return b is Node3D and (b as Node3D).global_position.distance_to(at) < 4.0)
+		if not boats.is_empty():
+			continue
+		var quad := Vehicle.new()
+		quad.position = Vector3(at.x, spawn_point.y + 0.3, at.z)
+		quad.rotation.y = randf() * TAU
+		_map_root.add_child(quad)
 		return
 
 

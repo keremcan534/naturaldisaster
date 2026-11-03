@@ -177,6 +177,10 @@ var voting := false
 var powers := {}
 ## A hurt civilian on our shoulders (set by civilians.gd).
 var carrying := false
+## The quad we are riding (vehicle.gd), or null.
+var vehicle: Node3D
+var _vehicle_hint := false
+var _vehicle_check := 0.0
 ## Burning pieces put out this round.
 var fires_out_round := 0
 
@@ -487,10 +491,15 @@ func _physics_process(delta: float) -> void:
 	elif crouch_tap and not grounded:
 		# Just before landing: roll.
 		_roll_window = ROLL_WINDOW
+	if vehicle:
+		_ride(delta)
+		Prof.end("player_phys", _p)
+		return
 	_update_crouch()
 	_use_items()
 	_help_teammates(delta)
 	_tick_powers(delta)
+	_update_vehicle_hint(delta)
 
 	var in_water := _in_water()
 	if controls_enabled and Input.is_action_just_pressed("jump"):
@@ -813,6 +822,8 @@ func _use_items() -> void:
 		toggle_camera()
 	if Input.is_action_just_pressed("flashlight"):
 		flashlight(not _torch.visible)
+	if Input.is_action_just_pressed("use"):
+		toggle_vehicle()
 
 
 ## First / third person (V, the touch "Kamera" button, settings).
@@ -1254,6 +1265,75 @@ func body_transform() -> Transform3D:
 	return _body.global_transform
 
 
+## The nearest quad close enough to get on, or null.
+func vehicle_near() -> Node3D:
+	for v: Node3D in get_tree().get_nodes_in_group("vehicles"):
+		if v.rider == null and v.global_position.distance_to(global_position) < v.ENTER_RADIUS:
+			return v
+	return null
+
+
+## E / the touch "Bin"/"İn" button: get on the quad nearby, or off the one we ride.
+func toggle_vehicle() -> void:
+	if vehicle:
+		_leave_vehicle()
+		return
+	var near := vehicle_near()
+	if near == null or not alive:
+		return
+	vehicle = near
+	near.rider = self
+	add_collision_exception_with(near)
+	near.add_collision_exception_with(self)
+	_slide = 0.0
+	_walk = Vector3.ZERO
+	_push = Vector3.ZERO
+	get_tree().call_group("sound", "play", "metal", near.global_position, -6.0, 1.3)
+	get_tree().call_group("touch_controls", "refresh")
+
+
+func _leave_vehicle() -> void:
+	var v := vehicle
+	vehicle = null
+	if is_instance_valid(v):
+		v.rider = null
+		# Step off to the side.
+		teleport(v.global_position + v.global_basis.x * 1.3 + Vector3.UP * 0.3)
+		remove_collision_exception_with(v)
+		v.remove_collision_exception_with(self)
+		velocity = Vector3.ZERO
+	get_tree().call_group("touch_controls", "refresh")
+
+
+## Riding: the quad moves us (ride_to); we still use items and can get off.
+func _ride(_delta: float) -> void:
+	if not is_instance_valid(vehicle):
+		vehicle = null
+		return
+	_fall_speed = 0.0
+	velocity = Vector3.ZERO
+	_use_items()
+	_tick_powers(_delta)
+	_update_spray(_delta)
+
+
+func ride_to(seat: Vector3) -> void:
+	global_position = seat - Vector3.UP * 0.55
+	max_height = maxf(max_height, global_position.y)
+
+
+## Touch: show "Bin" when a quad is near (checked a few times a second).
+func _update_vehicle_hint(delta: float) -> void:
+	_vehicle_check -= delta
+	if _vehicle_check > 0.0:
+		return
+	_vehicle_check = 0.25
+	var hint := vehicle != null or vehicle_near() != null
+	if hint != _vehicle_hint:
+		_vehicle_hint = hint
+		get_tree().call_group("touch_controls", "refresh")
+
+
 ## Flashlight on or off (L, the touch "Fener" button; switched on by a blackout).
 func flashlight(on: bool) -> void:
 	_torch.visible = on and alive
@@ -1341,6 +1421,8 @@ func take_damage(amount: float) -> void:
 		velocity = Vector3.ZERO
 		powers.clear()
 		_show_powers()
+		if vehicle:
+			_leave_vehicle()
 		clear_senses()
 		_spectate = null
 		_spectate_time = 0.0
@@ -1368,6 +1450,9 @@ func respawn(pos: Vector3) -> void:
 	powers.clear()
 	_show_powers()
 	_slide = 0.0
+	if vehicle:
+		_leave_vehicle()
+	vehicle = null
 	_torch.visible = false
 	carrying = false
 	fires_out_round = 0

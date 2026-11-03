@@ -51,6 +51,7 @@ const EN := {
 	"YENİ REKOR!": "NEW RECORD!", "DENEME BİTTİ": "RUN OVER",
 	"%d tur dayandın · Rekor: %d tur\nSonraki turda yeni deneme başlıyor": "You lasted %d rounds · Best: %d rounds\nA new run starts next round",
 	"Dayanıklılık rekorları": "Endurance records",
+	"ARAÇ  %d km/h  ·  İn: E / İn": "QUAD  %d km/h  ·  Get off: E / İn", "Araca bin: E / Bin": "Get on: E / Bin", "Bin": "Ride", "İn": "Off",
 	"SENARYO": "MISSIONS", "Toplam yıldız: %d / %d": "Total stars: %d / %d", "%d/3 yıldız": "%d/3 stars", "BAŞLA": "START", "TEKRAR": "AGAIN",
 	"Kilitli: önceki görevden en az 1 yıldız al": "Locked: get at least 1 star on the one before", "GÖREV: %s": "MISSION: %s", "hazırlan": "get ready",
 	"GÖREV BAŞARISIZ": "MISSION FAILED", "Tekrar dene: menüden SENARYO": "Try again: MISSIONS in the menu", "GÖREV TAMAM  %s": "MISSION DONE  %s",
@@ -132,8 +133,8 @@ const EN := {
 	"Beni takip edin!": "Follow me!", "Yakında kimse yok": "Nobody nearby", "Takım: kendi başınıza": "Team: on your own",
 	" elendi": " is out", "%s kurtarıldı!": "%s was rescued!",
 	"Takip": "Follow", "Selam": "Wave", "Kamera": "Camera", "Çömel": "Crouch", "Sargı": "Bandage",
-	"WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  L: fener  Esc: menü":
-			"WASD: walk  Shift: run  Space: jump (in the air at a wall: kick off)  C: crouch (while running: slide)  F: follow me  G: wave  V: camera  P: photo  L: flashlight  Esc: menu",
+	"WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  L: fener  E: araç  Esc: menü":
+			"WASD: walk  Shift: run  Space: jump (in the air at a wall: kick off)  C: crouch (while running: slide)  F: follow me  G: wave  V: camera  P: photo  L: flashlight  E: vehicle  Esc: menu",
 	# Round status.
 	"Harita: %s - sonraki felakete hazırlan": "Map: %s - get ready for the next disaster",
 	"UYARI: %s geliyor!": "WARNING: %s is coming!", "UYARI: ÇİFTE FELAKET! %s + %s": "WARNING: DOUBLE DISASTER! %s + %s",

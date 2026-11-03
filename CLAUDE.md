@@ -214,7 +214,11 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   (`Structure.door_spots`), opening when anyone is near, shattering when the wall around
   them breaks; one MultiMesh for all. `scripts/world/boat.gd`: a lifeboat by the spawn
   (`main._place_boat`) that water disasters float (`set_water`, group "boats") and the
-  player drives by standing in it and pushing forward.
+  player drives by standing in it and pushing forward. `scripts/world/vehicle.gd`: a quad
+  (CharacterBody3D, groups "vehicles" and "boats" for set_water; bots skip it) near the
+  spawn (`main._place_vehicle`); E / the touch "Bin"/"İn" button gets on and off
+  (player `vehicle`, `ride_to()` from the quad's own physics step so the rider never lags);
+  the stick is throttle and steering, hard hits hurt, deep water kills the engine.
 - Tension: quakes die down to a false calm (random moment) and then an aftershock hits
   (`earthquake.gd` `_lull`/`_after`); after a quake round the break may get a short
   aftershock too (`aftershock_chance`, off in `--selftest`, `_start_aftershock`, HUD `alert()` card). Below

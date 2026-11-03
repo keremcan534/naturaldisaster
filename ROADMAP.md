@@ -96,7 +96,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Çömelme (C / dokunmatik "Çömel"): masa altına sığarsın, ayağa kalkmak için yer gerekir
 - ✅ Çıkıntıdan tutunup tırmanma: 2 m'ye kadar duvara zıplayıp ileri basınca üstüne çıkarsın
 - ✅ Kapılar kendiliğinden açılıp kapanır (oyuncu da bot da yaklaşınca)
-- ✅ Araçlar: kurtarma helikopteri; her haritada can botu (selde yüzer, içindeyken ileri basınca baktığın yöne gider). Araba / bisiklet: ileride
+- ✅ Araçlar: kurtarma helikopteri; her haritada can botu (selde yüzer, içindeyken ileri basınca baktığın yöne gider); başlangıcın yanında arazi aracı (E / Bin: joystick gaz ve direksiyon, 54 km/s, sert çarpınca hasar, derin suda stop eder, yaralıyı da taşırsın)
 - ✅ Kurtarma helikopteri: bazı turlarda en yüksek çatıya gelir, ip merdivene ulaşan kurtulur (+60, o tur hasar yok)
 - 🚧 Sığınak: beton sığınaklar var; kilitlenen kapı ileride
 - ✅ Selam (G / "Selam"): yakındaki botlar el sallar; tur sonunda hayatta kalan botlar zıplayıp sevinir
