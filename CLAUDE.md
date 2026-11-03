@@ -217,7 +217,10 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   (`weather.set_hurt`, Orta/Yüksek only); a big blast close by rings the ears and muffles
   the world for a few seconds (player `_deaf`). Game sounds play on the "World" bus (the
   under-water/deaf low-pass lives there); `sound.ears(name)` plays "heart"/"ring" on the
-  master bus, unmuffled. `player.clear_senses()` resets it all.
+  master bus, unmuffled. `player.clear_senses()` resets it all. At night a disaster may cut the
+  power (`BLACKOUT_CHANCE`, likelier for `POWER_KINDS`): `weather.blackout()` darkens the
+  island and kills every lamp, the player's flashlight (a SpotLight3D on the camera, L / the
+  touch "Fener" button that shows only then) comes on, bots show glowing beam cones (no light).
 - Omens (`DisasterManager._omens`): the sea draws back before a tsunami
   (`weather.drain_sea`), the gulls flee before a quake or an eruption (`ambience.scatter`).
 - Severity: every disaster rolls Şiddetli / Felaket / Kıyamet (`power` 1.15 / 1.4 / 1.7,

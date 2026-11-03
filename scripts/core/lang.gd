@@ -51,6 +51,7 @@ const EN := {
 	"YENİ REKOR!": "NEW RECORD!", "DENEME BİTTİ": "RUN OVER",
 	"%d tur dayandın · Rekor: %d tur\nSonraki turda yeni deneme başlıyor": "You lasted %d rounds · Best: %d rounds\nA new run starts next round",
 	"Dayanıklılık rekorları": "Endurance records",
+	"ELEKTRİK KESİLDİ!": "POWER CUT!", "Fenerini kullan (L / Fener)": "Use your flashlight (L / Fener)", "Fener": "Light",
 	"Günün Felaketi": "Disaster of the Day", "Bugün herkes için aynı 5 felaket: en yüksek puanı yap, yarın yenisi": "The same 5 disasters for everyone today: top your score, new ones tomorrow",
 	"Günün Felaketi · Tur %d / %d · %s": "Disaster of the Day · Round %d / %d · %s", "BUGÜNÜN REKORU!": "TODAY'S BEST!",
 	"GÜNÜN FELAKETİ BİTTİ": "DAY'S SET OVER", "%d puan · Bugünkü en iyin: %d\nSonraki turda yeniden deneyebilirsin": "%d points · Today's best: %d\nTry again from the next round",
@@ -118,8 +119,8 @@ const EN := {
 	"Beni takip edin!": "Follow me!", "Yakında kimse yok": "Nobody nearby", "Takım: kendi başınıza": "Team: on your own",
 	" elendi": " is out", "%s kurtarıldı!": "%s was rescued!",
 	"Takip": "Follow", "Selam": "Wave", "Kamera": "Camera", "Çömel": "Crouch", "Sargı": "Bandage",
-	"WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  Esc: menü":
-			"WASD: walk  Shift: run  Space: jump (in the air at a wall: kick off)  C: crouch (while running: slide)  F: follow me  G: wave  V: camera  P: photo  Esc: menu",
+	"WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  L: fener  Esc: menü":
+			"WASD: walk  Shift: run  Space: jump (in the air at a wall: kick off)  C: crouch (while running: slide)  F: follow me  G: wave  V: camera  P: photo  L: flashlight  Esc: menu",
 	# Round status.
 	"Harita: %s - sonraki felakete hazırlan": "Map: %s - get ready for the next disaster",
 	"UYARI: %s geliyor!": "WARNING: %s is coming!", "UYARI: ÇİFTE FELAKET! %s + %s": "WARNING: DOUBLE DISASTER! %s + %s",

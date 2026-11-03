@@ -18,6 +18,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Volkan (yükselen dağ, lav akıntısı, lav bombaları)
 - ✅ Yangın (parça parça yayılır, kömürleşir, çöker)
 - ✅ Deprem ortasında sahte sakinlik, sonra artçı sarsıntı; deprem turundan sonraki molada da artçı gelebilir
+- ✅ Elektrik kesintisi: gece felaketleri elektriği kesebilir; ada kararır, lambalar söner, el fenerinle (L / Fener) yolunu bulursun, botların fenerleri görünür
 
 ### Yeni felaketler
 - ✅ ⭐ Yıldırım fırtınası: en yüksek noktalara ve açıkta kalanlara yıldırım düşer, yere önce ışık halkası, yangın çıkarır

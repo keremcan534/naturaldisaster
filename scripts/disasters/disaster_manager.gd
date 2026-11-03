@@ -95,6 +95,8 @@ const RESCUE_AT := 0.45
 ## per mode.
 const SURPRISE_CHANCE := {"classic": 0.35, "hard": 0.5, "last": 0.35, "endurance": 0.5}
 const SURPRISE_AT := 0.5
+## At night, how often a disaster that doesn't hit the power still knocks it out.
+const BLACKOUT_CHANCE := 0.35
 ## How often a quake round is followed by an aftershock in the break (the
 ## selftest turns it off: it checks that nothing moves at rest then).
 var aftershock_chance := 0.6
@@ -224,6 +226,7 @@ func stop() -> void:
 	get_tree().call_group("civilians", "phase", "off")
 	get_tree().call_group("rescue", "leave")
 	get_tree().call_group("weather", "power_flicker", false)
+	get_tree().call_group("weather", "blackout", false)
 	vote_options = []
 	for d: Node in [_current, _extra]:
 		if d:
@@ -440,6 +443,7 @@ func _enter(state: State) -> void:
 			_surprise_time = -INF
 			get_tree().call_group("rescue", "leave")
 			get_tree().call_group("weather", "power_flicker", false)
+			get_tree().call_group("weather", "blackout", false)
 			get_tree().call_group("pickups", "phase", "results")
 			get_tree().call_group("civilians", "phase", "results")
 			_check_challenge()
@@ -525,8 +529,15 @@ func _omens(warning: bool) -> void:
 	# Shaking and gales jam the lifts wherever they are.
 	if not warning and _current.kind in ["earthquake", "hurricane", "tornado"]:
 		get_tree().call_group("elevators", "jam")
-	if not warning and (_current.kind in POWER_KINDS or (_extra and _extra.kind in POWER_KINDS)):
+	var power_hit: bool = _current.kind in POWER_KINDS or (_extra != null and _extra.kind in POWER_KINDS)
+	if not warning and power_hit:
 		get_tree().call_group("weather", "power_flicker", true)
+	# At night the power may go out altogether: only flashlights and lightning.
+	var weather := get_tree().get_first_node_in_group("weather")
+	if not warning and weather and weather.time_of_day() == "night" and randf() < (0.75 if power_hit else BLACKOUT_CHANCE):
+		weather.blackout(true)
+		get_tree().call_group("hud", "alert", "ELEKTRİK KESİLDİ!", "Fenerini kullan (L / Fener)")
+		get_tree().call_group("player", "flashlight", true)
 	if _current.kind == "volcano":
 		get_tree().call_group("ambience", "volcano_smoke", Vector3(0, 0, -world.map_size * 0.5 - 6.0), warning)
 

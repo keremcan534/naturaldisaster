@@ -21,6 +21,7 @@ const ACTIONS := {
 	"emote": [KEY_G],
 	"photo": [KEY_P],
 	"camera": [KEY_V],
+	"flashlight": [KEY_L],
 }
 ## Gamepad: left stick moves (via the same actions), A jumps, B crouches, the
 ## left stick press sprints, X uses/enters, shoulder buttons fire items; the

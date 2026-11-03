@@ -165,6 +165,9 @@ var _wave := 0.0
 ## Power-ups (same as the player's): kind -> seconds left.
 var powers := {}
 var _shield: MeshInstance3D
+## A flashlight's beam (a glowing cone, no real light) in blackouts.
+var _beam: MeshInstance3D
+static var _beam_mesh: Mesh
 
 
 func setup(index: int, seed_value: int) -> void:
@@ -257,6 +260,30 @@ func _ready() -> void:
 	add_child(_bubble)
 	_shield = PowerGear.bubble()
 	_avatar.add_child(_shield)
+	if _beam_mesh == null:
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.06
+		cone.bottom_radius = 1.6
+		cone.height = 7.0
+		cone.radial_segments = 10
+		cone.rings = 1
+		cone.cap_top = false
+		cone.cap_bottom = false
+		var glow := StandardMaterial3D.new()
+		glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		glow.cull_mode = BaseMaterial3D.CULL_DISABLED
+		glow.albedo_color = Color(1.0, 0.95, 0.8, 0.09)
+		cone.material = glow
+		_beam_mesh = cone
+	_beam = MeshInstance3D.new()
+	_beam.mesh = _beam_mesh
+	# From the hand, pointing ahead (-Z) and a little down.
+	_beam.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5 + 0.15), Vector3(0.25, 1.35, -3.6))
+	_beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_beam.visible = false
+	_avatar.add_child(_beam)
 
 
 func _physics_process(delta: float) -> void:
@@ -933,6 +960,11 @@ func collected(kind: String, value: int) -> void:
 		_say("Altın!" if kind == "coin" else "Can kiti!", 1.5)
 
 
+## Blackout: the flashlight's beam on or off.
+func flashlight(on: bool) -> void:
+	_beam.visible = on and alive
+
+
 ## Walked into a power orb (pickups.gd POWERS).
 func power_up(kind: String, seconds: float) -> void:
 	if not alive:
@@ -1027,6 +1059,7 @@ func take_damage(amount: float) -> void:
 		_dead_time = 0.0
 		powers.clear()
 		_show_powers()
+		_beam.visible = false
 		_label.visible = false
 		_bubble.visible = false
 		velocity = Vector3.ZERO
@@ -1058,6 +1091,7 @@ func respawn(pos: Vector3) -> void:
 	alive = true
 	_avatar.visible = true
 	_avatar.rotation.x = 0.0
+	_beam.visible = false
 	powers.clear()
 	_show_powers()
 	_label.visible = true

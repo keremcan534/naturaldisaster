@@ -269,6 +269,8 @@ var _spray := 0.0
 var _spray_used := 0.0
 var _spray_tick := 0.0
 var _mist: CPUParticles3D
+## The flashlight (blackouts at night): a spot on the camera.
+var _torch: SpotLight3D
 var _heart := 0.0
 var _drained := 0.0
 var _roll := 0.0
@@ -379,6 +381,16 @@ func _ready() -> void:
 	add_child(tint_layer)
 	_build_hands()
 	_build_mist()
+	_torch = SpotLight3D.new()
+	_torch.light_color = Color(1.0, 0.95, 0.85)
+	_torch.light_energy = 3.2
+	_torch.spot_angle = 26.0
+	_torch.spot_attenuation = 0.8
+	_torch.spot_range = 30.0
+	_torch.shadow_enabled = false
+	_torch.position = Vector3(0.2, -0.15, 0.0)
+	_torch.visible = false
+	_camera.add_child(_torch)
 
 	apply_perks()
 	_prev_pos = global_position
@@ -799,6 +811,8 @@ func _use_items() -> void:
 		photo_requested.emit()
 	if Input.is_action_just_pressed("camera"):
 		toggle_camera()
+	if Input.is_action_just_pressed("flashlight"):
+		flashlight(not _torch.visible)
 
 
 ## First / third person (V, the touch "Kamera" button, settings).
@@ -1240,6 +1254,17 @@ func body_transform() -> Transform3D:
 	return _body.global_transform
 
 
+## Flashlight on or off (L, the touch "Fener" button; switched on by a blackout).
+func flashlight(on: bool) -> void:
+	_torch.visible = on and alive
+	_torch.spot_range = 20.0 if Quality.level == 0 else 30.0
+	get_tree().call_group("sound", "play", "click", null, -10.0, 1.3)
+
+
+func flashlight_on() -> bool:
+	return _torch.visible
+
+
 ## Back to normal hearing and colors (death, respawn, the menu).
 func clear_senses() -> void:
 	_deaf = 0.0
@@ -1343,6 +1368,7 @@ func respawn(pos: Vector3) -> void:
 	powers.clear()
 	_show_powers()
 	_slide = 0.0
+	_torch.visible = false
 	carrying = false
 	fires_out_round = 0
 	_spray = 0.0

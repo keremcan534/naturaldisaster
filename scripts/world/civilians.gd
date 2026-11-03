@@ -76,9 +76,9 @@ func _ready() -> void:
 	glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	glow.cull_mode = BaseMaterial3D.CULL_DISABLED
 	glow.no_depth_test = false
-	glow.albedo_color = Color(0.2, 1.0, 0.4, 0.55)
+	glow.albedo_color = Color(0.2, 1.0, 0.4, 0.3)
 	var ring := TorusMesh.new()
-	ring.inner_radius = ZONE_RADIUS - 0.25
+	ring.inner_radius = ZONE_RADIUS - 0.1
 	ring.outer_radius = ZONE_RADIUS
 	ring.rings = 32
 	ring.ring_segments = 6
@@ -321,7 +321,13 @@ func _process(delta: float) -> void:
 					var shoulders := carrier.origin + Vector3.UP * 1.55 + carrier.basis * Vector3(0, 0, 0.12)
 					body.global_transform = Transform3D(turn, shoulders - turn * Vector3.UP * 0.9)
 					body.animate(delta, 0.0, 0.0)
-	# The light pulses gently.
+	# The light pulses gently. Up close the beam would fill the view: it shows
+	# from afar (or while carrying someone, to find the way back).
 	var pulse := 0.75 + 0.25 * sin(_time * 3.0)
-	_ring.scale = Vector3.ONE * (0.95 + 0.05 * pulse)
+	_ring.scale = Vector3(1.0, 0.3, 1.0) * (0.95 + 0.05 * pulse)
+	var camera := get_viewport().get_camera_3d()
+	if camera:
+		var away := Vector2(camera.global_position.x - zone.x, camera.global_position.z - zone.z).length()
+		_beam.visible = away > 9.0
+		_ring.visible = away > 2.0 or (player != null and player.carrying)
 	Prof.end("civilians", _p)
