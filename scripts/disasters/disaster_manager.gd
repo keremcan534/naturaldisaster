@@ -412,7 +412,7 @@ func _enter(state: State) -> void:
 			_time_left = pause * time_scale
 			round_started.emit()
 			challenge = CHALLENGES.pick_random() if mode_id() != "mission" else {}
-			challenge_set.emit(Lang.t(challenge.text) if mode_id() != "mission" else Lang.t("GÖREV: %s") % Missions.goal_text(_mission))
+			challenge_set.emit(Lang.t(challenge.text) if mode_id() != "mission" else Missions.goal_text(_mission))
 			get_tree().call_group("pickups", "phase", "wait")
 			# After a quake the ground is not done: maybe an aftershock in the break.
 			_aftershock_at = -1.0
