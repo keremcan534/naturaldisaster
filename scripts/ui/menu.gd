@@ -231,6 +231,8 @@ func _refresh_main() -> void:
 	_mode_desc.text = Lang.t(mode.desc)
 	if mode.id == "endurance":
 		_mode_desc.text += "\n" + Lang.t("Rekorun: %d tur") % Profile.best_run()
+	elif mode.id == "daily":
+		_mode_desc.text += "\n" + Lang.t("Bugünkü en iyin: %d puan (%d deneme)") % [Profile.daily_best(), Profile.daily_tries()]
 	var event := Events.current()
 	_event.text = Lang.t("HAFTANIN ETKİNLİĞİ: %s (%d gün)\n%s") % [Lang.t(event.name), Events.days_left(), Lang.t(event.desc)]
 

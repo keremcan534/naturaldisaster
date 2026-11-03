@@ -41,7 +41,10 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   out until one is left), Dayanıklılık (one life; health carries over with +30 between
   rounds; severity climbs per round, always double from round 4, power past Kıyamet up to
   `ENDURANCE_MAX_POWER`; when the player falls `run_ended` fires and `Profile.add_run`
-  keeps the top 10 runs, shown under GÖREVLER; the next round starts a new run). `scripts/core/events.gd`: the week's event (from the week number)
+  keeps the top 10 runs, shown under GÖREVLER; the next round starts a new run), Günün Felaketi
+  (`DAILY_ROUNDS` rounds whose map, disaster, severity and double come from the day number
+  via `_daily_seed()`, so everyone gets the same set; no map vote; `daily_ended` and
+  `Profile.add_daily` keep today's best; the next round starts the set again). `scripts/core/events.gd`: the week's event (from the week number)
   favors some disasters, doubles coins for surviving them and sells an event outfit.
   Results open a map vote (`vote_started`, HUD buttons or keys 1-3; bots vote too) and
   `load_next_map(choice)` takes the winner. `scripts/world/rescue_heli.gd` (group "rescue")

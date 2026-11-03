@@ -100,7 +100,8 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - 🚧 Sığınak: beton sığınaklar var; kilitlenen kapı ileride
 - ✅ Selam (G / "Selam"): yakındaki botlar el sallar; tur sonunda hayatta kalan botlar zıplayıp sevinir
 - ✅ Fotoğraf modu (P / menüde "FOTOĞRAF ÇEK"): arayüzsüz ekran görüntüsü, tarayıcıda PNG iner
-- ✅ Oyun modları (ana menüde MOD tuşu): Klasik, Kaos, Zor, Sadece Su, Son Kalan, Dayanıklılık
+- ✅ Oyun modları (ana menüde MOD tuşu): Klasik, Kaos, Zor, Sadece Su, Son Kalan, Dayanıklılık, Günün Felaketi
+- ✅ Günün Felaketi: bugün herkes için aynı 5 tur (harita, felaket, şiddet günün tarihinden); bugünkü en iyi puanın saklanır, istediğin kadar yeniden dene
 - ✅ Dayanıklılık: tek can, can turlar arası sadece +30 dolar, her tur felaket ağırlaşır (4. turdan sonra hep çifte, Kıyamet'in de üstüne çıkar); kaç tur dayandığın rekor tablosuna (ilk 10, GÖREVLER ekranında) yazılır
 - 🔒 Özel sunucu / özel oda (arkadaşlarla): gerçek çok oyunculu sunucu gerektirir
 - ✅ Haftalık etkinlik: her hafta değişir (Tsunami, Meteor, Fırtına, Kaos, Ateş ve Buz), o felaketler sıklaşır ve 2 kat coin, haftaya özel kıyafet

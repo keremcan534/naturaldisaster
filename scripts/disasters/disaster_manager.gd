@@ -15,6 +15,8 @@ signal challenge_set(text: String)
 signal challenge_done(text: String, points: int)
 ## Dayanıklılık: the player's run ended (rounds survived, best ever, a new best?).
 signal run_ended(rounds: int, best: int, record: bool)
+## Günün Felaketi: the day's set is over (score, today's best, a new best?).
+signal daily_ended(score: int, best: int, record: bool)
 
 const Settings := preload("res://scripts/core/settings.gd")
 const Events := preload("res://scripts/core/events.gd")
@@ -72,7 +74,11 @@ const MODES := [
 	{"id": "water", "name": "Sadece Su", "desc": "Tsunami, sel, kasırga, çamur ve çığ"},
 	{"id": "last", "name": "Son Kalan", "desc": "Ölen geri dönmez; en son kalan kazanır"},
 	{"id": "endurance", "name": "Dayanıklılık", "desc": "Tek can, can turlar arası az dolar, her tur daha ağır: kaç tur dayanırsın?"},
+	{"id": "daily", "name": "Günün Felaketi", "desc": "Bugün herkes için aynı 5 felaket: en yüksek puanı yap, yarın yenisi"},
 ]
+## Günün Felaketi: rounds in the day's set (maps, disasters and severities all
+## come from the day's number, so every player gets the same ones).
+const DAILY_ROUNDS := 5
 ## Dayanıklılık: health back between rounds, and how fast it gets worse (power
 ## per round past the fourth, on top of Kıyamet, up to a cap).
 const ENDURANCE_HEAL := 30.0
@@ -144,6 +150,12 @@ func mode_id() -> String:
 	return MODES[clampi(Settings.game_mode, 0, MODES.size() - 1)].id
 
 
+## Günün Felaketi: the same random choices for everyone today (`part` keeps
+## the map and the disaster picks apart).
+func _daily_seed(part: int) -> void:
+	seed(hash(Vector3i(Profile.today(), _rounds, part)))
+
+
 ## The person playing (not a bot), or null in the menu.
 func _human() -> Node:
 	for p: Node in get_tree().get_nodes_in_group("player"):
@@ -173,7 +185,7 @@ func start(keep_map := false) -> void:
 		p.score = 0
 		p.streak = 0
 		p.round_points = 0
-	_keep_map = keep_map
+	_keep_map = keep_map and mode_id() != "daily"
 	_rounds = 0
 	_run_over = false
 	set_process(true)
@@ -307,7 +319,20 @@ func _enter(state: State) -> void:
 	_state = state
 	match state:
 		State.INTERMISSION:
-			if not _keep_map:
+			if mode_id() == "daily" and _run_over:
+				# The day's set again from the top (a new try).
+				_run_over = false
+				_rounds = 0
+				for p: Node in get_tree().get_nodes_in_group("player"):
+					p.score = 0
+					p.streak = 0
+			if mode_id() == "daily":
+				if _rounds == 0:
+					_last_index = -1
+				_daily_seed(1)
+				world.load_next_map(randi() % Maps.COUNT)
+				randomize()
+			elif not _keep_map:
 				world.load_next_map(_vote_winner())
 			_keep_map = false
 			vote_options = []
@@ -349,11 +374,15 @@ func _enter(state: State) -> void:
 				_aftershock_at = randf_range(3.0, maxf(_time_left - 3.0, 3.5))
 			if mode_id() == "endurance":
 				status_changed.emit(Lang.t("Dayanıklılık · Tur %d · Rekor %d · %s") % [_rounds + 1, Profile.best_run(), Lang.t(world.map_name)])
+			elif mode_id() == "daily":
+				status_changed.emit(Lang.t("Günün Felaketi · Tur %d / %d · %s") % [_rounds + 1, DAILY_ROUNDS, Lang.t(world.map_name)])
 			else:
 				status_changed.emit(Lang.t("Harita: %s - sonraki felakete hazırlan") % Lang.t(world.map_name))
 		State.WARNING:
 			_stop_aftershock()
 			_aftershock_at = -1.0
+			if mode_id() == "daily":
+				_daily_seed(2)
 			_current = _pick_disaster()
 			# Below the dam, a flood or a wave means the dam is bursting.
 			if world.dam != Vector3.INF and _current.display_name in ["Tsunami", "Sel", "Dalga Serisi", "Dev Tsunami"]:
@@ -364,6 +393,8 @@ func _enter(state: State) -> void:
 			var always_double := mode_id() == "chaos" or (mode_id() == "endurance" and _rounds >= 3)
 			if always_double or (_rounds > 0 and randf() < combo and mode_id() != "water"):
 				_extra = _pick_partner()
+			if mode_id() == "daily":
+				randomize()
 			_rounds += 1
 			world.set_mood(_current.mood)
 			_omens(true)
@@ -418,7 +449,14 @@ func _enter(state: State) -> void:
 			round_scored.emit(_score_round())
 			if mode_id() == "endurance" and _human() and not _human().alive:
 				_end_run(_rounds - 1)
-			_start_vote()
+			if mode_id() == "daily":
+				if _rounds >= DAILY_ROUNDS:
+					var score: int = _human().score if _human() else 0
+					var record := Profile.add_daily(score)
+					daily_ended.emit(score, Profile.daily_best(), record)
+					_run_over = true
+			else:
+				_start_vote()
 
 
 func _pick_disaster() -> Node:
