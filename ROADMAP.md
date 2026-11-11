@@ -195,6 +195,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 ## 11. Teknik
 - ✅ Kalite seviyeleri + otomatik kalite, MultiMesh çizimi, havuzlama
 - ✅ Web hata kutusu
+- ✅ Yayın düzeni: site sadece main'den yayınlanır; geliştirme dallarda yapılır, PR birleşince oyunculara gider (bir dalı denemek için iş akışı elle çalıştırılabilir)
 - 💡 ⭐ PWA (ana ekrana ekle, çevrimdışı): yayın sürümünde açılacak; şimdi açılırsa telefon eski sürümü önbellekten gösterir
 - 🚧 ⭐ Android: APK iş akışı hazır (GitHub > Actions > Build Android APK > Run workflow, APK'yı indirip telefona kur); 🔒 Google Play için geliştirici hesabı ve imza anahtarı
 - 🔒 iOS sürümü: Mac ve Apple geliştirici hesabı lazım

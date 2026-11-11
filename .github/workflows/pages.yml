@@ -1,10 +1,13 @@
 # Builds the Godot web export and publishes it to GitHub Pages.
-# Every push deploys, from any branch: the site always shows the latest push,
-# so a change made from any session is on the phone a few minutes later.
+# The site is the released game: only main deploys. Work happens on branches
+# and reaches players when its pull request is merged. To try a branch on a
+# phone first, run this workflow by hand on it (Actions > Deploy web build >
+# Run workflow); the site then shows that branch until the next deploy.
 name: Deploy web build
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:

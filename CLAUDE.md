@@ -8,12 +8,15 @@ Turkish; answer in Turkish.
 
 The user plays on their phone at https://keremcan534.github.io/naturaldisaster/
 
-`.github/workflows/pages.yml` exports the web build and deploys it on **every push,
-from any branch** (the site shows whatever was pushed last). So when a change is
-done and checked, **commit and push it** without waiting to be asked; then tell
-the user the build takes about 3 minutes and that the version label under the
-health bar (`<commit> <time>`) shows which build their phone has loaded. If the
-phone shows an old label, a refresh fixes it (Pages caches for ~10 minutes).
+The site is the released game: `.github/workflows/pages.yml` exports the web build and
+deploys it **only from main** (pushes to main, i.e. merged pull requests; or a manual
+run of the workflow, which deploys whatever branch it is run on). Work on a branch: when a
+change is done and checked, commit and push it to the branch and keep its pull request
+up to date without waiting to be asked; it reaches the phone once the user merges it (or
+asks for it to be merged). After a deploy, tell the user the build takes about 3 minutes
+and that the version label under the health bar (`<commit> <time>`) shows which build
+their phone has loaded. If the phone shows an old label, a refresh fixes it (Pages caches
+for ~10 minutes).
 
 Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is available.
 
