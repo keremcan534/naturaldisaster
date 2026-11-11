@@ -507,6 +507,7 @@ func _build_board() -> PanelContainer:
 ## screenshot whether the phone is slowed by drawing, physics or scripts.
 func _update_perf() -> void:
 	_perf.visible = Settings.perf_overlay
+	_fps.visible = Settings.perf_overlay
 	if not _perf.visible or _frames == 0:
 		_worst = 0.0
 		_frame_sum = 0.0

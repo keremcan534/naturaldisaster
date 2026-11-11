@@ -22,7 +22,6 @@ const PERSONALITIES := ["normal", "normal", "korkak", "cesur", "şakacı"]
 ## Bot level (Settings.bot_level): the range their skill is drawn from.
 const SKILL_RANGES := [Vector2(0.1, 0.55), Vector2(0.35, 1.0), Vector2(0.75, 1.0)]
 const CHEERS := ["Yaşasın!", "Hayattayız!", "Az kalsın!", "Kolaydı!", "Bir tur daha!", "Ohh be!"]
-const JOKES := ["Hop hop!", "Beni yakala!", "Felaket mi? Hangi felaket?", "Dans zamanı!"]
 const GREETINGS := ["Selam!", "Merhaba!", "Naber?", "Hey!"]
 const DODGES := ["Çekil!", "Kaçın!", "Ohaa!", "Uzak durun!"]
 const COLLAPSES := ["Bina çöktü!", "Eyvah!", "Dikkat, enkaz!", "Çok yakındı!", "Gördün mü onu?!"]
@@ -56,8 +55,7 @@ const SHOUTS := {
 	"default": ["Dikkat!", "Koşun!"],
 }
 
-const NAMES := ["Mert_06", "ZeynoTR", "KasırgaAvcısı", "Elif.exe", "BurakPro", "Deniz35", "Ayşegül", "CanBey",
-		"KralKaan", "Ecem", "Yiğit", "SelinX"]
+const NAMES := ["Mert", "Zeynep", "Can", "Elif", "Burak", "Deniz", "Ayşe", "Emre", "Kaan", "Ecem", "Yiğit", "Selin"]
 const SHIRTS := [Color(0.9, 0.3, 0.25), Color(0.25, 0.7, 0.35), Color(0.95, 0.6, 0.1), Color(0.6, 0.35, 0.85),
 		Color(0.15, 0.7, 0.75), Color(0.95, 0.85, 0.2), Color(0.9, 0.45, 0.65), Color(0.4, 0.42, 0.48)]
 
@@ -574,8 +572,6 @@ func _wander() -> void:
 	var hop := 0.5 if personality == "şakacı" else 0.08
 	if _rng.randf() < hop and is_on_floor():
 		velocity.y = JUMP_VELOCITY
-	if personality == "şakacı" and _rng.randf() < 0.08:
-		_say(JOKES[_rng.randi() % JOKES.size()])
 
 
 ## Waiting it out: look toward the danger or around, now and then shuffle a
