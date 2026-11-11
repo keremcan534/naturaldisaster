@@ -241,7 +241,7 @@ func _ready() -> void:
 	hint.offset_right = -16
 	hint.offset_bottom = -16
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hint.text = "WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  Esc: menü"
+	hint.text = "WASD: yürü  Shift: koş  Space: zıpla (havada duvara: sek)  C: çömel (koşarken: kay)  F: takip et  G: selam  V: kamera  P: fotoğraf  L: fener  E: araç  Esc: menü"
 	hint.visible = not touch_mode
 
 	_compass = Control.new()
@@ -336,6 +336,18 @@ func bind(manager: Node, player: Node) -> void:
 			_center.text = Lang.t("Elendin! Son kalan belirlenince döneceksin")
 			_center.visible = true)
 	manager.vote_started.connect(_open_vote)
+	manager.mission_ended.connect(func(_index: int, stars: int, coins: int) -> void:
+		var row := Lang.t("%d/3 yıldız") % stars
+		if stars == 0:
+			_show_card(Lang.t("GÖREV BAŞARISIZ"), Lang.t("Tekrar dene: menüden SENARYO"))
+		else:
+			_show_card(Lang.t("GÖREV TAMAM  %s") % row, Lang.t("+%d coin") % coins if coins > 0 else Lang.t("Daha çok yıldız için tekrar dene"))
+			get_tree().call_group("sound", "play", "win", null, 0.0))
+	manager.daily_ended.connect(func(score: int, best: int, record: bool) -> void:
+		_show_card(Lang.t("BUGÜNÜN REKORU!") if record else Lang.t("GÜNÜN FELAKETİ BİTTİ"),
+				Lang.t("%d puan · Bugünkü en iyin: %d\nSonraki turda yeniden deneyebilirsin") % [score, best])
+		if record:
+			get_tree().call_group("sound", "play", "win", null, 0.0))
 	manager.run_ended.connect(func(rounds: int, best: int, record: bool) -> void:
 		_show_card(Lang.t("YENİ REKOR!") if record else Lang.t("DENEME BİTTİ"),
 				Lang.t("%d tur dayandın · Rekor: %d tur\nSonraki turda yeni deneme başlıyor") % [rounds, best])
@@ -386,8 +398,14 @@ func _show_powers() -> void:
 	_powers.text = "  ·  ".join(parts)
 	var civilians := get_tree().get_first_node_in_group("civilians")
 	var waiting: int = civilians.waiting() if civilians else 0
-	if _player.alive and _player.carrying:
+	if _player.alive and _player.vehicle:
+		_task.text = Lang.t("ARAÇ  %d km/h  ·  İn: E / İn") % int(absf(_player.vehicle.speed) * 3.6)
+		if _player.carrying:
+			_task.text += "  ·  " + Lang.t("Yaralı sırtında: yeşil ışığa (T) götür")
+	elif _player.alive and _player.carrying:
 		_task.text = Lang.t("Yaralı sırtında: yeşil ışığa (T) götür")
+	elif _player.alive and _player.vehicle_near():
+		_task.text = Lang.t("Araca bin: E / Bin")
 	elif _player.alive and waiting > 0:
 		_task.text = Lang.t("Yardım bekleyen yaralı: %d (pusulada +)") % waiting
 	else:
@@ -489,6 +507,7 @@ func _build_board() -> PanelContainer:
 ## screenshot whether the phone is slowed by drawing, physics or scripts.
 func _update_perf() -> void:
 	_perf.visible = Settings.perf_overlay
+	_fps.visible = Settings.perf_overlay
 	if not _perf.visible or _frames == 0:
 		_worst = 0.0
 		_frame_sum = 0.0

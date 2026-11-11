@@ -22,7 +22,6 @@ const PERSONALITIES := ["normal", "normal", "korkak", "cesur", "şakacı"]
 ## Bot level (Settings.bot_level): the range their skill is drawn from.
 const SKILL_RANGES := [Vector2(0.1, 0.55), Vector2(0.35, 1.0), Vector2(0.75, 1.0)]
 const CHEERS := ["Yaşasın!", "Hayattayız!", "Az kalsın!", "Kolaydı!", "Bir tur daha!", "Ohh be!"]
-const JOKES := ["Hop hop!", "Beni yakala!", "Felaket mi? Hangi felaket?", "Dans zamanı!"]
 const GREETINGS := ["Selam!", "Merhaba!", "Naber?", "Hey!"]
 const DODGES := ["Çekil!", "Kaçın!", "Ohaa!", "Uzak durun!"]
 const COLLAPSES := ["Bina çöktü!", "Eyvah!", "Dikkat, enkaz!", "Çok yakındı!", "Gördün mü onu?!"]
@@ -56,8 +55,7 @@ const SHOUTS := {
 	"default": ["Dikkat!", "Koşun!"],
 }
 
-const NAMES := ["Mert_06", "ZeynoTR", "KasırgaAvcısı", "Elif.exe", "BurakPro", "Deniz35", "Ayşegül", "CanBey",
-		"KralKaan", "Ecem", "Yiğit", "SelinX"]
+const NAMES := ["Mert", "Zeynep", "Can", "Elif", "Burak", "Deniz", "Ayşe", "Emre", "Kaan", "Ecem", "Yiğit", "Selin"]
 const SHIRTS := [Color(0.9, 0.3, 0.25), Color(0.25, 0.7, 0.35), Color(0.95, 0.6, 0.1), Color(0.6, 0.35, 0.85),
 		Color(0.15, 0.7, 0.75), Color(0.95, 0.85, 0.2), Color(0.9, 0.45, 0.65), Color(0.4, 0.42, 0.48)]
 
@@ -165,6 +163,9 @@ var _wave := 0.0
 ## Power-ups (same as the player's): kind -> seconds left.
 var powers := {}
 var _shield: MeshInstance3D
+## A flashlight's beam (a glowing cone, no real light) in blackouts.
+var _beam: MeshInstance3D
+static var _beam_mesh: Mesh
 
 
 func setup(index: int, seed_value: int) -> void:
@@ -257,6 +258,30 @@ func _ready() -> void:
 	add_child(_bubble)
 	_shield = PowerGear.bubble()
 	_avatar.add_child(_shield)
+	if _beam_mesh == null:
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.06
+		cone.bottom_radius = 1.6
+		cone.height = 7.0
+		cone.radial_segments = 10
+		cone.rings = 1
+		cone.cap_top = false
+		cone.cap_bottom = false
+		var glow := StandardMaterial3D.new()
+		glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		glow.cull_mode = BaseMaterial3D.CULL_DISABLED
+		glow.albedo_color = Color(1.0, 0.95, 0.8, 0.09)
+		cone.material = glow
+		_beam_mesh = cone
+	_beam = MeshInstance3D.new()
+	_beam.mesh = _beam_mesh
+	# From the hand, pointing ahead (-Z) and a little down.
+	_beam.transform = Transform3D(Basis(Vector3.RIGHT, -PI * 0.5 + 0.15), Vector3(0.25, 1.35, -3.6))
+	_beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_beam.visible = false
+	_avatar.add_child(_beam)
 
 
 func _physics_process(delta: float) -> void:
@@ -547,8 +572,6 @@ func _wander() -> void:
 	var hop := 0.5 if personality == "şakacı" else 0.08
 	if _rng.randf() < hop and is_on_floor():
 		velocity.y = JUMP_VELOCITY
-	if personality == "şakacı" and _rng.randf() < 0.08:
-		_say(JOKES[_rng.randi() % JOKES.size()])
 
 
 ## Waiting it out: look toward the danger or around, now and then shuffle a
@@ -775,6 +798,8 @@ func _crowd_at(p: Vector3) -> int:
 func _free_boat() -> Node3D:
 	var best: Node3D = null
 	for boat: Node3D in get_tree().get_nodes_in_group("boats"):
+		if boat.is_in_group("vehicles"):
+			continue
 		var aboard := 0
 		for bot: Node3D in get_tree().get_nodes_in_group("bots"):
 			if bot != self and bot._boat == boat:
@@ -933,6 +958,11 @@ func collected(kind: String, value: int) -> void:
 		_say("Altın!" if kind == "coin" else "Can kiti!", 1.5)
 
 
+## Blackout: the flashlight's beam on or off.
+func flashlight(on: bool) -> void:
+	_beam.visible = on and alive
+
+
 ## Walked into a power orb (pickups.gd POWERS).
 func power_up(kind: String, seconds: float) -> void:
 	if not alive:
@@ -1027,6 +1057,7 @@ func take_damage(amount: float) -> void:
 		_dead_time = 0.0
 		powers.clear()
 		_show_powers()
+		_beam.visible = false
 		_label.visible = false
 		_bubble.visible = false
 		velocity = Vector3.ZERO
@@ -1058,6 +1089,7 @@ func respawn(pos: Vector3) -> void:
 	alive = true
 	_avatar.visible = true
 	_avatar.rotation.x = 0.0
+	_beam.visible = false
 	powers.clear()
 	_show_powers()
 	_label.visible = true

@@ -200,6 +200,9 @@ var _sea: MeshInstance3D
 var _leaves: CPUParticles3D
 ## Disasters that hit the power grid make lamps and windows flicker.
 var _flicker := false
+## Blackout (night disasters): lamps out, the island much darker (0..1 fades in).
+var _blackout := false
+var _dark := 0.0
 var _power_on := true
 var _power_time := 0.0
 
@@ -431,13 +434,18 @@ func _process(delta: float) -> void:
 	RenderingServer.global_shader_parameter_set("sun_color", (_now.sun as Color) * minf(energy, 1.5))
 	_sky.set_shader_parameter("flash", flicker * 1.5)
 
+	var dark := 1.0 if _blackout else 0.0
+	if _dark != dark:
+		_dark = move_toward(_dark, dark, delta * 1.5)
+		if not _now.is_empty():
+			_apply(_now)
 	if _flicker:
 		_power_time -= delta
 		if _power_time <= 0.0:
 			# Mostly on, with short drops and the odd longer blackout.
 			_power_on = not _power_on
 			_power_time = randf_range(0.4, 2.5) if _power_on else randf_range(0.04, 0.5)
-			Look.set_lamps(_now.rooms if _power_on else 0.0)
+			Look.set_lamps(_now.rooms if _power_on and not _blackout else 0.0)
 
 	var camera := get_viewport().get_camera_3d()
 	var windy: bool = _now.get("wind", 0.0) > 0.75
@@ -468,17 +476,17 @@ func _apply(v: Dictionary) -> void:
 	RenderingServer.global_shader_parameter_set("stars", v.stars)
 	# The aurora needs a clear, dark sky.
 	RenderingServer.global_shader_parameter_set("aurora", v.aurora * (1.0 - smoothstep(0.4, 0.7, v.clouds)))
-	Look.set_lamps(v.rooms)
+	Look.set_lamps(0.0 if _blackout else v.rooms)
 	_env.fog_light_color = v.horizon
 	_env.fog_density = v.fog
-	_env.ambient_light_energy = _ambient_base * v.ambient
+	_env.ambient_light_energy = _ambient_base * v.ambient * (1.0 - 0.6 * _dark)
 	# Mostly neutral with a touch of the sky, so shaded sides don't turn deep blue;
 	# at night the neutral part goes moonlit blue.
 	var neutral := Color(0.72, 0.7, 0.66).lerp(Color(0.32, 0.4, 0.62), v.night)
 	_env.ambient_light_color = neutral.lerp((v.top as Color).lerp(v.horizon, 0.6), 0.4)
 	_saturation = v.saturation
 	_env.adjustment_saturation = _saturation * (1.0 - 0.7 * _hurt)
-	_env.tonemap_exposure = _exposure_base * v.exposure
+	_env.tonemap_exposure = _exposure_base * v.exposure * (1.0 - 0.35 * _dark)
 	_rain_material.albedo_color = MOODS[_mood].get("rain_color", Color(0.75, 0.8, 0.85, 0.35).lerp(Color(0.4, 0.45, 0.55, 0.25), v.night))
 
 
@@ -515,6 +523,21 @@ func power_flicker(on: bool) -> void:
 	_power_time = randf_range(0.5, 2.0)
 	if not on and not _now.is_empty():
 		Look.set_lamps(_now.rooms)
+
+
+## The power goes out (or comes back): every lamp and window dark, the
+## night much darker. Only at night (by day it would not show).
+func blackout(on: bool) -> void:
+	_blackout = on
+	if not _now.is_empty():
+		Look.set_lamps(0.0 if on else _now.rooms)
+	get_tree().call_group("touch_controls", "refresh")
+	if not on:
+		get_tree().call_group("player", "flashlight", false)
+
+
+func blacked_out() -> bool:
+	return _blackout
 
 
 func raining() -> bool:
