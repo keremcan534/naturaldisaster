@@ -52,7 +52,8 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   severity, time, civilians, blackout/extinguisher/helicopter and a goal; `main.play_mission`
   -> `DisasterManager.start_mission`, `mode_id()` is "mission"; one round, `Missions.grade`
   gives 0-3 stars, `mission_ended`/`mission_closed` and back to the menu's list; each opens
-  once the one before has a star; `--mission=<i>` plays one). `scripts/core/events.gd`: the week's event (from the week number)
+  once the one before has a star; `--mission=<i>` plays one; goals rescue / high / fire / heli /
+  coins / survive, `combo` adds a second disaster). `scripts/core/events.gd`: the week's event (from the week number)
   favors some disasters, doubles coins for surviving them and sells an event outfit.
   Results open a map vote (`vote_started`, HUD buttons or keys 1-3; bots vote too) and
   `load_next_map(choice)` takes the winner. `scripts/world/rescue_heli.gd` (group "rescue")
@@ -215,7 +216,14 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   their structure's `span_limit`.
 - `scripts/world/doors.gd`: sliding glass doors in every `add_building` front doorway
   (`Structure.door_spots`), opening when anyone is near, shattering when the wall around
-  them breaks; one MultiMesh for all. `scripts/world/boat.gd`: a lifeboat by the spawn
+  them breaks; one MultiMesh for all. Spots marked `blast` (the bunkers) get a steel door
+  (second MultiMesh) that never breaks and locks a third of the way into a disaster (at
+  most 10 s; doors' `phase()` from the manager, only when the disaster has no
+  `safe_height`, i.e. not on rising water or gas) until the round ends.
+  Bots have no name tags over their heads (the user didn't want them); names show only
+  on the scoreboard and in the who-fell feed. Shop trails (`Profile.trail`, player
+  `TRAILS`/`set_trail`): one emitter in local coordinates (a short tail behind the legs;
+  left in world space the chase camera would never see it). `scripts/world/boat.gd`: a lifeboat by the spawn
   (`main._place_boat`) that water disasters float (`set_water`, group "boats") and the
   player drives by standing in it and pushing forward. `scripts/world/vehicle.gd`: a quad
   (CharacterBody3D, groups "vehicles" and "boats" for set_water; bots skip it) near the
@@ -336,7 +344,7 @@ unzip -q Godot_v4.7.2-stable_linux.x86_64.zip && mv Godot_v4.7.2-stable_linux.x8
 ```
 
 Debug options after `--` are documented at the top of `scripts/core/debug_tools.gd`
-(`--fast`, `--log`, `--perf`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
+(`--fast`, `--log`, `--perf`, `--sprint` (keeps running forward), `--trail=<id>`, `--quality=<0-2>`, `--map=<i>`, `--disaster=<i>`, `--time=`, `--shots=<dir>`, `--pos=`,
 `--yaw=`, `--pitch=`, `--touch`, `--play` skips the menu, `--botlog`, `--mode=<i>`, `--rescue`, `--third`, `--power=<kind>` (a power-up every round), `--selftest` (every disaster once, each on another map, reports pieces falling at rest); `--perf` also prints
 the number of burning pieces). Screenshots need a display: `xvfb-run -a` works.
 If the download is blocked, push and rely on the workflow's export step instead.

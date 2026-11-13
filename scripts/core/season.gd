@@ -5,6 +5,7 @@ extends RefCounted
 ## Saved in the "season" section of user://profile.cfg.
 
 const Profile := preload("res://scripts/core/profile.gd")
+const Lang := preload("res://scripts/core/lang.gd")
 const PATH := "user://profile.cfg"
 const XP_PER_TIER := 300
 const REWARDS := [100, 120, 150, 180, 200, 250, 300, 350, 400, 600]
@@ -23,7 +24,7 @@ static func _current_id() -> int:
 
 
 static func title() -> String:
-	return "%s Sezonu" % MONTHS[_current_id() % 12]
+	return Lang.t("%s Sezonu") % Lang.t(MONTHS[_current_id() % 12])
 
 
 static func load_season() -> void:
@@ -66,10 +67,11 @@ static func add_xp(amount: int) -> Array:
 		var reward: int = REWARDS[claimed]
 		claimed += 1
 		Profile.coins += reward
-		var text := "Sezon kademesi %d / %d" % [claimed, REWARDS.size()]
+		var text := "Sezon kademesi %d / %d"
 		if claimed == REWARDS.size() and not Profile.has(SKIN):
 			Profile.owned.append(SKIN)
 			text += ": Sezon kıyafeti açıldı!"
+		text = Lang.t(text) % [claimed, REWARDS.size()]
 		toasts.append([text, reward])
 	Profile.save_profile()
 	save_season()

@@ -12,6 +12,7 @@ signal died
 const Avatar := preload("res://scripts/player/avatar.gd")
 const Maps := preload("res://scripts/world/maps.gd")
 const Settings := preload("res://scripts/core/settings.gd")
+const Lang := preload("res://scripts/core/lang.gd")
 const BotNav := preload("res://scripts/player/bot_nav.gd")
 const PowerGear := preload("res://scripts/player/power_gear.gd")
 
@@ -109,7 +110,6 @@ var manager: Node
 var world: Node3D
 
 var _avatar: Avatar
-var _label: Label3D
 var _bubble: Label3D
 var _bubble_time := 0.0
 var _rng := RandomNumberGenerator.new()
@@ -229,27 +229,15 @@ func _ready() -> void:
 	_avatar.visibility_range_end = 80.0
 	add_child(_avatar)
 
-	_label = Label3D.new()
-	_label.text = display_name
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	# The same size on screen at any distance, like name tags in online games.
-	_label.fixed_size = true
-	_label.font_size = 40
-	_label.outline_size = 12
-	_label.pixel_size = 0.0009
-	_label.position.y = 2.15
-	_label.modulate = tint.lightened(0.35)
-	_label.visibility_range_end = 45.0
-	_label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(_label)
-
+	# No name tag over the head (the user doesn't want them): names show only
+	# on the scoreboard and in the who-fell feed.
 	_bubble = Label3D.new()
 	_bubble.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_bubble.fixed_size = true
 	_bubble.font_size = 40
 	_bubble.outline_size = 14
 	_bubble.pixel_size = 0.001
-	_bubble.position.y = 2.55
+	_bubble.position.y = 2.3
 	_bubble.modulate = Color(1.0, 0.95, 0.6)
 	_bubble.outline_modulate = Color(0.1, 0.08, 0.05)
 	_bubble.visibility_range_end = 40.0
@@ -490,7 +478,7 @@ func _make_plan(coming: String) -> void:
 
 ## A speech bubble over the head for a few seconds.
 func _say(text: String, seconds := 2.8) -> void:
-	_bubble.text = text
+	_bubble.text = Lang.t(text)
 	_bubble.visible = true
 	_bubble_time = seconds
 
@@ -665,6 +653,9 @@ func _go_inside(min_strength := 0.0) -> void:
 	var best_score := INF
 	for refuge: Dictionary in Maps.refuges:
 		if refuge.stairs and is_instance_valid(refuge.structure):
+			# A locked bunker only counts for those already inside it.
+			if refuge.structure.get_meta("sealed", false) and not refuge.structure.world_bounds().has_point(global_position):
+				continue
 			var cost := global_position.distance_to(refuge.path[0])
 			if refuge.structure.strength < min_strength:
 				cost += 25.0
@@ -1058,7 +1049,6 @@ func take_damage(amount: float) -> void:
 		powers.clear()
 		_show_powers()
 		_beam.visible = false
-		_label.visible = false
 		_bubble.visible = false
 		velocity = Vector3.ZERO
 		_path.clear()
@@ -1092,7 +1082,6 @@ func respawn(pos: Vector3) -> void:
 	_beam.visible = false
 	powers.clear()
 	_show_powers()
-	_label.visible = true
 	_path.clear()
 	_plan = "wander"
 	_plan_for = ""

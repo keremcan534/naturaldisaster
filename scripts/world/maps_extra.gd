@@ -105,6 +105,9 @@ static func _bunker(M: GDScript, root: Node3D, pos: Vector3) -> void:
 	b.add_box(Vector3(0, h + 0.3, 0), Vector3(w, 0.6, d), concrete)
 	b.add_box(Vector3(0, h + 0.75, d * 0.5 - 0.2), Vector3(1.6, 0.3, 0.1), Color(1.0, 0.75, 0.1), Basis.IDENTITY,
 			Look.glow(Vector3(1.6, 0.3, 0.1), Color(1.0, 0.75, 0.1), 1.5))
+	# A steel door in the doorway that locks once a disaster is under way (doors.gd).
+	b.door_spots.append({"center": Vector3(0, h * 0.5, d * 0.5 - t * 0.5), "size": Vector3(2.0, h - 0.05, 0.2),
+			"slide": Vector3.LEFT, "neighbors": [], "blast": true})
 	root.add_child(b)
 	M.refuges.append({"path": [pos + Vector3(0, 0, d * 0.5 + 1.5), pos + Vector3(0, 0, -0.5)], "height": 0.0,
 			"structure": b, "stairs": true})

@@ -417,6 +417,7 @@ func _arrow(center: Vector2, size: float, color: Color) -> void:
 
 
 func _text(font: Font, center: Vector2, text: String, size: int, color: Color) -> void:
+	text = tr(text)
 	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	var at := center + Vector2(-width * 0.5, size * 0.35)
 	_canvas.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(0, 0, 0, 0.8))

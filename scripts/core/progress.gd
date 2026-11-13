@@ -5,6 +5,7 @@ extends RefCounted
 ## (for the HUD's toasts). Saved in user://profile.cfg next to the profile.
 
 const Profile := preload("res://scripts/core/profile.gd")
+const Lang := preload("res://scripts/core/lang.gd")
 const PATH := "user://profile.cfg"
 
 ## XP per round: points / XP_DIVISOR, plus a little for taking part.
@@ -178,13 +179,13 @@ static func record_round(info: Dictionary) -> Array:
 		if value >= m.goal:
 			missions_done.append(id)
 			Profile.coins += m.reward
-			toasts.append(["Görev tamam: " + m.text, m.reward])
+			toasts.append([Lang.t("Görev tamam: %s") % Lang.t(m.text), m.reward])
 
 	var after := level()
 	if after > before:
 		var bonus := 50 + 10 * after
 		Profile.coins += bonus
-		toasts.append(["Seviye atladın: %d. seviye!" % after, bonus])
+		toasts.append([Lang.t("Seviye atladın: %d. seviye!") % after, bonus])
 	reach["level"] = after
 	for a: Dictionary in ACHIEVEMENTS:
 		if a.id in unlocked:
@@ -198,7 +199,7 @@ static func record_round(info: Dictionary) -> Array:
 		if value >= a.goal:
 			unlocked.append(a.id)
 			Profile.coins += a.reward
-			toasts.append(["Başarım: " + a.name, a.reward])
+			toasts.append([Lang.t("Başarım: %s") % Lang.t(a.name), a.reward])
 	Profile.save_profile()
 	save_progress()
 	return toasts

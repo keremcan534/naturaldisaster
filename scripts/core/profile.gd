@@ -33,6 +33,10 @@ const ITEMS := [
 	{"id": "glasses", "kind": "extra", "name": "Güneş gözlüğü", "price": 300, "desc": "Havalı görün"},
 	{"id": "cap", "kind": "extra", "name": "Şapka", "price": 350, "desc": "Kıyafet renginde kep"},
 	{"id": "backpack", "kind": "extra", "name": "Sırt çantası", "price": 450, "desc": "Kıyafet renginde çanta"},
+	# Trails: one at a time, left behind while running (player.gd).
+	{"id": "trail_dust", "kind": "trail", "name": "Toz izi", "price": 400, "desc": "Koşarken ayaklarından toz kalkar"},
+	{"id": "trail_smoke", "kind": "trail", "name": "Duman izi", "price": 550, "desc": "Koşarken arkanda koyu bir duman kalır"},
+	{"id": "trail_ember", "kind": "trail", "name": "Kor izi", "price": 750, "desc": "Koşarken arkandan kor taneleri savrulur"},
 	{"id": "blue", "kind": "skin", "name": "Mavi", "price": 0, "color": Color(0.2, 0.5, 0.95)},
 	{"id": "red", "kind": "skin", "name": "Kırmızı", "price": 150, "color": Color(0.85, 0.2, 0.2)},
 	{"id": "green", "kind": "skin", "name": "Yeşil", "price": 150, "color": Color(0.25, 0.7, 0.3)},
@@ -59,6 +63,8 @@ static var owned: Array = ["blue"]
 static var skin := "blue"
 ## Extras (glasses, cap, backpack) the player has on.
 static var wearing: Array = []
+## The trail left while running (a "trail" item id), or "" for none.
+static var trail := ""
 ## Day number (days since 1970) of the last daily gift, and how many days in a
 ## row it was claimed (day 7 pays the big one, then it starts over).
 static var gift_day := -1
@@ -87,6 +93,7 @@ static func load_profile() -> void:
 	owned = config.get_value("profile", "owned", owned)
 	skin = config.get_value("profile", "skin", skin)
 	wearing = config.get_value("profile", "wearing", [])
+	trail = config.get_value("profile", "trail", "")
 	gift_day = config.get_value("profile", "gift_day", -1)
 	login_streak = config.get_value("profile", "login_streak", 0)
 	runs = config.get_value("profile", "runs", [])
@@ -107,6 +114,7 @@ static func save_profile() -> void:
 	config.set_value("profile", "owned", owned)
 	config.set_value("profile", "skin", skin)
 	config.set_value("profile", "wearing", wearing)
+	config.set_value("profile", "trail", trail)
 	config.set_value("profile", "gift_day", gift_day)
 	config.set_value("profile", "login_streak", login_streak)
 	config.set_value("profile", "runs", runs)
@@ -137,6 +145,8 @@ static func buy(id: String) -> bool:
 		skin = id
 	elif entry.kind == "extra":
 		wearing.append(id)
+	elif entry.kind == "trail":
+		trail = id
 	save_profile()
 	return true
 
@@ -147,6 +157,15 @@ static func toggle_extra(id: String) -> void:
 		wearing.erase(id)
 	elif has(id):
 		wearing.append(id)
+	save_profile()
+
+
+## Switches to an owned trail, or off when it is the one on.
+static func toggle_trail(id: String) -> void:
+	if trail == id:
+		trail = ""
+	elif has(id):
+		trail = id
 	save_profile()
 
 
