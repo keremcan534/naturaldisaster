@@ -7,8 +7,10 @@ extends RefCounted
 ##
 ## goal: "rescue" (save `count` hurt civilians), "high" (end above `height` m),
 ## "fire" (put out `count` burning pieces), "heli" (get lifted by the rescue
-## helicopter), "survive". Stars: the goal and alive; health at least half;
-## `third`: "flawless" (no damage) or "all" (every civilian saved).
+## helicopter), "coins" (pick up `count` gold coins), "survive". `combo` adds a
+## second disaster (DISASTERS index) alongside. Stars: the goal and alive;
+## health at least half; `third`: "flawless" (no damage) or "all" (every
+## civilian saved).
 
 const Profile := preload("res://scripts/core/profile.gd")
 const Lang := preload("res://scripts/core/lang.gd")
@@ -30,6 +32,21 @@ const LIST := [
 	{"id": "last_heli", "title": "Son Helikopter", "map": 12, "disaster": 5, "severity": 3, "time": "day",
 		"goal": "heli", "civilians": 0, "third": "flawless", "prep": 18.0, "heli": true,
 		"text": "Şehre dev tsunami geliyor. Tek çıkış: en yüksek çatıya gelen kurtarma helikopteri."},
+	{"id": "village_twister", "title": "Köye İnen Hortum", "map": 9, "disaster": 3, "severity": 2, "time": "golden",
+		"goal": "rescue", "count": 2, "civilians": 3, "third": "all", "prep": 15.0,
+		"text": "Köye hortum iniyor. Ahırların arasında yaralılar var: en az ikisini toplanma alanına taşı."},
+	{"id": "camp_volcano", "title": "Kül ve Ateş", "map": 10, "disaster": 4, "severity": 2, "time": "morning",
+		"goal": "coins", "count": 5, "civilians": 0, "third": "flawless", "prep": 12.0,
+		"text": "Kamp alanının yanında volkan uyanıyor. Lav bombalarının arasında 5 altın topla ve sağ çık."},
+	{"id": "dam_burst", "title": "Baraj Çatlıyor", "map": 19, "disaster": 10, "severity": 3, "time": "day",
+		"goal": "high", "height": 8.0, "civilians": 2, "third": "all", "prep": 18.0,
+		"text": "Baraj çatlıyor, vadiye dev su geliyor. Su geldiğinde 8 metrenin üstünde ol; yaralıları da yukarı taşı."},
+	{"id": "rig_storm", "title": "Platformda Gece", "map": 18, "disaster": 12, "combo": 7, "severity": 2, "time": "night",
+		"goal": "survive", "civilians": 0, "third": "flawless", "prep": 14.0, "blackout": true,
+		"text": "Petrol platformunda gece kasırgası, üstüne yıldırımlar ve elektrik yok. Fenerini aç ve dayan."},
+	{"id": "doomsday", "title": "Kıyamet Günü", "map": 4, "disaster": 16, "combo": 0, "severity": 3, "time": "golden",
+		"goal": "rescue", "count": 3, "civilians": 3, "third": "flawless", "prep": 18.0,
+		"text": "Dev bir göktaşı AVM'ye düşüyor ve yer sallanıyor. Üç yaralının hepsini yeşil ışığa çıkar."},
 ]
 
 
@@ -63,6 +80,8 @@ static func goal_text(m: Dictionary) -> String:
 			return Lang.t("%d alevi söndür ve hayatta kal") % m.count
 		"heli":
 			return Lang.t("Kurtarma helikopterine bin")
+		"coins":
+			return Lang.t("%d altın topla ve hayatta kal") % m.count
 	return Lang.t("Hayatta kal")
 
 
@@ -80,6 +99,8 @@ static func grade(m: Dictionary, player: Node, saved: int, civilians: int) -> in
 			met = player.fires_out_round >= m.count
 		"heli":
 			met = player.rescued
+		"coins":
+			met = player.coins_round >= m.count
 		_:
 			met = true
 	if not met:

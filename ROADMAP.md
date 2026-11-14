@@ -98,11 +98,11 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Kapılar kendiliğinden açılıp kapanır (oyuncu da bot da yaklaşınca)
 - ✅ Araçlar: kurtarma helikopteri; her haritada can botu (selde yüzer, içindeyken ileri basınca baktığın yöne gider); başlangıcın yanında arazi aracı (E / Bin: joystick gaz ve direksiyon, 54 km/s, sert çarpınca hasar, derin suda stop eder, yaralıyı da taşırsın)
 - ✅ Kurtarma helikopteri: bazı turlarda en yüksek çatıya gelir, ip merdivene ulaşan kurtulur (+60, o tur hasar yok)
-- 🚧 Sığınak: beton sığınaklar var; kilitlenen kapı ileride
+- ✅ Sığınak: beton sığınakların çelik kapısı felaket başlayınca birkaç saniye içinde kilitlenir (su ve gazda kilitlenmez), dışarıda kalan giremez
 - ✅ Selam (G / "Selam"): yakındaki botlar el sallar; tur sonunda hayatta kalan botlar zıplayıp sevinir
 - ✅ Fotoğraf modu (P / menüde "FOTOĞRAF ÇEK"): arayüzsüz ekran görüntüsü, tarayıcıda PNG iner
 - ✅ Oyun modları (ana menüde MOD tuşu): Klasik, Kaos, Zor, Sadece Su, Son Kalan, Dayanıklılık, Günün Felaketi
-- ✅ Görev modu (menüde SENARYO): 5 elle tasarlanmış görev (İlk Sarsıntı, Hastane Tahliyesi, Dalga Geliyor, Alevler Arasında, Son Helikopter), 1-3 yıldız, sırayla açılır, yıldız başı coin; 💡 daha fazla görev
+- ✅ Görev modu (menüde SENARYO): 5 elle tasarlanmış görev (İlk Sarsıntı, Hastane Tahliyesi, Dalga Geliyor, Alevler Arasında, Son Helikopter, Köye İnen Hortum, Kül ve Ateş, Baraj Çatlıyor, Platformda Gece, Kıyamet Günü), 1-3 yıldız, sırayla açılır, yıldız başı coin; bazı görevlerde çifte felaket, altın toplama hedefi
 - ✅ Günün Felaketi: bugün herkes için aynı 5 tur (harita, felaket, şiddet günün tarihinden); bugünkü en iyi puanın saklanır, istediğin kadar yeniden dene
 - ✅ Dayanıklılık: tek can, can turlar arası sadece +30 dolar, her tur felaket ağırlaşır (4. turdan sonra hep çifte, Kıyamet'in de üstüne çıkar); kaç tur dayandığın rekor tablosuna (ilk 10, GÖREVLER ekranında) yazılır
 - 🔒 Özel sunucu / özel oda (arkadaşlarla): gerçek çok oyunculu sunucu gerektirir
@@ -110,7 +110,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 
 ## 4. Botlar (takım arkadaşları)
 - ✅ Felakete göre davranış (merdiven, ladder, açık alan, içeri, kaçış)
-- ✅ İsimler, renkler, ölüm listesi
+- ✅ Renkler, ölüm listesi; isimler sadece skor tablosunda (kafa üstünde isim yok)
 - ✅ ⭐ Konuşma balonları: "Çatıya çıkın!", "Kaçııın!", "İçeri girin!"
 - ✅ Yol bulma: binaların, çitlerin, eşyaların etrafından dolaşır, kapılardan girer
 - ✅ Akıllı sığınak: selde sağlam ve yüksek binayı seçer (zayıf evler yıkılır), yoksa can botuna biner
@@ -165,7 +165,7 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Skor tablosunda MVP ve en yükseğe çıkan
 - ✅ Bildirim: "Görev tamam!", "Seviye atladın!", "Başarım!"
 - ✅ Renk körü modu, arayüz boyutu ayarı
-- 🚧 İngilizce (Ayarlar > English): menüler, uyarılar, felaketler, haritalar, mağaza; görev metinleri ve bot konuşmaları henüz Türkçe
+- ✅ İngilizce (Ayarlar > English): menüler, uyarılar, felaketler, haritalar, mağaza, görevler, başarımlar, bot konuşmaları
 
 ## 8. Kontroller
 - ✅ PUBG tarzı joystick, zıplama, otomatik koşu, tuş yerleştirme, hassasiyet
@@ -178,7 +178,8 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 
 ## 9. Ekonomi ve mağaza
 - ✅ Coin, güçlendirmeler, kıyafet renkleri, günlük hediye
-- ✅ ⭐ Şapka, güneş gözlüğü, sırt çantası (mağazada, tak/çıkar); iz efektleri ileride
+- ✅ ⭐ Şapka, güneş gözlüğü, sırt çantası (mağazada, tak/çıkar)
+- ✅ Koşu izleri (mağazada, biri açık): toz, duman, kor
 - ✅ ⭐ Günlük giriş serisi: her gün artan hediye, 7. gün 1000 coin
 - 🚧 Sezon kartı: aylık ücretsiz yol var (10 kademe, sonunda özel kıyafet); 🔒 premium yol ödeme sistemi ister
 - 🔒 Reklam izle → 2 kat coin: oyun tarafı hazır (sayfada showRewardedAd varsa tuş çıkar); bir oyun portalı hesabı ve SDK'sı lazım

@@ -132,6 +132,18 @@ const EXTINGUISHER_CHARGE := 12
 const SPRAY_BURST := 1.2
 const SPRAY_REACH := [1.5, 2.8, 4.1]
 const SPRAY_RADIUS := 1.7
+## Shop trails: [puff size, brightness, amount, lifetime, direction, spread,
+## speed min/max, gravity, damping min/max, start size, colors over life].
+const TRAILS := {
+	# The particles move with the player (a short tail behind the legs): left on
+	# the ground they would be under the camera and gone in a fraction of a second.
+	"trail_dust": [0.6, 1.0, 22, 0.6, Vector3(0, 0.45, 1), 30.0, Vector2(2.0, 3.2), Vector3(0, -0.5, 0), Vector2(1.5, 2.5), 0.5,
+			[Color(0.86, 0.78, 0.64, 0.5), Color(0.84, 0.76, 0.62, 0.4), Color(0.88, 0.82, 0.72, 0.0)]],
+	"trail_smoke": [0.85, 1.0, 26, 0.9, Vector3(0, 0.7, 1), 25.0, Vector2(2.0, 3.0), Vector3(0, 0.8, 0), Vector2(1.0, 2.0), 0.4,
+			[Color(0.22, 0.22, 0.24, 0.75), Color(0.25, 0.25, 0.27, 0.6), Color(0.38, 0.38, 0.4, 0.0)]],
+	"trail_ember": [0.1, 2.5, 36, 0.7, Vector3(0, 0.8, 1), 40.0, Vector2(1.8, 3.2), Vector3(0, 0.6, 0), Vector2(1.0, 2.0), 1.0,
+			[Color(1.0, 0.85, 0.4, 1.0), Color(1.0, 0.4, 0.08, 0.9), Color(0.5, 0.08, 0.02, 0.0)]],
+}
 ## Carrying a hurt civilian (civilians.gd): slower, lower jumps, no slides.
 const CARRY_SPEED := 0.72
 const CARRY_JUMP := 0.8
@@ -278,6 +290,10 @@ var _torch: SpotLight3D
 var _heart := 0.0
 var _drained := 0.0
 var _roll := 0.0
+## The shop trail (Profile.trail) left behind while running; hidden once its
+## last puffs are gone.
+var _trail: CPUParticles3D
+var _trail_id := ""
 
 
 func _ready() -> void:
@@ -385,6 +401,7 @@ func _ready() -> void:
 	add_child(tint_layer)
 	_build_hands()
 	_build_mist()
+	_build_trail()
 	_torch = SpotLight3D.new()
 	_torch.light_color = Color(1.0, 0.95, 0.85)
 	_torch.light_energy = 3.2
@@ -459,7 +476,60 @@ func apply_perks() -> void:
 	_body.set_colors(tint, Avatar.PANTS[0], Avatar.SKIN_TONES[0])
 	_body.set_hat(Profile.has("helmet"))
 	_body.set_extras(Profile.wearing, Profile.skin_color().darkened(0.25))
+	set_trail(Profile.trail)
 	apply_camera_mode()
+
+
+## Dust, smoke or embers kicked up behind the feet while running (one emitter,
+## set up again when the trail changes; main.gd hides it while idle).
+func set_trail(id: String) -> void:
+	if id == _trail_id:
+		return
+	_trail_id = id
+	_trail.emitting = false
+	if id == "":
+		return
+	# [size, brightness, amount, lifetime, direction, spread, speed, gravity, damping, growth, colors]
+	var look: Array = TRAILS.get(id, TRAILS.trail_dust)
+	var puff := QuadMesh.new()
+	puff.size = Vector2(look[0], look[0])
+	puff.material = Look.sprite(look[1])
+	_trail.mesh = puff
+	_trail.amount = look[2]
+	_trail.lifetime = look[3]
+	_trail.direction = look[4]
+	_trail.spread = look[5]
+	_trail.initial_velocity_min = look[6].x
+	_trail.initial_velocity_max = look[6].y
+	_trail.gravity = look[7]
+	_trail.damping_min = look[8].x
+	_trail.damping_max = look[8].y
+	_trail.scale_amount_curve = Look.grow(look[9])
+	var colors: Array[Color] = []
+	colors.assign(look[10])
+	_trail.color_ramp = Look.ramp(colors)
+
+
+func _build_trail() -> void:
+	_trail = CPUParticles3D.new()
+	_trail.emitting = false
+	_trail.visible = false
+	_trail.local_coords = true
+	_trail.position = Vector3(0, 0.15, 0.25)
+	_trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_trail.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	_trail.emission_sphere_radius = 0.18
+	add_child(_trail)
+
+
+## Running on the ground leaves the trail.
+func _update_trail() -> void:
+	var running := _trail_id != "" and alive and is_on_floor() and not _in_water() \
+			and Vector2(velocity.x, velocity.z).length() > SPEED + 0.5
+	if running != _trail.emitting:
+		_trail.emitting = running
+		if running:
+			_trail.visible = true
 
 
 func _physics_process(delta: float) -> void:
@@ -939,6 +1009,7 @@ func _process(delta: float) -> void:
 	_shake_time += delta
 	_quake = move_toward(_quake, 0.0, delta * 2.0)
 	_rumble = move_toward(_rumble, 0.0, delta * 3.0)
+	_update_trail()
 	if not alive:
 		_follow_bot(delta)
 		Prof.end("player", _p)

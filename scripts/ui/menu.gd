@@ -352,7 +352,7 @@ func _refresh_goals() -> void:
 	for a: Dictionary in Progress.ACHIEVEMENTS:
 		var got: bool = a.id in Progress.unlocked
 		var value: int = mini(Progress.counters.get(a.id, 0), a.goal)
-		_goals_list.add_child(_goal_row("%s — %s" % [a.name, a.text], "AÇILDI" if got else "%d / %d" % [value, a.goal], a.reward, got, float(value) / a.goal))
+		_goals_list.add_child(_goal_row("%s — %s" % [Lang.t(a.name), Lang.t(a.text)], "AÇILDI" if got else "%d / %d" % [value, a.goal], a.reward, got, float(value) / a.goal))
 	_goals_list.add_child(Ui.text("İstatistikler", 22, Ui.ACCENT))
 	var stats := Profile.stats
 	var lines := [
@@ -578,6 +578,10 @@ func _refresh_shop() -> void:
 	for entry: Dictionary in Profile.ITEMS:
 		if entry.kind == "extra":
 			_shop_list.add_child(_shop_row(entry))
+	_shop_list.add_child(Ui.text("İzler (koşarken arkanda kalır, biri açık olur)", 22, Ui.ACCENT))
+	for entry: Dictionary in Profile.ITEMS:
+		if entry.kind == "trail":
+			_shop_list.add_child(_shop_row(entry))
 	_shop_list.add_child(Ui.text("Kıyafetler", 22, Ui.ACCENT))
 	var event_skin: String = Events.current().skin
 	for entry: Dictionary in Profile.ITEMS:
@@ -624,6 +628,11 @@ func _shop_row(entry: Dictionary) -> Control:
 		action.pressed.connect(func() -> void:
 			Profile.toggle_extra(entry.id)
 			_preview.set_extras(Profile.wearing, Profile.skin_color().darkened(0.25))
+			_refresh_shop())
+	elif entry.kind == "trail" and owned:
+		action.text = "ÇIKAR" if Profile.trail == entry.id else "TAK"
+		action.pressed.connect(func() -> void:
+			Profile.toggle_trail(entry.id)
 			_refresh_shop())
 	elif owned:
 		action.text = "ALINDI"

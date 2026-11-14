@@ -25,6 +25,9 @@ extends Node
 ##   --touch             shows the mobile controls on desktop (read in main.gd)
 ##   --botlog            prints every bot's plan, position and health each second
 ##   --mission=<i>       plays scenario i of the Görev modu (Missions.LIST) at once
+##   --sprint            keeps running forward (to see running effects, trails)
+##   --trail=<id>        wears this shop trail (trail_dust, trail_smoke, trail_ember;
+##                       not saved)
 ##   --power=<kind>      every round the player gets this power-up (speed, jump,
 ##                       shield) and each bot a random one
 ##   --pos=x,y,z         puts the player there on the first frame
@@ -51,6 +54,7 @@ var _bot_timer := 0.0
 var _selftest := false
 var _probe := false
 var _hitches := false
+var _sprint := false
 var _last_usec := 0
 var _probe_view := -1
 var _probe_frames := 0
@@ -131,6 +135,11 @@ func _ready() -> void:
 		elif arg.begins_with("--mission="):
 			var index := arg.get_slice("=", 1).to_int()
 			(func() -> void: manager.world.play_mission(index)).call_deferred()
+		elif arg == "--sprint":
+			_sprint = true
+		elif arg.begins_with("--trail="):
+			var trail := arg.get_slice("=", 1)
+			manager.round_started.connect(func() -> void: manager.world._player.set_trail(trail))
 		elif arg.begins_with("--power="):
 			var kind := arg.get_slice("=", 1)
 			manager.round_started.connect(func() -> void: _give_powers.call_deferred(kind))
@@ -226,6 +235,9 @@ func _process(delta: float) -> void:
 				player.teleport(_start_pos)
 				player.set_view(_start_yaw, _start_pitch)
 	_elapsed += delta
+	if _sprint:
+		Input.action_press("move_forward")
+		Input.action_press("sprint")
 	if _hitches:
 		var now := Time.get_ticks_usec()
 		var frame := (now - _last_usec) / 1000.0

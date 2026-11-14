@@ -257,6 +257,7 @@ func stop() -> void:
 	set_process(false)
 	get_tree().call_group("pickups", "phase", "off")
 	get_tree().call_group("civilians", "phase", "off")
+	get_tree().call_group("doors", "phase", "off")
 	get_tree().call_group("rescue", "leave")
 	get_tree().call_group("weather", "power_flicker", false)
 	get_tree().call_group("weather", "blackout", false)
@@ -440,7 +441,11 @@ func _enter(state: State) -> void:
 			var combo: float = Events.current().get("combo", COMBO_CHANCE)
 			_extra = null
 			var always_double := mode_id() == "chaos" or (mode_id() == "endurance" and _rounds >= 3)
-			if always_double or (_rounds > 0 and randf() < combo and mode_id() != "water"):
+			if mode_id() == "mission":
+				if _mission.has("combo"):
+					_extra = DISASTERS[_mission.combo].new()
+					_extra.world = world
+			elif always_double or (_rounds > 0 and randf() < combo and mode_id() != "water"):
 				_extra = _pick_partner()
 			if mode_id() == "daily":
 				randomize()
@@ -469,6 +474,9 @@ func _enter(state: State) -> void:
 					if _extra == null and randf() < SURPRISE_CHANCE.get(mode_id(), 0.0) else -INF
 			get_tree().call_group("pickups", "phase", "active")
 			get_tree().call_group("civilians", "phase", "active")
+			# Bunker doors lock for what comes from above, never on rising water or gas.
+			if _current.safe_height <= 0.0:
+				get_tree().call_group("doors", "phase", "active", _current.duration)
 			if mode_id() == "mission" and _mission.get("extinguisher", false) and _human():
 				_human().collected("extinguisher", 0)
 			add_child(_current)
@@ -497,6 +505,7 @@ func _enter(state: State) -> void:
 			get_tree().call_group("weather", "blackout", false)
 			get_tree().call_group("pickups", "phase", "results")
 			get_tree().call_group("civilians", "phase", "results")
+			get_tree().call_group("doors", "phase", "results")
 			_check_challenge()
 			_time_left = results_time * time_scale
 			status_changed.emit(_results_text())

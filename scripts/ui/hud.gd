@@ -433,7 +433,7 @@ func show_board(board: Array, coins_earned: int) -> void:
 		dot.custom_minimum_size = Vector2(16, 16)
 		dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(dot)
-		var name_label := Ui.text(p.display_name if p.alive else "%s (öldü)" % p.display_name, 22, color if p.alive else Color(1, 0.55, 0.5))
+		var name_label := Ui.text(p.display_name if p.alive else Lang.t("%s (öldü)") % p.display_name, 22, color if p.alive else Color(1, 0.55, 0.5))
 		name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(name_label)
 		var good := Color(0.45, 0.7, 1.0) if Settings.colorblind else Color(0.5, 1.0, 0.55)
@@ -794,6 +794,8 @@ func _add_feed(who: String, color: Color) -> void:
 func _show_card(title: String, hint: String) -> void:
 	_card_title.text = title.to_upper()
 	_card_hint.text = hint
+	# Over the round's goal and task lines that sit at the same height.
+	_card.move_to_front()
 	_card.visible = true
 	_card.modulate.a = 0.0
 	_card.scale = Vector2(1.15, 1.15)
