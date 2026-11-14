@@ -4,6 +4,9 @@ extends RefCounted
 ## allocations during a round.
 
 const GROUND_SHADER := preload("res://shaders/ground.gdshader")
+const GROUND_LITE_SHADER := preload("res://shaders/ground_lite.gdshader")
+const BUILDING_LITE_SHADER := preload("res://shaders/building_lite.gdshader")
+const WINDOW_LITE_SHADER := preload("res://shaders/window_lite.gdshader")
 const WATER_SHADER := preload("res://shaders/water.gdshader")
 const TSUNAMI_SHADER := preload("res://shaders/tsunami.gdshader")
 const LAVA_SHADER := preload("res://shaders/lava.gdshader")
@@ -42,6 +45,9 @@ static var _flowers: ShaderMaterial
 static var _ladders := {}
 static var _cylinders := {}
 static var _glows := {}
+## Low quality: walls, floors, ground, windows and plain pieces are lit per
+## vertex (see apply_quality).
+static var lite := false
 
 
 ## Box pieces: the color times a plaster-like panel texture with darkened edges.
@@ -51,7 +57,7 @@ static func surface(color: Color) -> Material:
 	if not _surfaces.has(color):
 		if color == GLASS_KEY:
 			var window := ShaderMaterial.new()
-			window.shader = WINDOW_SHADER
+			window.shader = WINDOW_LITE_SHADER if lite else WINDOW_SHADER
 			window.set_shader_parameter("noise", noise_texture())
 			_surfaces[color] = window
 			return window
@@ -65,8 +71,32 @@ static func surface(color: Color) -> Material:
 			mat.albedo_texture = _panel_texture()
 			mat.roughness = 0.85
 		mat.uv1_scale = Vector3(3, 2, 1)
+		mat.shading_mode = _shading()
 		_surfaces[color] = mat
 	return _surfaces[color]
+
+
+## Graphics quality changed (main.gd): low quality lights the big surfaces per
+## vertex. Flat faces under the sun look the same either way (there are no
+## shadows on low), and phones do much less work per pixel. Every cached
+## material switches; ones made later follow `lite`.
+static func apply_quality(level: int) -> void:
+	lite = level == 0
+	for mat: Material in _surfaces.values():
+		if mat is ShaderMaterial:
+			mat.shader = WINDOW_LITE_SHADER if lite else WINDOW_SHADER
+		elif mat is BaseMaterial3D:
+			mat.shading_mode = _shading()
+	if _tinted:
+		_tinted.shading_mode = _shading()
+	for mat: ShaderMaterial in _buildings.values():
+		mat.shader = BUILDING_LITE_SHADER if lite else BUILDING_SHADER
+	for mat: ShaderMaterial in _grounds.values():
+		mat.shader = GROUND_LITE_SHADER if lite else GROUND_SHADER
+
+
+static func _shading() -> BaseMaterial3D.ShadingMode:
+	return BaseMaterial3D.SHADING_MODE_PER_VERTEX if lite else BaseMaterial3D.SHADING_MODE_PER_PIXEL
 
 
 ## Lamp shades: they glow brighter as the weather darkens (see weather.gd).
@@ -110,6 +140,7 @@ static func tinted() -> StandardMaterial3D:
 		_tinted.albedo_texture = _panel_texture()
 		_tinted.roughness = 0.85
 		_tinted.uv1_scale = Vector3(3, 2, 1)
+		_tinted.shading_mode = _shading()
 	return _tinted
 
 
@@ -132,7 +163,7 @@ static func _building_material(outside: Color, inside: Color, top: Color, bottom
 	var key := [outside, inside, top, bottom, edge, planks]
 	if not _buildings.has(key):
 		var mat := ShaderMaterial.new()
-		mat.shader = BUILDING_SHADER
+		mat.shader = BUILDING_LITE_SHADER if lite else BUILDING_SHADER
 		mat.set_shader_parameter("panel", _panel_texture())
 		mat.set_shader_parameter("outside_color", outside)
 		mat.set_shader_parameter("inside_color", inside)
@@ -149,7 +180,7 @@ static func ground(color: Color, road_size := Vector2.ZERO) -> Material:
 	var key := [color, road_size]
 	if not _grounds.has(key):
 		var mat := ShaderMaterial.new()
-		mat.shader = GROUND_SHADER
+		mat.shader = GROUND_LITE_SHADER if lite else GROUND_SHADER
 		mat.set_shader_parameter("tint", color)
 		mat.set_shader_parameter("noise", noise_texture())
 		mat.set_shader_parameter("road_size", road_size)
@@ -180,7 +211,7 @@ static func cliff(color := ROCK_COLOR) -> Material:
 	var key := ["cliff", color]
 	if not _grounds.has(key):
 		var mat := ShaderMaterial.new()
-		mat.shader = GROUND_SHADER
+		mat.shader = GROUND_LITE_SHADER if lite else GROUND_SHADER
 		mat.set_shader_parameter("tint", color)
 		mat.set_shader_parameter("noise", noise_texture())
 		mat.set_shader_parameter("vertical", true)

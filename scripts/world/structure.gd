@@ -56,6 +56,15 @@ const SHATTER_RADIUS := 0.55
 ## Pieces are filed in a grid of this cell size (local meters), so a hit only
 ## looks at the pieces around it instead of the whole building.
 const GRID_CELL := 2.0
+## How far past its pieces' collision boxes a batch may draw (meshes like
+## canopies reach out a little, leaves sway).
+const BATCH_MARGIN := 1.5
+## New batches are drawn whole for their first frames, wherever the camera
+## looks, so every material compiles while the map loads instead of when each
+## building first comes into view (on the web that compile freezes the game);
+## then each is culled with its own box.
+const UNCULLED := AABB(Vector3(-1e5, -1e5, -1e5), Vector3(2e5, 2e5, 2e5))
+const UNCULLED_FRAMES := 3
 ## Wind and water fields reach every intact piece once per this many ticks
 ## (with that much more time each): a third of the work per tick.
 const FIELD_STRIDE := 3
@@ -119,6 +128,13 @@ var _was_awake := PackedByteArray()
 var _batch_of := PackedInt32Array()
 var _slot_of := PackedInt32Array()
 var _batches: Array[MultiMesh] = []
+## Per batch: its node and the box it is culled with (local). The box holds the
+## pieces as built and grows when a loose one flies out of it, so a building
+## behind the camera isn't drawn (it used to be: every batch's box was grown by
+## 60 m to keep flying pieces in view).
+var _batch_nodes: Array[MultiMeshInstance3D] = []
+var _batch_boxes: Array[AABB] = []
+var _uncull_frames := 0
 ## Per piece: [mesh, material] of its batch, and its instance color there.
 var _batch_keys: Array[Array] = []
 var _tints: Array[Color] = []
@@ -147,6 +163,7 @@ func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_ON
 	_link_pieces()
 	_build_batches()
+	_uncull_frames = UNCULLED_FRAMES
 	_build_grid()
 
 
@@ -519,6 +536,7 @@ func _build_batches() -> void:
 		var unit: bool = key[0] == _unit_box()
 		var multimesh := MultiMesh.new()
 		multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		var box := _boxes[members[0]]
 		multimesh.use_colors = key[1] == Look.tinted()
 		# Char from fire for the building shader (see _scorch); the others get darker colors.
 		multimesh.use_custom_data = key[1] is ShaderMaterial
@@ -533,15 +551,20 @@ func _build_batches() -> void:
 				multimesh.set_instance_custom_data(slot, Color(0, 0, 0, 0))
 			_batch_of[i] = _batches.size()
 			_slot_of[i] = slot
+			box = box.merge(_boxes[i])
 		var batch := MultiMeshInstance3D.new()
 		batch.multimesh = multimesh
 		batch.material_override = key[1]
 		batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if _shadowless[members[0]] \
 				else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		# Loose pieces fly far from where they were built and are still drawn here.
-		batch.custom_aabb = _bounds.grow(60.0)
+		# Culled with the pieces' own box (a little more for meshes reaching past
+		# their collision box: leaves, wind); loose pieces grow it (_process).
+		box = box.grow(BATCH_MARGIN)
+		batch.custom_aabb = UNCULLED
 		add_child(batch)
 		_batches.append(multimesh)
+		_batch_nodes.append(batch)
+		_batch_boxes.append(box)
 
 
 ## Unit cubes carry the piece's size in their instance transform.
@@ -719,10 +742,23 @@ func impact(pos: Vector3, energy: float) -> void:
 	Prof.end("impact", _p)
 
 
+## Draws every batch whole for a few frames (main.gd, after the graphics
+## quality changed: the new shaders compile now, not building by building).
+func uncull() -> void:
+	_uncull_frames = UNCULLED_FRAMES
+	for node in _batch_nodes:
+		node.custom_aabb = UNCULLED
+
+
 ## Loose pieces stay in their batch: its instance follows the body (only while
 ## it moves, plus once when it comes to rest).
 func _process(_delta: float) -> void:
 	var _p := Prof.begin()
+	if _uncull_frames > 0:
+		_uncull_frames -= 1
+		if _uncull_frames == 0:
+			for b in _batch_nodes.size():
+				_batch_nodes[b].custom_aabb = _batch_boxes[b]
 	if _loose_list.is_empty():
 		Prof.end("structures", _p)
 		return
@@ -740,8 +776,21 @@ func _process(_delta: float) -> void:
 			var t := global_transform.affine_inverse() * rb.get_global_transform_interpolated()
 			if _batch_keys[i][0] == _unit_box():
 				t = Transform3D(t.basis * Basis.from_scale(_sizes[i]), t.origin)
-			_batches[_batch_of[i]].set_instance_transform(_slot_of[i], t)
+			var b := _batch_of[i]
+			_batches[b].set_instance_transform(_slot_of[i], t)
 			_was_awake[i] = 1 if moving else 0
+			# Reaching out of its batch's box: the box takes it in, with room to
+			# spare (so a piece in flight doesn't change it every frame).
+			var box := _batch_boxes[b]
+			var reach := Vector3.ONE * (_sizes[i].length() * 0.5 + BATCH_MARGIN)
+			var p := t.origin
+			var low := box.position + reach
+			var high := box.end - reach
+			if p.x < low.x or p.y < low.y or p.z < low.z or p.x > high.x or p.y > high.y or p.z > high.z:
+				var room := reach + Vector3.ONE * 3.0
+				_batch_boxes[b] = box.merge(AABB(p - room, room * 2.0))
+				if _uncull_frames == 0:
+					_batch_nodes[b].custom_aabb = _batch_boxes[b]
 	Prof.end("structures", _p)
 
 

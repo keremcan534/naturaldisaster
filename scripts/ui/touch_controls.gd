@@ -55,11 +55,21 @@ const MAX_STEP := 0.4
 const STICK_AREA := Vector2(0.45, 0.3)
 
 const COLOR_LINE := Color(1, 1, 1, 0.55)
+## The shapes' atlas: one square cell per shape (see _make_atlas).
+const ATLAS_CELL := 128.0
+enum { PASS_SHAPES, PASS_OUTLINES, PASS_TEXT }
 const COLOR_ACTIVE := Color(1, 0.85, 0.3, 0.8)
 
 var player: Node
 
 var _canvas: Control
+## Labels on their own canvas item, drawn after the shapes: the shapes come
+## from one atlas texture (discs, rings, the arrow), so each layer is one or two
+## batched draw calls instead of one per circle and arc (43 on a phone before).
+var _labels: Control
+var _atlas: ImageTexture
+## What the shared layout pass draws: shapes, label outlines or label fills.
+var _pass := 0
 var _size := Vector2(1280, 720)
 
 ## Fingers on the screen: index -> {"role": "stick"/"look"/"jump", "last": Vector2}.
@@ -92,12 +102,19 @@ func _ready() -> void:
 	_canvas.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_canvas.draw.connect(_draw_controls)
+	_canvas.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	add_child(_canvas)
+	_labels = Control.new()
+	_labels.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_labels.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_labels.draw.connect(_draw_labels)
+	add_child(_labels)
+	_atlas = _make_atlas()
 	get_viewport().size_changed.connect(_layout)
 	if player:
 		player.items_changed.connect(func(items: Dictionary) -> void:
 			_items = items.duplicate()
-			_canvas.queue_redraw())
+			_redraw())
 	_layout()
 	_request_fullscreen_on_touch()
 
@@ -105,7 +122,7 @@ func _ready() -> void:
 ## Shown while playing; hidden (and every finger let go) in menus.
 ## Something changed which buttons show (the flashlight's): draw again.
 func refresh() -> void:
-	_canvas.queue_redraw()
+	_redraw()
 
 
 func set_active(on: bool) -> void:
@@ -123,7 +140,7 @@ func apply_settings() -> void:
 func start_editing() -> void:
 	_release_all()
 	_editing = true
-	_canvas.queue_redraw()
+	_redraw()
 
 
 func _stick_radius() -> float:
@@ -187,7 +204,7 @@ func _press_small(id: String) -> void:
 			player.toggle_vehicle()
 		_:
 			player.use_item(id)
-	_canvas.queue_redraw()
+	_redraw()
 
 
 func _layout() -> void:
@@ -198,7 +215,7 @@ func _layout() -> void:
 	if _stick_finger < 0:
 		_stick_center = Settings.stick_home * _size
 		_knob = _stick_center
-	_canvas.queue_redraw()
+	_redraw()
 
 
 func _input(event: InputEvent) -> void:
@@ -237,7 +254,7 @@ func _press(finger: int, pos: Vector2) -> void:
 		# The jump thumb can keep turning the view if nothing else does.
 		if _look_finger < 0:
 			_look_finger = finger
-		_canvas.queue_redraw()
+		_redraw()
 	elif pos.x < _size.x * STICK_AREA.x and pos.y > _size.y * STICK_AREA.y and _stick_finger < 0:
 		role = "stick"
 		_stick_finger = finger
@@ -257,7 +274,7 @@ func _release(finger: int) -> void:
 	if finger == _jump_finger:
 		_jump_finger = -1
 		Input.action_release("jump")
-		_canvas.queue_redraw()
+		_redraw()
 	if finger == _stick_finger:
 		_stick_finger = -1
 		_auto_run = _lock_armed
@@ -332,7 +349,7 @@ func _set_stick(v: Vector2) -> void:
 			Input.action_press("sprint")
 		else:
 			Input.action_release("sprint")
-	_canvas.queue_redraw()
+	_redraw()
 
 
 func _set_axis(negative: String, positive: String, value: float) -> void:
@@ -347,22 +364,40 @@ func _set_axis(negative: String, positive: String, value: float) -> void:
 		Input.action_release(positive)
 
 
+func _redraw() -> void:
+	_canvas.queue_redraw()
+	if _labels:
+		_labels.queue_redraw()
+
+
 func _draw_controls() -> void:
+	_pass = PASS_SHAPES
+	_draw_layout()
+
+
+func _draw_labels() -> void:
+	_pass = PASS_OUTLINES
+	_draw_layout()
+	_pass = PASS_TEXT
+	_draw_layout()
+
+
+func _draw_layout() -> void:
 	var font := ThemeDB.fallback_font
 	var radius := _stick_radius()
 	var active := _stick_finger >= 0
 	# Stick: a ring and the knob.
-	_canvas.draw_circle(_stick_center, radius, Color(0, 0, 0, 0.2 if active else 0.12))
-	_canvas.draw_arc(_stick_center, radius, 0, TAU, 48, COLOR_LINE if active else Color(1, 1, 1, 0.35), 3.0, true)
+	_disc(_stick_center, radius, Color(0, 0, 0, 0.2 if active else 0.12))
+	_ring(_stick_center, radius, COLOR_LINE if active else Color(1, 1, 1, 0.35), true)
 	var knob_color := COLOR_ACTIVE if _sprinting else Color(1, 1, 1, 0.55 if active else 0.3)
-	_canvas.draw_circle(_knob, KNOB_RADIUS * Settings.button_size, knob_color)
-	_canvas.draw_arc(_knob, KNOB_RADIUS * Settings.button_size, 0, TAU, 32, Color(1, 1, 1, 0.8), 2.0, true)
+	_disc(_knob, KNOB_RADIUS * Settings.button_size, knob_color)
+	_ring(_knob, KNOB_RADIUS * Settings.button_size, Color(1, 1, 1, 0.8), false)
 	# The auto-run lock above the stick while it is held, or lit while running.
 	if active or _auto_run:
 		var lock := _stick_center + Vector2(0, -radius * LOCK_DISTANCE)
 		var lit := _lock_armed or _auto_run
-		_canvas.draw_circle(lock, LOCK_RADIUS, Color(1, 0.85, 0.3, 0.5) if lit else Color(0, 0, 0, 0.3))
-		_canvas.draw_arc(lock, LOCK_RADIUS, 0, TAU, 32, COLOR_ACTIVE if lit else COLOR_LINE, 2.0, true)
+		_disc(lock, LOCK_RADIUS, Color(1, 0.85, 0.3, 0.5) if lit else Color(0, 0, 0, 0.3))
+		_ring(lock, LOCK_RADIUS, COLOR_ACTIVE if lit else COLOR_LINE, false)
 		_arrow(lock, LOCK_RADIUS * 0.5, Color.WHITE)
 		if _auto_run and not active:
 			_text(font, lock + Vector2(0, -LOCK_RADIUS - 14), "OTOMATİK KOŞU", 18, COLOR_ACTIVE)
@@ -372,8 +407,8 @@ func _draw_controls() -> void:
 	# Jump: a big round button with an up arrow.
 	var jr := _jump_radius()
 	var pressed := _jump_finger >= 0
-	_canvas.draw_circle(_jump_pos, jr, Color(1, 0.85, 0.3, 0.35) if pressed else Color(0, 0, 0, 0.25))
-	_canvas.draw_arc(_jump_pos, jr, 0, TAU, 48, COLOR_ACTIVE if pressed else COLOR_LINE, 3.0, true)
+	_disc(_jump_pos, jr, Color(1, 0.85, 0.3, 0.35) if pressed else Color(0, 0, 0, 0.25))
+	_ring(_jump_pos, jr, COLOR_ACTIVE if pressed else COLOR_LINE, true)
 	_arrow(_jump_pos + Vector2(0, -4), jr * 0.42, Color.WHITE)
 
 	# Crouch, items, team calls.
@@ -381,8 +416,8 @@ func _draw_controls() -> void:
 		var at: Vector2 = button[1]
 		var r := _small_radius()
 		var lit: bool = button[0] == "crouch" and _crouch
-		_canvas.draw_circle(at, r, Color(1, 0.85, 0.3, 0.4) if lit else Color(0, 0, 0, 0.28))
-		_canvas.draw_arc(at, r, 0, TAU, 32, COLOR_ACTIVE if lit else COLOR_LINE, 2.0, true)
+		_disc(at, r, Color(1, 0.85, 0.3, 0.4) if lit else Color(0, 0, 0, 0.28))
+		_ring(at, r, COLOR_ACTIVE if lit else COLOR_LINE, false)
 		var count: int = _items.get(button[0], 0)
 		if count > 0:
 			_text(font, at + Vector2(0, -6), button[2], 15, Color.WHITE)
@@ -391,37 +426,88 @@ func _draw_controls() -> void:
 			_text(font, at, button[2], 15, Color.WHITE)
 
 	# Menu: three bars.
-	_canvas.draw_circle(_gear_pos, GEAR_RADIUS, Color(0, 0, 0, 0.25))
-	_canvas.draw_arc(_gear_pos, GEAR_RADIUS, 0, TAU, 32, COLOR_LINE, 2.0, true)
+	_disc(_gear_pos, GEAR_RADIUS, Color(0, 0, 0, 0.25))
+	_ring(_gear_pos, GEAR_RADIUS, COLOR_LINE, false)
 	for k in 3:
 		var y := _gear_pos.y + (k - 1) * 8.0
-		_canvas.draw_line(Vector2(_gear_pos.x - 11, y), Vector2(_gear_pos.x + 11, y), Color.WHITE, 3.0, true)
+		_bar(Rect2(_gear_pos.x - 11, y - 1.5, 22, 3), Color.WHITE)
 
-	if _editing:
+	if _editing and _pass == PASS_SHAPES:
 		_canvas.draw_rect(Rect2(Vector2.ZERO, _size), Color(0, 0, 0, 0.35))
+	if _editing:
 		_text(font, Vector2(_size.x * 0.5, _size.y * 0.16), "Tuşları sürükleyip yerleştir", 30, Color.WHITE)
 		for button: Array in _edit_buttons():
 			var rect: Rect2 = button[1]
-			_canvas.draw_rect(rect, Color(0.15, 0.17, 0.2, 0.9))
-			_canvas.draw_rect(rect, COLOR_LINE, false, 2.0)
+			if _pass == PASS_SHAPES:
+				_canvas.draw_rect(rect, Color(0.15, 0.17, 0.2, 0.9))
+				_canvas.draw_rect(rect, COLOR_LINE, false, 2.0)
 			_text(font, rect.get_center(), button[0], 24, Color.WHITE)
-		_canvas.draw_arc(_stick_center, radius, 0, TAU, 48, COLOR_ACTIVE, 4.0, true)
-		_canvas.draw_arc(_jump_pos, jr, 0, TAU, 48, COLOR_ACTIVE, 4.0, true)
+		_ring(_stick_center, radius, COLOR_ACTIVE, true)
+		_ring(_jump_pos, jr, COLOR_ACTIVE, true)
 
 
-## An upward arrow: a triangle head on a short shaft.
+## An upward arrow: a triangle head on a short shaft (from the atlas).
 func _arrow(center: Vector2, size: float, color: Color) -> void:
-	var head := PackedVector2Array([center + Vector2(0, -size), center + Vector2(size * 0.8, 0), center + Vector2(-size * 0.8, 0)])
-	_canvas.draw_colored_polygon(head, color)
-	_canvas.draw_rect(Rect2(center + Vector2(-size * 0.28, -0.01), Vector2(size * 0.56, size * 0.8)), color)
+	if _pass == PASS_SHAPES:
+		_canvas.draw_texture_rect_region(_atlas, Rect2(center - Vector2(size, size), Vector2(size, size) * 2.0),
+				Rect2(ATLAS_CELL * 3, 0, ATLAS_CELL, ATLAS_CELL), color)
+
+
+## A filled circle, its outline (thin for the big buttons, thicker for the small
+## ones, as the old arcs were) and a plain bar, all from the one atlas texture.
+func _disc(center: Vector2, r: float, color: Color) -> void:
+	if _pass == PASS_SHAPES:
+		_canvas.draw_texture_rect_region(_atlas, Rect2(center - Vector2(r, r), Vector2(r, r) * 2.0),
+				Rect2(0, 0, ATLAS_CELL, ATLAS_CELL), color)
+
+
+func _ring(center: Vector2, r: float, color: Color, thin: bool) -> void:
+	if _pass == PASS_SHAPES:
+		_canvas.draw_texture_rect_region(_atlas, Rect2(center - Vector2(r, r), Vector2(r, r) * 2.0),
+				Rect2(ATLAS_CELL * (1 if thin else 2), 0, ATLAS_CELL, ATLAS_CELL), color)
+
+
+func _bar(rect: Rect2, color: Color) -> void:
+	if _pass == PASS_SHAPES:
+		# The solid middle of the disc.
+		_canvas.draw_texture_rect_region(_atlas, rect, Rect2(ATLAS_CELL * 0.45, ATLAS_CELL * 0.45, ATLAS_CELL * 0.1, ATLAS_CELL * 0.1), color)
 
 
 func _text(font: Font, center: Vector2, text: String, size: int, color: Color) -> void:
+	if _pass == PASS_SHAPES:
+		return
 	text = tr(text)
 	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	var at := center + Vector2(-width * 0.5, size * 0.35)
-	_canvas.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(0, 0, 0, 0.8))
-	_canvas.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
+	if _pass == PASS_OUTLINES:
+		_labels.draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, 5, Color(0, 0, 0, 0.8))
+	else:
+		_labels.draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
+
+
+## The shapes' atlas, drawn once: a soft-edged disc, a thin ring (3% of the
+## radius, for the stick and jump button), a thicker one (6%, small buttons)
+## and an up arrow, each in a square cell, white (tinted when drawn).
+func _make_atlas() -> ImageTexture:
+	var cell := int(ATLAS_CELL)
+	var img := Image.create(cell * 4, cell, false, Image.FORMAT_RGBA8)
+	var half := cell * 0.5
+	for y in cell:
+		for x in cell:
+			var d := Vector2(x + 0.5 - half, y + 0.5 - half).length()
+			var disc := clampf(half - 1.0 - d, 0.0, 1.0)
+			var thin := clampf(1.0 - absf(d - (half - 1.0 - half * 0.035)) / (half * 0.035), 0.0, 1.0)
+			var thick := clampf(1.0 - absf(d - (half - 1.0 - half * 0.065)) / (half * 0.065), 0.0, 1.0)
+			img.set_pixel(x, y, Color(1, 1, 1, disc))
+			img.set_pixel(cell + x, y, Color(1, 1, 1, clampf(thin * 1.6, 0.0, 1.0)))
+			img.set_pixel(cell * 2 + x, y, Color(1, 1, 1, clampf(thick * 1.6, 0.0, 1.0)))
+			# Arrow: a triangle head over a shaft, in the cell's -1..1 square.
+			var p := Vector2(x + 0.5 - half, y + 0.5 - half) / half
+			var head := p.y <= 0.0 and p.y >= -1.0 and absf(p.x) <= (p.y + 1.0) * 0.8
+			var shaft := p.y >= 0.0 and p.y <= 0.8 and absf(p.x) <= 0.28
+			img.set_pixel(cell * 3 + x, y, Color(1, 1, 1, 1.0 if head or shaft else 0.0))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 
 ## A slide ended: the crouch toggle that started it goes off, so the run goes on.
@@ -429,7 +515,7 @@ func drop_crouch() -> void:
 	if _crouch:
 		_crouch = false
 		Input.action_release("crouch")
-		_canvas.queue_redraw()
+		_redraw()
 
 
 func _release_all() -> void:
@@ -465,7 +551,7 @@ func _edit_input(event: InputEvent) -> void:
 				else:
 					_editing = false
 					Settings.save_settings()
-					_canvas.queue_redraw()
+					_redraw()
 				return
 		var to_stick: float = event.position.distance_to(_stick_center)
 		var to_jump: float = event.position.distance_to(_jump_pos)

@@ -105,7 +105,13 @@ Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is availab
   Intact pieces are drawn as MultiMesh batches (plain boxes: one unit cube scaled and
   tinted per instance), so a building is a few draw calls; check `--perf` draw counts
   after adding pieces. Shaders on batched boxes must read the piece size from
-  `MODEL_MATRIX` scale, not from `VERTEX`.
+  `MODEL_MATRIX` scale, not from `VERTEX`. Each batch is culled with its own box
+  (`_batch_boxes`: its pieces as built plus `BATCH_MARGIN`), which `_process` grows
+  when a loose piece reaches out of it; a structure behind the camera isn't drawn
+  (every box used to be grown by 60 m, so nothing was ever culled). New batches, and
+  all of them after a quality change (`uncull()`), are drawn whole for
+  `UNCULLED_FRAMES` so their shaders compile during the load, not when a building
+  first comes into view.
 - Fire: `Structure.ignite(center, radius)` sets pieces burning; each structure spreads
   it on its own 0.5 s tick through the piece links (up easily, sideways, down slowly),
   chars pieces (instance color, or the building shader's `INSTANCE_CUSTOM.r` with glowing
@@ -330,6 +336,19 @@ skip expensive parts. Never scale the 3D render below the screen: the user does 
 want a pixelated picture. The web page (`export_presets.cfg` head include) caps
 `devicePixelRatio` at 2, still sharp on phones but less than half the pixels of a 3x
 screen; Ayarlar "Tam çözünürlük" (web) lifts it via localStorage `nd_sharp`. New expensive shader work needs a cheap path under `quality`.
+Düşük lights everything per vertex (no shadows there, so flat faces look the same):
+the building, ground and window shaders live in `.gdshaderinc` files wrapped twice
+(`building.gdshader` / `building_lite.gdshader` with `render_mode vertex_lighting`,
+same for ground and window), and `Look.apply_quality()` (from main's `_apply_quality`)
+swaps the cached materials' shaders and sets StandardMaterial3D surfaces to
+`SHADING_MODE_PER_VERTEX`; new Look materials must follow `Look.lite`. The sea uses
+`sea_lite.gdshader` there (unshaded, `LITE` in water.gdshaderinc: two ripples, light
+worked out in the shader); the sky drops the Milky Way on Düşük and draws the aurora
+with 2 layers there, 3 on Orta, 7 on Yüksek; debris chunks last `LOW_LIFETIME`.
+Touch controls draw every disc, ring and arrow from one generated atlas texture
+(`touch_controls.gd` `_make_atlas`, helpers `_disc`/`_ring`/`_arrow`/`_bar`), in three
+passes (shapes, text outlines, text) so the whole layer is three draw calls; a
+`draw_circle`/`draw_arc` there is one draw call each (they were 43).
 Software rendering under xvfb is slow but its FPS (`--perf`) still compares costs.
 
 ## Checking changes

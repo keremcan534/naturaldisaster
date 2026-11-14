@@ -12,6 +12,7 @@ const Look := preload("res://scripts/world/look.gd")
 const Quality := preload("res://scripts/core/quality.gd")
 const SKY_SHADER := preload("res://shaders/sky.gdshader")
 const SEA_SHADER := preload("res://shaders/sea.gdshader")
+const SEA_LITE_SHADER := preload("res://shaders/sea_lite.gdshader")
 
 const SEA_LEVEL := -2.5
 const BLEND_TIME := 4.0
@@ -256,7 +257,7 @@ func _ready() -> void:
 	var sea := MeshInstance3D.new()
 	_sea = sea
 	var mat := ShaderMaterial.new()
-	mat.shader = SEA_SHADER
+	mat.shader = SEA_LITE_SHADER if Quality.level == 0 else SEA_SHADER
 	mat.set_shader_parameter("noise", Look.noise_texture())
 	sea.mesh = _sea_mesh()
 	sea.material_override = mat
@@ -297,6 +298,8 @@ func _ready() -> void:
 
 ## Shadows, glow and rain density for a quality level (see quality.gd).
 func apply_quality(q: Dictionary) -> void:
+	# Low quality: the cheaper sea (simple lighting worked out in the shader).
+	(_sea.material_override as ShaderMaterial).shader = SEA_LITE_SHADER if Quality.level == 0 else SEA_SHADER
 	_sun.shadow_enabled = q.shadows > 0
 	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS if q.shadows > 1 \
 			else DirectionalLight3D.SHADOW_ORTHOGONAL
