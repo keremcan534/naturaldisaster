@@ -2,6 +2,8 @@
 //   SEA      long Gerstner swells (height from the weather), foam lapping at the island
 //   TSUNAMI  a breaking wave front moving along local +X (see tsunami.gd)
 //   CLEAR    see-through (floods)
+//   LITE     low quality (with `render_mode unshaded`): two ripples instead of four
+//            and simple lighting worked out here instead of the engine's
 //   (none)   a pool: calm, with a tiled floor seen through the water
 // The look is mostly what water really shows: the sky (with its clouds) mirrored
 // by a fresnel term, a sharp sun glint, and a dark body that turns turquoise where
@@ -117,7 +119,11 @@ vec2 ripple_slope(vec2 p) {
 	vec2 slope = vec2(0.0);
 	vec2 dirs[4] = vec2[](vec2(0.8, 0.6), vec2(-0.6, 0.8), vec2(0.96, -0.28), vec2(-0.3, -0.95));
 	float lengths[4] = float[](3.1, 2.3, 1.7, 1.15);
+#ifdef LITE
+	for (int i = 0; i < 2; i++) {
+#else
 	for (int i = 0; i < 4; i++) {
+#endif
 		float k = 6.2832 / lengths[i];
 		float phase = k * dot(dirs[i], q) - sqrt(9.8 * k) * TIME;
 		slope += dirs[i] * cos(phase) * k * 0.012;
@@ -172,8 +178,12 @@ void fragment() {
 	fresnel *= 0.8;
 #endif
 
-	// Foam: whitecaps and, on the sea, lines lapping onto the island.
-	float bubbles = texture(noise, p * 0.35 + vec2(TIME * 0.03, 0.0)).r * 0.6 + texture(noise, p * 1.3 - vec2(0.0, TIME * 0.05)).r * 0.4;
+	// Foam: whitecaps and, on the sea, lines lapping onto the island. The bubble
+	// noise is only read where there can be foam (most of the sea has none).
+	float bubbles = 0.0;
+	if (foam_amount >= 0.02 || shore < 6.0) {
+		bubbles = texture(noise, p * 0.35 + vec2(TIME * 0.03, 0.0)).r * 0.6 + texture(noise, p * 1.3 - vec2(0.0, TIME * 0.05)).r * 0.4;
+	}
 	float foam = smoothstep(0.55, 0.85, foam_amount * 0.7 + bubbles * 0.5) * step(0.02, foam_amount);
 #ifdef SEA
 	float lap = sin(shore * 1.4 - TIME * 1.6 + bubbles * 3.0) * 0.5 + 0.5;
@@ -181,10 +191,18 @@ void fragment() {
 	foam = max(foam, shore_foam * 0.9);
 #endif
 
+#ifdef LITE
+	// Unshaded: the sun and the sky's light on the water body and foam, worked
+	// out here (the engine's full light pass is the costly part of the sea).
+	float sun_light = max(dot(n, sun_dir), 0.0) * 0.32;
+	vec3 lit = sun_color.rgb * sun_light + mix(sky_horizon.rgb, sky_top.rgb, 0.4) * 0.55;
+	ALBEDO = mix(body * (1.0 - fresnel), foam_color, foam) * lit + (sky * fresnel + glint) * (1.0 - foam);
+#else
 	ALBEDO = mix(body * (1.0 - fresnel), foam_color, foam);
 	EMISSION = (sky * fresnel + glint) * (1.0 - foam);
 	ROUGHNESS = mix(0.25, 0.9, foam);
 	SPECULAR = 0.0;
+#endif
 #ifdef CLEAR
 	ALPHA = mix(alpha, 1.0, max(fresnel, foam));
 #endif

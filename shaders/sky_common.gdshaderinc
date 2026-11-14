@@ -47,22 +47,28 @@ vec3 sky_stars(vec3 d, float time) {
 		vec3 star_color = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.9, 0.75), fract(h * 97.0));
 		col += star_color * smoothstep(0.32, 0.0, r) * (0.8 + bright * 3.5) * twinkle;
 	}
-	vec3 band_normal = normalize(vec3(0.35, 0.55, 0.76));
-	float band = exp(-pow(dot(d, band_normal), 2.0) * 22.0);
-	float dust = texture(noise, d.xz / (d.y + 1.2) * 1.6).r;
-	col += vec3(0.55, 0.6, 0.85) * band * smoothstep(0.3, 0.8, dust) * 0.25;
+	// The Milky Way band: skipped on low quality.
+	if (quality > 0.5) {
+		vec3 band_normal = normalize(vec3(0.35, 0.55, 0.76));
+		float band = exp(-pow(dot(d, band_normal), 2.0) * 22.0);
+		float dust = texture(noise, d.xz / (d.y + 1.2) * 1.6).r;
+		col += vec3(0.55, 0.6, 0.85) * band * smoothstep(0.3, 0.8, dust) * 0.25;
+	}
 	return col * smoothstep(0.0, 0.15, d.y);
 }
 
 // Curtains of light: two arcs across the northern sky, each drawn as a few
-// stacked layers of a wavy band with vertical rays.
+// stacked layers of a wavy band with vertical rays (seven on high quality, three
+// on medium, two on low: seven were a fifth of a night frame on phones).
 vec3 sky_aurora(vec3 d, float time) {
 	if (d.y < 0.03) {
 		return vec3(0.0);
 	}
 	vec3 col = vec3(0.0);
-	for (int i = 0; i < 7; i++) {
-		float layer = float(i) / 7.0;
+	float weight = 0.0;
+	int layers = quality > 1.5 ? 7 : (quality > 0.5 ? 3 : 2);
+	for (int i = 0; i < layers; i++) {
+		float layer = float(i) / float(layers);
 		vec2 p = d.xz / (d.y + 0.15) * (0.5 + layer * 0.1);
 		float wave = sin(p.x * 0.8 + time * 0.12 + sin(p.x * 0.33 - time * 0.07) * 2.5) * 0.5;
 		float band = exp(-pow((p.y + 0.9 - wave) * 4.5, 2.0)) + exp(-pow((p.y + 0.15 - wave * 0.7) * 5.5, 2.0)) * 0.6;
@@ -70,8 +76,11 @@ vec3 sky_aurora(vec3 d, float time) {
 		float a = band * smoothstep(0.35, 0.75, rays);
 		vec3 c = mix(vec3(0.12, 1.0, 0.45), vec3(0.6, 0.22, 1.0), layer * layer);
 		col += c * a * (1.0 - layer * 0.65);
+		weight += 1.0 - layer * 0.65;
 	}
-	return col * 0.22 * smoothstep(0.03, 0.3, d.y);
+	// Fewer layers below high quality: each one brighter, so the whole is as bright
+	// as the seven (whose weights add up to 5.05).
+	return col * 0.22 * (5.05 / weight) * smoothstep(0.03, 0.3, d.y);
 }
 
 

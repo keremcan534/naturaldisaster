@@ -205,4 +205,5 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - 💡 Daha küçük motor: kullanılmayan modülleri çıkarılmış özel web şablonu (indirmeyi ~%30 azaltır, derlemesi uzun)
 - ✅ Enkaz tek çizimde, parçacıklar birbirine çarpmaz, fizik interpolasyonu (akıcılık), shader ısınması
 - ✅ Düşük kalitede: 30 Hz fizik, daha az enkaz parçası (kırılma başına en çok 9), daha az alev ve duman sütunu (telefonda en pahalısı üst üste binen yarı saydam katmanlar), alev shader'ında tek gürültü okuması
+- ✅ Düşük kalitede ışık köşe başına hesaplanır (binalar, zemin, camlar, eşyalar; gölge olmadığı için görüntü aynı kalır), denizin hafif sürümü, gece gökyüzünde Samanyolu yok, kutup ışığı 7 yerine 2 katman (Orta'da 3), enkaz daha kısa yaşar; dokunmatik tuşlar tek dokudan 3 çizimde (önceden 43); kameranın görmediği binalar artık hiç çizilmez
 - ✅ Otomatik test (`--selftest`): her felaket ayrı bir haritada çalışır, durağan haldeyken düşen parça varsa söyler

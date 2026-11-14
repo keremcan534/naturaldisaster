@@ -14,6 +14,7 @@ const Quality := preload("res://scripts/core/quality.gd")
 ## Chunks per chaos budget point (see quality.gd): fewer on slow phones.
 const POOL_PER_CHAOS := 0.8
 const LIFETIME := 6.5
+const LOW_LIFETIME := 4.5
 const SHRINK_TIME := 1.0
 const MAX_CHUNKS := 14
 ## Target chunk edge (m) for walls and slabs, and for glass.
@@ -133,6 +134,12 @@ func shatter(xform: Transform3D, size: Vector3, color: Color, velocity: Vector3,
 				_spawn(Transform3D(xform.basis, center), chunk_size, glass, tint, v)
 
 
+## How long a chunk lasts: shorter on low quality (fewer bodies for physics
+## to carry at once on slow phones).
+static func _lifetime() -> float:
+	return LIFETIME if Quality.level > 0 else LOW_LIFETIME
+
+
 ## Puts every chunk away (a new map is loading).
 func clear() -> void:
 	for i in _bodies.size():
@@ -146,7 +153,7 @@ func _physics_process(delta: float) -> void:
 		if _born[i] < 0.0:
 			continue
 		var age := _time - _born[i]
-		if age > LIFETIME or _bodies[i].global_position.y < -30.0:
+		if age > _lifetime() or _bodies[i].global_position.y < -30.0:
 			_park(i)
 	Prof.end("debris_phys", _p)
 
@@ -165,7 +172,7 @@ func _process(_delta: float) -> void:
 			solid += 1
 		var body := _bodies[i]
 		var age := _time - _born[i]
-		var shrink := clampf((LIFETIME - age) / SHRINK_TIME, 0.01, 1.0)
+		var shrink := clampf((_lifetime() - age) / SHRINK_TIME, 0.01, 1.0)
 		var t := body.get_global_transform_interpolated()
 		var mm := _shards if _glass[i] else _solid
 		mm.set_instance_transform(i, Transform3D(t.basis * Basis.from_scale(_sizes[i] * shrink), t.origin))

@@ -23,6 +23,7 @@ const Warmup := preload("res://scripts/core/warmup.gd")
 const Rehearsal := preload("res://scripts/core/rehearsal.gd")
 const Sound := preload("res://scripts/core/sound.gd")
 const Structure := preload("res://scripts/world/structure.gd")
+const Look := preload("res://scripts/world/look.gd")
 const Settings := preload("res://scripts/core/settings.gd")
 const Profile := preload("res://scripts/core/profile.gd")
 const Progress := preload("res://scripts/core/progress.gd")
@@ -438,6 +439,9 @@ func set_quality(level: int, auto: bool) -> void:
 
 func _apply_quality() -> void:
 	Quality.apply_viewport(get_viewport())
+	Look.apply_quality(Quality.level)
+	# Every building drawn once with its new shaders (compiled now, all at once).
+	get_tree().call_group("structures", "uncull")
 	# Low quality: physics (and everything run in its steps: bots, collapses,
 	# disasters' pushes) 30 times a second instead of 60. Moving things are drawn
 	# between steps (physics interpolation), so motion stays smooth.
