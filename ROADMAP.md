@@ -197,7 +197,8 @@ Sıralama kabaca "etki / emek" oranına göre: üstteki maddeler daha önce yap�
 - ✅ Kalite seviyeleri + otomatik kalite, MultiMesh çizimi, havuzlama
 - ✅ Web hata kutusu
 - ✅ Yayın düzeni: site sadece main'den yayınlanır; geliştirme dallarda yapılır, PR birleşince oyunculara gider (bir dalı denemek için iş akışı elle çalıştırılabilir)
-- 💡 ⭐ PWA (ana ekrana ekle, çevrimdışı): yayın sürümünde açılacak; şimdi açılırsa telefon eski sürümü önbellekten gösterir
+- ✅ ⭐ PWA: ana ekrana eklenebilir (tam ekran, yatay), internet yokken de açılır; internet varken hep en yeni sürüm gelir
+- ✅ Oyunun kendi yükleme ekranı (logo, başlık, turuncu çubuk); sürüm yazısı oyun içinden kalktı (ana menü köşesi ve Ayarlar'da)
 - 🚧 ⭐ Android: APK iş akışı hazır (GitHub > Actions > Build Android APK > Run workflow, APK'yı indirip telefona kur); 🔒 Google Play için geliştirici hesabı ve imza anahtarı
 - 🔒 iOS sürümü: Mac ve Apple geliştirici hesabı lazım
 - ✅ Daha hızlı açılış: motor dosyası (10 MB) telefonda saklanır, güncellemelerden sonra yeniden inmez; menü önce gelir, shader ısınması arkadan yayılarak yapılır

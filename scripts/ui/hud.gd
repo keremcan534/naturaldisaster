@@ -21,6 +21,7 @@ var _center: Label
 var _health: ProgressBar
 var _health_fill: StyleBoxFlat
 var _fps: Label
+var _version: Label
 var _fps_timer := 0.0
 var _perf: Label
 ## Longest frame (ms) since the last readout, and their average.
@@ -148,12 +149,15 @@ func _ready() -> void:
 	add_child(_health)
 	_set_health(100, 100)
 
-	var version := _label(12)
-	version.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	version.offset_left = 22
-	version.offset_top = 48
-	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	version.text = "v " + BuildInfo.VERSION
+	# The build label: only with the performance readout (players don't need it;
+	# the main menu's corner and Ayarlar show it too).
+	_version = _label(12)
+	_version.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	_version.offset_left = 22
+	_version.offset_top = 48
+	_version.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_version.text = "v " + BuildInfo.VERSION
+	_version.visible = false
 
 	_fps = _label(12)
 	_fps.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
@@ -508,6 +512,7 @@ func _build_board() -> PanelContainer:
 func _update_perf() -> void:
 	_perf.visible = Settings.perf_overlay
 	_fps.visible = Settings.perf_overlay
+	_version.visible = Settings.perf_overlay
 	if not _perf.visible or _frames == 0:
 		_worst = 0.0
 		_frame_sum = 0.0

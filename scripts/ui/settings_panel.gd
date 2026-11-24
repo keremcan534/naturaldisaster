@@ -154,6 +154,9 @@ func _ready() -> void:
 		_quality_buttons.append(choice)
 	box.add_child(choices)
 
+	var build := Ui.text(Lang.t("Sürüm: %s") % preload("res://scripts/core/build_info.gd").VERSION, 15, Color(1, 1, 1, 0.55))
+	build.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	outer.add_child(build)
 	var close := Ui.button("Kapat", 24, true)
 	close.pressed.connect(func() -> void: closed.emit())
 	outer.add_child(close)
