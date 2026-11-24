@@ -256,6 +256,7 @@ const EN := {
 	"Koşarken ayaklarından toz kalkar": "Dust kicks up from your feet as you run",
 	"Koşarken arkanda koyu bir duman kalır": "A dark smoke trails behind you as you run",
 	"Koşarken arkandan kor taneleri savrulur": "Embers fly off behind you as you run",
+	"Sürüm: %s": "Version: %s",
 	# Bunker doors.
 	"SIĞINAK KAPISI KAPANIYOR": "BUNKER DOOR CLOSING",
 	"Beton sığınağın çelik kapısı 10 saniye sonra kilitlenecek": "The concrete bunker's steel door locks in 10 seconds",

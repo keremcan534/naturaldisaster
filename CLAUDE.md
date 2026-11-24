@@ -14,9 +14,9 @@ run of the workflow, which deploys whatever branch it is run on). Work on a bran
 change is done and checked, commit and push it to the branch and keep its pull request
 up to date without waiting to be asked; it reaches the phone once the user merges it (or
 asks for it to be merged). After a deploy, tell the user the build takes about 3 minutes
-and that the version label under the health bar (`<commit> <time>`) shows which build
-their phone has loaded. If the phone shows an old label, a refresh fixes it (Pages caches
-for ~10 minutes).
+and that the version label (`<commit> <time>`, in the main menu's bottom-right corner and
+at the bottom of Ayarlar; in game only with the performance readout) shows which build
+their phone has loaded. If the phone shows an old label, a refresh fixes it.
 
 Check the run with `gh run list --limit 1` / `gh run watch` when `gh` is available.
 
@@ -318,8 +318,12 @@ locks landscape on the first touch (Android; iPhones can't be turned by a page),
 "Telefonu yan çevir" card while a touch screen is held upright, and registers `web/sw.js`
 (copied next to the export by the workflow, which stamps the Godot version into
 `sw.js?v=__ENGINE__`): it keeps the engine files (index.wasm/js, ~10 MB) cached between
-deploys, since Pages gives every deploy new ETags; the page and the .pck always come from
-the network. The main menu starts the shader warm-up `WARM_DELAY` after it appears (or on
+deploys, since Pages gives every deploy new ETags; the page, the .pck and the icons always
+come from the network (revalidated, so a deploy shows at once) and a copy is kept only for
+opening offline. `web/manifest.webmanifest` + `web/icon-192/512.png` (rendered from
+icon.svg) make it installable (fullscreen, landscape); Godot's own PWA export stays off.
+The loading screen is the head include's CSS over Godot's shell (dark gradient, the
+boot splash `assets/splash.png`, "DOĞAL AFET" title, orange progress bar). The main menu starts the shader warm-up `WARM_DELAY` after it appears (or on
 OYNA), one disaster per frame, so the menu answers at once.
 
 `scripts/core/quality.gd` has three levels (Düşük/Orta/Yüksek) plus auto mode, which
